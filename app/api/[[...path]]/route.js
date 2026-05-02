@@ -1,9 +1,60 @@
 import { NextResponse } from 'next/server'
+import Stripe from 'stripe'
 import { store, uuidv4 } from '@/lib/mock-store'
 import { getSupabaseServer, getServerSupabaseConfig } from '@/lib/supabase/server'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+const stripe = new Stripe(process.env.STRIPE_API_KEY || 'sk_test_emergent', { apiVersion: '2024-06-20' })
+
 const json = (data, init = {}) => NextResponse.json(data, init)
 const err = (msg, status = 400) => NextResponse.json({ error: msg }, { status })
+
+async function getLaunch(id) {
+  const sb = getSupabaseServer()
+  if (sb) {
+    const { data } = await sb.from('launches').select('*').eq('id', id).maybeSingle()
+    return data
+  }
+  return store.launches.get(id) || null
+}
+
+async function insertReservation(row) {
+  const sb = getSupabaseServer()
+  if (sb) {
+    const { data, error } = await sb.from('reservations').insert(row).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  }
+  const full = { id: uuidv4(), created_at: new Date().toISOString(), ...row }
+  store.reservations.push(full)
+  return full
+}
+
+async function getReservationBySession(sessionId) {
+  const sb = getSupabaseServer()
+  if (sb) {
+    const { data } = await sb.from('reservations').select('*').eq('stripe_session_id', sessionId).maybeSingle()
+    return data
+  }
+  return store.reservations.find(x => x.stripe_session_id === sessionId) || null
+}
+
+async function updateReservationStatusIfPending(sessionId, newStatus) {
+  const sb = getSupabaseServer()
+  if (sb) {
+    const existing = await getReservationBySession(sessionId)
+    if (!existing || existing.status !== 'pending') return existing
+    const { data } = await sb.from('reservations').update({ status: newStatus }).eq('stripe_session_id', sessionId).select().single()
+    return data
+  }
+  const r = store.reservations.find(x => x.stripe_session_id === sessionId)
+  if (!r) return null
+  if (r.status !== 'pending') return r
+  r.status = newStatus
+  return r
+}
 
 function getUserIdFromHeaders(req) {
   // For mock mode: client passes X-User-Id header (we don't enforce real auth in mock)
@@ -69,6 +120,32 @@ export async function GET(request, { params }) {
     }
     const entries = store.waitlist.filter(w => w.launch_id === id)
     return json({ entries, count: entries.length })
+  }
+
+  // GET /api/payments/checkout/status/[session_id]
+  if (path.startsWith('payments/checkout/status/')) {
+    const sessionId = path.replace('payments/checkout/status/', '')
+    if (!sessionId) return err('session_id required')
+    try {
+      const session = await stripe.checkout.sessions.retrieve(sessionId)
+      // Update reservation if paid (idempotent)
+      if (session.payment_status === 'paid') {
+        await updateReservationStatusIfPending(sessionId, 'held')
+      } else if (session.status === 'expired') {
+        await updateReservationStatusIfPending(sessionId, 'cancelled')
+      }
+      const reservation = await getReservationBySession(sessionId)
+      return json({
+        status: session.status,                  // open | complete | expired
+        payment_status: session.payment_status,  // unpaid | paid | no_payment_required
+        amount_total: session.amount_total,
+        currency: session.currency,
+        metadata: session.metadata || {},
+        reservation,
+      })
+    } catch (e) {
+      return err(e.message || 'stripe error', 500)
+    }
   }
 
   return err('not found', 404)
@@ -147,20 +224,65 @@ export async function POST(request, { params }) {
     return json({ entry })
   }
 
-  // POST /api/launches/[id]/reserve  -> Stripe placeholder
+  // POST /api/launches/[id]/reserve  -> Real Stripe Checkout Session
+  // body: { email, origin_url }
   if (path.match(/^launches\/[^/]+\/reserve$/)) {
     const id = path.split('/')[1]
-    const { email, amount_cents } = body
+    const { email, origin_url } = body
     if (!email) return err('email required')
-    const reservation = { id: uuidv4(), launch_id: id, email, amount_cents: amount_cents || 0, status: 'held', stripe_session_id: 'placeholder_' + uuidv4(), created_at: new Date().toISOString() }
-    const sb = getSupabaseServer()
-    if (sb) {
-      const { data, error } = await sb.from('reservations').insert(reservation).select().single()
-      if (error) return err(error.message, 500)
-      return json({ reservation: data, checkout_url: '#stripe-placeholder' })
+    if (!origin_url) return err('origin_url required')
+
+    const launch = await getLaunch(id)
+    if (!launch) return err('launch not found', 404)
+    if (!launch.reservation_enabled) return err('reservations not enabled for this launch', 400)
+    const amountCents = Number(launch.reservation_hold_cents) || 0
+    if (amountCents < 50) return err('reservation amount too low', 400)
+
+    // Build URLs from frontend's origin (never hardcode)
+    const success_url = `${origin_url}/l/${launch.handle}?session_id={CHECKOUT_SESSION_ID}`
+    const cancel_url = `${origin_url}/l/${launch.handle}?cancelled=1`
+
+    let session
+    try {
+      session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `Reservation hold — ${launch.title}`,
+              description: `Refundable hold to reserve your slot for ${launch.title}.`,
+            },
+            unit_amount: amountCents, // server-defined, never trust client
+          },
+          quantity: 1,
+        }],
+        customer_email: email,
+        success_url,
+        cancel_url,
+        metadata: {
+          launch_id: String(launch.id),
+          launch_handle: launch.handle,
+          email,
+          source: 'dropvine_reservation',
+        },
+      })
+    } catch (e) {
+      console.error('[stripe] create session failed:', e.message)
+      return err('stripe error: ' + e.message, 500)
     }
-    store.reservations.push(reservation)
-    return json({ reservation, checkout_url: '#stripe-placeholder' })
+
+    // Persist reservation BEFORE redirecting (mandatory per playbook)
+    const reservation = await insertReservation({
+      launch_id: launch.id,
+      email,
+      amount_cents: amountCents,
+      stripe_session_id: session.id,
+      status: 'pending',
+    })
+
+    return json({ url: session.url, session_id: session.id, reservation })
   }
 
   return err('not found', 404)

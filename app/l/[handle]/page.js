@@ -1,21 +1,25 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Countdown } from '@/components/dropvine/countdown'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { ArrowRight, Lock } from 'lucide-react'
+import { ArrowRight, Lock, Check } from 'lucide-react'
 
 export default function PublicLaunchPage() {
   const { handle } = useParams()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [launch, setLaunch] = useState(null)
   const [loading, setLoading] = useState(true)
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [joined, setJoined] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [reserving, setReserving] = useState(false)
+  const [reservationStatus, setReservationStatus] = useState(null) // 'pending' | 'held' | 'cancelled'
 
   useEffect(() => {
     const load = async () => {
@@ -28,6 +32,41 @@ export default function PublicLaunchPage() {
     }
     if (handle) load()
   }, [handle])
+
+  // Handle return from Stripe
+  useEffect(() => {
+    const sessionId = searchParams.get('session_id')
+    const cancelled = searchParams.get('cancelled')
+    if (cancelled) {
+      toast.error('Reservation cancelled.')
+      router.replace(`/l/${handle}`)
+      return
+    }
+    if (!sessionId) return
+    setReservationStatus('pending')
+    let attempts = 0
+    const maxAttempts = 8
+    const tick = async () => {
+      attempts += 1
+      try {
+        const r = await fetch(`/api/payments/checkout/status/${sessionId}`)
+        const d = await r.json()
+        if (d.payment_status === 'paid') {
+          setReservationStatus('held')
+          toast.success('Reservation confirmed.')
+          return
+        }
+        if (d.status === 'expired') {
+          setReservationStatus('cancelled')
+          toast.error('Checkout expired.')
+          return
+        }
+      } catch {}
+      if (attempts < maxAttempts) setTimeout(tick, 2000)
+      else { setReservationStatus('pending'); toast.message('Still processing — check your email shortly.') }
+    }
+    tick()
+  }, [searchParams, handle, router])
 
   const isLive = useMemo(() => launch ? new Date(launch.launch_at) <= new Date() : false, [launch])
 
@@ -48,13 +87,20 @@ export default function PublicLaunchPage() {
 
   const reserve = async () => {
     if (!launch || !email) return toast.error('Enter your email first.')
-    const r = await fetch(`/api/launches/${launch.id}/reserve`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, amount_cents: launch.reservation_hold_cents }),
-    })
-    const d = await r.json()
-    if (!r.ok) return toast.error(d.error || 'Failed')
-    toast.success('Reservation held — (Stripe placeholder)')
+    setReserving(true)
+    try {
+      const r = await fetch(`/api/launches/${launch.id}/reserve`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, origin_url: window.location.origin }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || 'Failed')
+      // Redirect to Stripe Checkout
+      window.location.href = d.url
+    } catch (e) {
+      toast.error(e.message)
+      setReserving(false)
+    }
   }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground text-sm">Loading…</div>
@@ -146,11 +192,24 @@ export default function PublicLaunchPage() {
                 {launch.reservation_enabled && launch.reservation_hold_cents > 0 && (
                   <div className="mt-8 pt-8 border-t border-border">
                     <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Or reserve a slot</div>
-                    <p className="text-sm text-muted-foreground mb-4">Place a refundable hold of <strong className="text-foreground">${(launch.reservation_hold_cents/100).toFixed(2)}</strong> to secure your spot.</p>
-                    <button onClick={reserve} className="w-full border border-foreground h-12 text-sm hover:bg-foreground hover:text-background transition-colors inline-flex items-center justify-center gap-2">
-                      <Lock className="h-3.5 w-3.5" /> Reserve via Stripe
-                    </button>
-                    <p className="text-[11px] text-muted-foreground mt-2">Stripe placeholder — no charge in this demo.</p>
+                    {reservationStatus === 'held' ? (
+                      <div className="flex items-start gap-3 border border-foreground p-4 bg-foreground text-background">
+                        <Check className="h-4 w-4 mt-0.5 shrink-0" />
+                        <div className="text-sm leading-relaxed">
+                          Reservation confirmed — your slot is held for this drop. Check your inbox for the receipt.
+                        </div>
+                      </div>
+                    ) : reservationStatus === 'pending' ? (
+                      <div className="border border-border p-4 text-sm text-muted-foreground">Confirming your reservation…</div>
+                    ) : (
+                      <>
+                        <p className="text-sm text-muted-foreground mb-4">Place a refundable hold of <strong className="text-foreground">${(launch.reservation_hold_cents/100).toFixed(2)}</strong> via Stripe to secure your spot.</p>
+                        <button onClick={reserve} disabled={reserving} className="w-full border border-foreground h-12 text-sm hover:bg-foreground hover:text-background transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50">
+                          <Lock className="h-3.5 w-3.5" /> {reserving ? 'Redirecting to Stripe…' : 'Reserve via Stripe'}
+                        </button>
+                        <p className="text-[11px] text-muted-foreground mt-2">Secure checkout by Stripe.</p>
+                      </>
+                    )}
                   </div>
                 )}
               </>
