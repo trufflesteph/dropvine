@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { store, uuidv4 } from '@/lib/mock-store'
-import { getSupabaseServer, getServerSupabaseConfig } from '@/lib/supabase/server'
+import { getSupabaseServer, getSupabaseAdmin, getServerSupabaseConfig } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,7 +12,7 @@ const json = (data, init = {}) => NextResponse.json(data, init)
 const err = (msg, status = 400) => NextResponse.json({ error: msg }, { status })
 
 async function getLaunch(id) {
-  const sb = getSupabaseServer()
+  const sb = getSupabaseAdmin() || getSupabaseServer()
   if (sb) {
     const { data } = await sb.from('launches').select('*').eq('id', id).maybeSingle()
     return data
@@ -21,11 +21,17 @@ async function getLaunch(id) {
 }
 
 async function insertReservation(row) {
-  const sb = getSupabaseServer()
+  const sb = getSupabaseAdmin()
   if (sb) {
-    const { data, error } = await sb.from('reservations').insert(row).select().single()
+    const id = uuidv4()
+    const full = { id, ...row }
+    const { error } = await sb.from('reservations').insert(full)
     if (error) throw new Error(error.message)
-    return data
+    return { ...full, created_at: new Date().toISOString() }
+  }
+  if (getServerSupabaseConfig().configured) {
+    // Real Supabase configured but no admin key — should never happen if .env is set right
+    throw new Error('Supabase admin client unavailable; SUPABASE_SERVICE_ROLE_KEY not set')
   }
   const full = { id: uuidv4(), created_at: new Date().toISOString(), ...row }
   store.reservations.push(full)
@@ -33,7 +39,7 @@ async function insertReservation(row) {
 }
 
 async function getReservationBySession(sessionId) {
-  const sb = getSupabaseServer()
+  const sb = getSupabaseAdmin()
   if (sb) {
     const { data } = await sb.from('reservations').select('*').eq('stripe_session_id', sessionId).maybeSingle()
     return data
@@ -42,11 +48,11 @@ async function getReservationBySession(sessionId) {
 }
 
 async function updateReservationStatusIfPending(sessionId, newStatus) {
-  const sb = getSupabaseServer()
+  const sb = getSupabaseAdmin()
   if (sb) {
     const existing = await getReservationBySession(sessionId)
     if (!existing || existing.status !== 'pending') return existing
-    const { data } = await sb.from('reservations').update({ status: newStatus }).eq('stripe_session_id', sessionId).select().single()
+    const { data } = await sb.from('reservations').update({ status: newStatus }).eq('stripe_session_id', sessionId).select().maybeSingle()
     return data
   }
   const r = store.reservations.find(x => x.stripe_session_id === sessionId)

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { store } from '@/lib/mock-store'
-import { getSupabaseServer, getServerSupabaseConfig } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -9,13 +9,13 @@ export const dynamic = 'force-dynamic'
 const stripe = new Stripe(process.env.STRIPE_API_KEY || 'sk_test_emergent', { apiVersion: '2024-06-20' })
 
 async function markReservationStatus(stripeSessionId, status) {
-  const sb = getSupabaseServer()
+  const sb = getSupabaseAdmin()
   if (sb) {
-    // Only update if currently pending — idempotency guard
+    // Idempotency: only flip if currently pending
     const { data: existing } = await sb.from('reservations').select('*').eq('stripe_session_id', stripeSessionId).maybeSingle()
     if (!existing) return null
     if (existing.status !== 'pending') return existing
-    const { data } = await sb.from('reservations').update({ status }).eq('stripe_session_id', stripeSessionId).select().single()
+    const { data } = await sb.from('reservations').update({ status }).eq('stripe_session_id', stripeSessionId).select().maybeSingle()
     return data
   }
   const r = store.reservations.find(x => x.stripe_session_id === stripeSessionId)
