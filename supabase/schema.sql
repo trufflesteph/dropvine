@@ -23,9 +23,11 @@ create table if not exists public.launches (
   price_cents integer default 0,
   reservation_enabled boolean default false,
   reservation_hold_cents integer default 0,
+  capacity integer,
   status text not null default 'draft' check (status in ('draft','published','archived')),
   created_at timestamptz not null default now()
 );
+alter table public.launches add column if not exists capacity integer;
 create index if not exists launches_creator_idx on public.launches(creator_id);
 create index if not exists launches_handle_idx on public.launches(handle);
 create index if not exists launches_status_idx on public.launches(status);

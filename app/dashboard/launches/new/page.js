@@ -31,6 +31,7 @@ export default function NewLaunchPage() {
     description: '',
     launch_at: tomorrow,
     price_cents: 0,
+    capacity: '',
     reservation_enabled: false,
     reservation_hold_cents: 5000,
     status: 'published',
@@ -138,9 +139,12 @@ export default function NewLaunchPage() {
         )}
 
         {step === 3 && (
-          <Section eyebrow="Step 04" title="Commerce" subtitle="Pricing and reservation behaviour. Stripe integration is placeholder.">
+          <Section eyebrow="Step 04" title="Commerce" subtitle="Pricing, capacity, and reservation behaviour.">
             <Field label="List price (USD)" hint="Shown on page. Set 0 to hide.">
               <Input type="number" min={0} step="1" value={(form.price_cents / 100) || ''} onChange={e => set('price_cents', Math.round(Number(e.target.value) * 100))} placeholder="480" className="h-12 rounded-none" />
+            </Field>
+            <Field label="Capacity" hint="Total spots available. Leave blank for unlimited.">
+              <Input type="number" min={1} step="1" value={form.capacity} onChange={e => set('capacity', e.target.value)} placeholder="200" className="h-12 rounded-none" />
             </Field>
             <div className="flex items-center justify-between border border-border p-6">
               <div>
@@ -163,6 +167,7 @@ export default function NewLaunchPage() {
               <Row label="Tagline" value={form.tagline || '—'} />
               <Row label="Opens" value={form.launch_at ? new Date(form.launch_at).toLocaleString() : '—'} />
               <Row label="Price" value={form.price_cents ? `$${(form.price_cents/100).toFixed(2)}` : 'Hidden'} />
+              <Row label="Capacity" value={form.capacity ? `${form.capacity} spots` : 'Unlimited'} />
               <Row label="Reservations" value={form.reservation_enabled ? `On — hold $${(form.reservation_hold_cents/100).toFixed(2)}` : 'Off'} />
             </ul>
           </Section>

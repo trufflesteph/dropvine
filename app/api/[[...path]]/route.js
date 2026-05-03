@@ -115,6 +115,28 @@ export async function GET(request, { params }) {
     return json({ launch: found })
   }
 
+  // GET /api/launches/[id]/reservations  (creator-scoped via RLS)
+  if (path.match(/^launches\/[^/]+\/reservations$/)) {
+    const id = path.split('/')[1]
+    const sb = getSupabaseServer()
+    if (sb) {
+      // RLS ensures only the launch's creator can read these rows
+      const { data, error } = await sb
+        .from('reservations')
+        .select('id,email,amount_cents,status,stripe_session_id,created_at,launch_id')
+        .eq('launch_id', id)
+        .order('created_at', { ascending: false })
+      if (error) return err(error.message, 500)
+      return json({ reservations: data || [] })
+    }
+    // Mock-mode fallback
+    const userId = await getCurrentUserId(request)
+    const launch = store.launches.get(id)
+    if (!launch || launch.creator_id !== userId) return err('forbidden', 403)
+    const reservations = store.reservations.filter(r => r.launch_id === id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
+    return json({ reservations })
+  }
+
   // GET /api/launches/[id]/waitlist
   if (path.match(/^launches\/[^/]+\/waitlist$/)) {
     const id = path.split('/')[1]
@@ -196,6 +218,10 @@ export async function POST(request, { params }) {
       reservation_enabled: !!body.reservation_enabled,
       reservation_hold_cents: Number(body.reservation_hold_cents) || 0,
       status: body.status || 'published',
+    }
+    // capacity is optional and may not exist as a column yet (graceful migration)
+    if (body.capacity != null && body.capacity !== '' && !isNaN(Number(body.capacity))) {
+      launch.capacity = Number(body.capacity)
     }
     if (sb) {
       const { data, error } = await sb.from('launches').insert(launch).select().single()

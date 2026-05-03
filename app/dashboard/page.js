@@ -42,9 +42,9 @@ export default function DashboardPage() {
         <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-4">Studio</div>
         <nav className="space-y-1 text-sm">
           <Link href="/dashboard" className="block py-2 px-3 -mx-3 bg-foreground text-background">Launches</Link>
-          <a className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground">Reservations</a>
-          <a className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground">Audience</a>
-          <a className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground">Settings</a>
+          <Link href="/dashboard/reservations" className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground">Reservations</Link>
+          <a className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground cursor-not-allowed opacity-60">Audience</a>
+          <a className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground cursor-not-allowed opacity-60">Settings</a>
         </nav>
         <div className="mt-auto pt-8 border-t border-border">
           <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Account</div>
