@@ -211,12 +211,13 @@ export async function POST(request, { params }) {
     if (!email) return err('email required')
     const sb = getSupabaseServer()
     if (sb) {
-      const { data, error } = await sb.from('waitlist_entries').insert({ launch_id: id, email, name }).select().single()
+      // No .select() — anon visitors can't read back their own row (RLS), but the insert still commits.
+      const { error } = await sb.from('waitlist_entries').insert({ launch_id: id, email, name })
       if (error) {
         if (String(error.code) === '23505') return json({ ok: true, dedup: true })
         return err(error.message, 500)
       }
-      return json({ entry: data })
+      return json({ ok: true })
     }
     if (store.waitlist.find(w => w.launch_id === id && w.email === email)) return json({ ok: true, dedup: true })
     const entry = { id: uuidv4(), launch_id: id, email, name: name || '', created_at: new Date().toISOString() }
