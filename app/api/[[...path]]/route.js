@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { store, uuidv4 } from '@/lib/mock-store'
 import { getSupabaseServer, getSupabaseAdmin, getServerSupabaseConfig } from '@/lib/supabase/server'
+import { sendWaitlistConfirmation, sendLaunchReminder, sendLaunchLiveNotification } from '@/lib/email/notifications'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -241,19 +242,25 @@ export async function POST(request, { params }) {
     const id = path.split('/')[1]
     const { email, name } = body
     if (!email) return err('email required')
+    const launch = await getLaunch(id)
+    if (!launch) return err('launch not found', 404)
     const sb = getSupabaseServer()
+    const baseUrl = new URL(request.url).origin
     if (sb) {
       // No .select() — anon visitors can't read back their own row (RLS), but the insert still commits.
-      const { error } = await sb.from('waitlist_entries').insert({ launch_id: id, email, name })
-      if (error) {
-        if (String(error.code) === '23505') return json({ ok: true, dedup: true })
-        return err(error.message, 500)
+      const { error: insertError } = await sb.from('waitlist_entries').insert({ launch_id: id, email, name })
+      if (insertError) {
+        if (String(insertError.code) === '23505') return json({ ok: true, dedup: true })
+        return err(insertError.message, 500)
       }
+      // Fire-and-forget email
+      sendWaitlistConfirmation({ launch, entry: { email, name }, baseUrl }).catch(() => {})
       return json({ ok: true })
     }
     if (store.waitlist.find(w => w.launch_id === id && w.email === email)) return json({ ok: true, dedup: true })
     const entry = { id: uuidv4(), launch_id: id, email, name: name || '', created_at: new Date().toISOString() }
     store.waitlist.push(entry)
+    sendWaitlistConfirmation({ launch, entry, baseUrl }).catch(() => {})
     return json({ entry })
   }
 
