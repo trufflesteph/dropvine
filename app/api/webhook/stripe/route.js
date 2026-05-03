@@ -31,12 +31,17 @@ export async function POST(request) {
   const rawBody = await request.text()
 
   let event
+  const hasRealSecret = webhookSecret && webhookSecret !== 'whsec_placeholder'
   try {
-    if (webhookSecret && webhookSecret !== 'whsec_placeholder' && sig) {
+    if (hasRealSecret) {
+      // Production / configured: signature required, no exceptions
+      if (!sig) {
+        console.warn('[stripe webhook] missing Stripe-Signature header')
+        return NextResponse.json({ error: 'Missing Stripe-Signature header' }, { status: 400 })
+      }
       event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret)
     } else {
-      // Webhook secret not set yet — accept the event payload as-is for development.
-      // In production (real secret configured), signature is verified above.
+      // Dev fallback: secret not yet set — accept unsigned to allow local development.
       event = JSON.parse(rawBody)
       console.warn('[stripe webhook] WEBHOOK_SECRET not configured; signature NOT verified')
     }
