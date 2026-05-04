@@ -77,4 +77,8 @@
     background-image: radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px);
     background-size: 3px 3px;
   }
+  .ticker-track {
+    display: flex;
+    width: max-content;
+  }
 }
