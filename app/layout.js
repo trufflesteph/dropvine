@@ -2,6 +2,7 @@ import './globals.css'
 import { Inter, Fraunces } from 'next/font/google'
 import { AuthProvider } from '@/lib/auth-context'
 import { Toaster } from 'sonner'
+import { Analytics } from '@vercel/analytics/next'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
 const fraunces = Fraunces({
@@ -25,6 +26,7 @@ export default function RootLayout({ children }) {
           {children}
           <Toaster position="bottom-center" toastOptions={{ style: { background: '#0E0E0C', color: '#FAFAF7', border: 'none', borderRadius: 2, fontSize: 13 } }} />
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   )
