@@ -3,7 +3,7 @@
 // without staging full DB state.
 //
 // POST /api/admin/preview-email
-// Headers: Authorization: Bearer <DROPVINE_CRON_SECRET>
+// Headers: Authorization: Bearer <CRON_SECRET>
 // Body: { template: 'waitlist'|'reservation'|'reminder'|'live'|'soldout', to: 'me@example.com' }
 
 import { NextResponse } from 'next/server'
@@ -40,7 +40,7 @@ const SAMPLE = {
 }
 
 export async function POST(request) {
-  const expected = process.env.DROPVINE_CRON_SECRET
+  const expected = process.env.CRON_SECRET
   const auth = request.headers.get('authorization') || ''
   if (!expected || auth !== `Bearer ${expected}`) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
