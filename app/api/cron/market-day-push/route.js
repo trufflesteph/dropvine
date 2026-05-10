@@ -34,6 +34,19 @@ function todayDateString() {
   return `${y}-${m}-${day}`
 }
 
+// DST guard: vercel.json schedules this cron at BOTH 15:00 UTC and 16:00 UTC on
+// Wednesdays so that exactly one of them lands at 08:00 America/Los_Angeles
+// (PST UTC-8 in winter → 16:00 UTC, PDT UTC-7 in summer → 15:00 UTC). We then
+// only proceed when the Pacific hour equals 8 — the other run no-ops.
+function isEightAmPacific() {
+  try {
+    const hour = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles', hour: 'numeric', hour12: false,
+    }).format(new Date())
+    return parseInt(hour, 10) === 8
+  } catch { return true } // if Intl ever fails, don't block the run
+}
+
 async function runPush({ dryRun, force, message, baseUrl }) {
   const supa = getSupabaseAdmin()
   if (!supa) return { error: 'supabase admin not configured', status: 500 }
@@ -48,6 +61,9 @@ async function runPush({ dryRun, force, message, baseUrl }) {
     .eq('market_config_id', market.id).eq('date', today).maybeSingle()
 
   if (!force) {
+    if (!isEightAmPacific()) {
+      return { summary: { skipped: 'DST guard: not 8am Pacific', date: today } }
+    }
     if (!marketDate) return { summary: { skipped: 'no market today', date: today } }
     if (marketDate.is_cancelled) return { summary: { skipped: 'today cancelled', date: today } }
   }

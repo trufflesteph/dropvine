@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import { adminFetch } from '@/lib/markets/admin-client'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Mail } from 'lucide-react'
 
 export default function VendorEditor({ initialVendor = null, products = [], posts = [] }) {
   const router = useRouter()
@@ -17,6 +17,7 @@ export default function VendorEditor({ initialVendor = null, products = [], post
     ...(initialVendor || {}),
   })
   const [busy, setBusy] = useState(false)
+  const [resending, setResending] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const set = (k, val) => setV((p) => ({ ...p, [k]: val }))
   const setCat = (s) => set('categories', s.split(',').map((x) => x.trim().toLowerCase()).filter(Boolean))
@@ -45,6 +46,31 @@ export default function VendorEditor({ initialVendor = null, products = [], post
     if (!confirm('Hide this vendor from the shopper PWA? Order history is preserved.')) return
     const r = await adminFetch(`/api/market/admin/vendors/${initialVendor.id}`, { method: 'DELETE' })
     if (r.ok) { toast.success('Vendor hidden'); router.replace('/admin/vendors') }
+  }
+
+  const resendFulfillmentLinks = async () => {
+    if (!initialVendor) return
+    if (!confirm(`Mint fresh fulfillment magic links for every open order at ${initialVendor.name} in the last 30 days and email them now? Old links will stop working.`)) return
+    setResending(true)
+    try {
+      const r = await adminFetch(`/api/market/admin/vendors/${initialVendor.id}/regenerate-fulfillment-links`, { method: 'POST' })
+      const j = await r.json()
+      if (!r.ok || j?.error) { toast.error(j?.error || 'Failed'); return }
+      const s = j.summary || {}
+      if (s.orders_processed === 0) {
+        toast.success('No open orders need magic links right now.')
+      } else {
+        toast.success(`Re-sent ${s.emails_sent}/${s.orders_processed} fulfillment ${s.orders_processed === 1 ? 'link' : 'links'}.`)
+      }
+      if (s.errors?.length) {
+        console.warn('[regenerate-fulfillment-links] errors:', s.errors)
+        toast.error(`${s.errors.length} email(s) failed — see browser console.`)
+      }
+    } catch (e) {
+      toast.error(e?.message || 'Failed')
+    } finally {
+      setResending(false)
+    }
   }
 
   return (
@@ -111,6 +137,31 @@ export default function VendorEditor({ initialVendor = null, products = [], post
           </label>
           <p className="text-xs text-stone-500">Hidden vendors keep their products + order history but disappear from /market/shop and the map.</p>
           <p className="text-xs text-stone-500">{products?.length || 0} products · {posts?.length || 0} posts</p>
+        </div>
+      ) : null}
+
+      {!isNew ? (
+        <div className="rounded-2xl border border-stone-200 bg-white p-6 grid gap-3">
+          <h2 className="font-serif text-lg text-stone-800">Fulfillment magic links</h2>
+          <p className="text-xs text-stone-500">
+            Vendor missing their fulfillment email? Mint fresh magic links for every open order
+            (last 30 days, status <em>pending payment</em> or <em>paid</em>) and resend them now.
+            Old links will be invalidated.
+          </p>
+          <div>
+            <button
+              type="button"
+              onClick={resendFulfillmentLinks}
+              disabled={resending || !v.email}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-900 text-stone-50 text-xs disabled:opacity-50"
+            >
+              {resending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+              Resend fulfillment links
+            </button>
+            {!v.email ? (
+              <p className="text-[11px] text-rose-600 mt-1">Add a contact email above before this can fire.</p>
+            ) : null}
+          </div>
         </div>
       ) : null}
 

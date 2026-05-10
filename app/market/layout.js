@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import MarketProviders from '@/components/markets/MarketProviders'
+import ServiceWorkerRegister from '@/components/markets/ServiceWorkerRegister'
 
 export const metadata = {
   title: 'Market — Dropvine',
@@ -18,5 +19,10 @@ async function fetchActiveConfig() {
 
 export default async function MarketLayout({ children }) {
   const initialConfig = await fetchActiveConfig()
-  return <MarketProviders initialConfig={initialConfig}>{children}</MarketProviders>
+  return (
+    <MarketProviders initialConfig={initialConfig}>
+      <ServiceWorkerRegister />
+      {children}
+    </MarketProviders>
+  )
 }
