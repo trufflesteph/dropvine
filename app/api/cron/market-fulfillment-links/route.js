@@ -82,7 +82,7 @@ async function runSweep({ baseUrl, dryRun }) {
       continue
     }
 
-    const magicUrl = `${(baseUrl || '').replace(/\/$/, '')}/market/fulfill/${token}`
+    const magicUrl = `${(baseUrl || '').replace(/\/$/, '')}/market/fulfillment/${token}`
     const result = await notifyMarketVendorOrderArrived({
       order, vendor, items: items || [], magicUrl,
       marketName: market?.name || 'Market',
