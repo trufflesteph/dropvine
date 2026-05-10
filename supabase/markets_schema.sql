@@ -24,6 +24,12 @@ create table if not exists public.market_config (
   pwa_theme_color text,
   pwa_background_color text default '#FAF7F2',
   map_layout jsonb default '{"width":1000,"height":700,"stalls":[]}'::jsonb,
+  -- Street-schematic map controls (drive the auto-generated SVG)
+  map_booth_count integer default 12,
+  map_orientation text default 'horizontal' check (map_orientation in ('horizontal','vertical')),
+  map_street_name text,
+  map_cross_street_start text,
+  map_cross_street_end text,
   venmo_platform_handle text,
   contact_email text,
   social_links jsonb default '{}'::jsonb,
@@ -36,6 +42,13 @@ create index if not exists market_config_active_idx on public.market_config(is_a
 -- Only one active market at a time
 create unique index if not exists market_config_one_active_idx
   on public.market_config((true)) where is_active = true;
+
+-- Idempotent column additions for re-runs (safe if already present).
+alter table public.market_config add column if not exists map_booth_count integer default 12;
+alter table public.market_config add column if not exists map_orientation text default 'horizontal';
+alter table public.market_config add column if not exists map_street_name text;
+alter table public.market_config add column if not exists map_cross_street_start text;
+alter table public.market_config add column if not exists map_cross_street_end text;
 
 -- ---------------------------------------------------------------------
 -- 2) market_dates — every individual market day (Wednesdays etc.)
@@ -74,13 +87,17 @@ create table if not exists public.vendors (
   website text,
   instagram_handle text,
   accepts_preorders boolean default false,
-  map_position jsonb,            -- {x, y, stallId}
+  booth_number integer,          -- position on the auto-generated street map (1..map_booth_count)
+  map_position jsonb,            -- optional override: {x, y, stallId}
   is_active boolean default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 create index if not exists vendors_market_idx on public.vendors(market_config_id);
 create index if not exists vendors_active_idx on public.vendors(is_active);
+
+-- Idempotent column additions for re-runs.
+alter table public.vendors add column if not exists booth_number integer;
 
 -- ---------------------------------------------------------------------
 -- 4) market_attendance — which vendors are at which dates
@@ -641,11 +658,11 @@ declare
   v_riverside uuid;
   v_mossy uuid;
   v_indigo uuid;
-  v_d_jun4 uuid;
-  v_d_jun11 uuid;
-  v_d_jun18 uuid;
-  v_d_jun25 uuid;
-  v_d_jul2 uuid;
+  v_d_may13 uuid;
+  v_d_may20 uuid;
+  v_d_may27 uuid;
+  v_d_jun3  uuid;
+  v_d_jun10 uuid;
   v_badge_explorer uuid;
   v_badge_foodie uuid;
   v_badge_pop uuid;
@@ -658,11 +675,13 @@ begin
   end if;
 
   insert into public.market_config (name, subtitle, season, primary_color, accent_color,
-    pwa_short_name, pwa_theme_color, contact_email, social_links, about_md, is_active)
+    pwa_short_name, pwa_theme_color, contact_email, social_links, about_md,
+    map_booth_count, map_orientation, map_street_name, map_cross_street_start, map_cross_street_end,
+    is_active)
   values (
     'Willamette Summer Street Market',
     'Wednesdays after work in downtown Eugene',
-    'Summer 2025',
+    'Summer 2026',
     '#2F5233',
     '#E2A93C',
     'WSSM',
@@ -671,41 +690,46 @@ begin
     jsonb_build_object('instagram','@willamettestreetmarket','website','https://willamettestreet.market'),
     '## Welcome to the Willamette Summer Street Market
 
-Every Wednesday from June through September we close down 8th Avenue between Oak and Pearl for an open-air street market featuring local farmers, makers, and food carts.',
+Every Wednesday from May through September we close down Willamette Falls Drive between 12th and 15th streets for an open-air street market featuring local farmers, makers, and food carts.',
+    12,
+    'horizontal',
+    'Willamette Falls Drive',
+    '12th St',
+    '15th St',
     true
   ) returning id into v_market_id;
 
-  -- Vendors
-  insert into public.vendors (market_config_id, name, slug, tagline, description, categories, venmo_handle, accepts_preorders, map_position, instagram_handle, is_active) values
-    (v_market_id, 'Brookside Farm',  'brookside-farm',  'Pasture-raised eggs & seasonal produce', 'A family-run organic farm just outside Junction City.', array['produce','eggs'], 'brookside-farm', true, jsonb_build_object('x',180,'y',220,'stallId','A1'), '@brooksidefarmco', true)
+  -- Vendors (booth_number assigns them onto the auto-generated street map; 1..map_booth_count)
+  insert into public.vendors (market_config_id, name, slug, tagline, description, categories, venmo_handle, accepts_preorders, booth_number, instagram_handle, is_active) values
+    (v_market_id, 'Brookside Farm',  'brookside-farm',  'Pasture-raised eggs & seasonal produce', 'A family-run organic farm just outside Junction City.', array['produce','eggs'], 'brookside-farm', true, 1, '@brooksidefarmco', true)
     returning id into v_brookside;
-  insert into public.vendors (market_config_id, name, slug, tagline, description, categories, venmo_handle, accepts_preorders, map_position, instagram_handle, is_active) values
-    (v_market_id, 'Terra Bread Co.', 'terra-bread', 'Wood-fired sourdough', 'Naturally leavened breads and pastries baked overnight.', array['bakery','pastries'], 'terra-bread', true, jsonb_build_object('x',360,'y',220,'stallId','A2'), '@terrabreadco', true)
+  insert into public.vendors (market_config_id, name, slug, tagline, description, categories, venmo_handle, accepts_preorders, booth_number, instagram_handle, is_active) values
+    (v_market_id, 'Terra Bread Co.', 'terra-bread', 'Wood-fired sourdough', 'Naturally leavened breads and pastries baked overnight.', array['bakery','pastries'], 'terra-bread', true, 2, '@terrabreadco', true)
     returning id into v_terra;
-  insert into public.vendors (market_config_id, name, slug, tagline, description, categories, venmo_handle, accepts_preorders, map_position, instagram_handle, is_active) values
-    (v_market_id, 'Yarrow & Yew',    'yarrow-yew',    'Botanical apothecary',     'Hand-blended teas, salves, and tinctures.', array['apothecary','wellness'], 'yarrow-yew', false, jsonb_build_object('x',540,'y',220,'stallId','A3'), '@yarrowandyew', true)
+  insert into public.vendors (market_config_id, name, slug, tagline, description, categories, venmo_handle, accepts_preorders, booth_number, instagram_handle, is_active) values
+    (v_market_id, 'Yarrow & Yew',    'yarrow-yew',    'Botanical apothecary',     'Hand-blended teas, salves, and tinctures.', array['apothecary','wellness'], 'yarrow-yew', false, 4, '@yarrowandyew', true)
     returning id into v_yarrow;
-  insert into public.vendors (market_config_id, name, slug, tagline, description, categories, venmo_handle, accepts_preorders, map_position, instagram_handle, is_active) values
-    (v_market_id, 'Riverside Coffee','riverside-coffee','Single-origin pour-overs', 'Direct-trade beans from the Willamette roastery.', array['coffee','drinks'], 'riverside-coffee', true, jsonb_build_object('x',180,'y',420,'stallId','B1'), '@riversidecoffeeroasters', true)
+  insert into public.vendors (market_config_id, name, slug, tagline, description, categories, venmo_handle, accepts_preorders, booth_number, instagram_handle, is_active) values
+    (v_market_id, 'Riverside Coffee','riverside-coffee','Single-origin pour-overs', 'Direct-trade beans from the Willamette roastery.', array['coffee','drinks'], 'riverside-coffee', true, 7, '@riversidecoffeeroasters', true)
     returning id into v_riverside;
-  insert into public.vendors (market_config_id, name, slug, tagline, description, categories, venmo_handle, accepts_preorders, map_position, instagram_handle, is_active) values
-    (v_market_id, 'Mossy Goods',     'mossy-goods',   'Hand-thrown ceramics',     'Functional stoneware mugs, bowls, and planters.', array['crafts','ceramics'], 'mossy-goods', false, jsonb_build_object('x',360,'y',420,'stallId','B2'), '@mossy.goods', true)
+  insert into public.vendors (market_config_id, name, slug, tagline, description, categories, venmo_handle, accepts_preorders, booth_number, instagram_handle, is_active) values
+    (v_market_id, 'Mossy Goods',     'mossy-goods',   'Hand-thrown ceramics',     'Functional stoneware mugs, bowls, and planters.', array['crafts','ceramics'], 'mossy-goods', false, 9, '@mossy.goods', true)
     returning id into v_mossy;
-  insert into public.vendors (market_config_id, name, slug, tagline, description, categories, venmo_handle, accepts_preorders, map_position, instagram_handle, is_active) values
-    (v_market_id, 'Indigo Tacos',    'indigo-tacos',  'Heirloom corn tortillas',  'Pop-up taqueria with rotating regional menu.', array['food','tacos'], 'indigo-tacos', true, jsonb_build_object('x',540,'y',420,'stallId','B3'), '@indigotacospdx', true)
+  insert into public.vendors (market_config_id, name, slug, tagline, description, categories, venmo_handle, accepts_preorders, booth_number, instagram_handle, is_active) values
+    (v_market_id, 'Indigo Tacos',    'indigo-tacos',  'Heirloom corn tortillas',  'Pop-up taqueria with rotating regional menu.', array['food','tacos'], 'indigo-tacos', true, 11, '@indigotacospdx', true)
     returning id into v_indigo;
 
-  -- Market dates: every Wednesday Jun 4 — Sep 24, 2025
+  -- Market dates: every Wednesday May 13 \u2014 Sep 9, 2026 (18 dates inclusive).
   insert into public.market_dates (market_config_id, date, start_time, end_time)
   select v_market_id, d::date, '15:00', '20:00'
-  from generate_series('2025-06-04'::date, '2025-09-24'::date, interval '7 days') d;
+  from generate_series('2026-05-13'::date, '2026-09-09'::date, interval '7 days') d;
 
-  -- Capture first five date IDs for attendance examples
-  select id into v_d_jun4  from public.market_dates where market_config_id = v_market_id and date = '2025-06-04';
-  select id into v_d_jun11 from public.market_dates where market_config_id = v_market_id and date = '2025-06-11';
-  select id into v_d_jun18 from public.market_dates where market_config_id = v_market_id and date = '2025-06-18';
-  select id into v_d_jun25 from public.market_dates where market_config_id = v_market_id and date = '2025-06-25';
-  select id into v_d_jul2  from public.market_dates where market_config_id = v_market_id and date = '2025-07-02';
+  -- Capture first five date IDs for attendance examples.
+  select id into v_d_may13 from public.market_dates where market_config_id = v_market_id and date = '2026-05-13';
+  select id into v_d_may20 from public.market_dates where market_config_id = v_market_id and date = '2026-05-20';
+  select id into v_d_may27 from public.market_dates where market_config_id = v_market_id and date = '2026-05-27';
+  select id into v_d_jun3  from public.market_dates where market_config_id = v_market_id and date = '2026-06-03';
+  select id into v_d_jun10 from public.market_dates where market_config_id = v_market_id and date = '2026-06-10';
 
   -- All vendors confirmed for first 5 weeks
   insert into public.market_attendance (market_date_id, vendor_id, status)
@@ -714,7 +738,7 @@ Every Wednesday from June through September we close down 8th Avenue between Oak
   cross join public.vendors v
   where md.market_config_id = v_market_id
     and v.market_config_id = v_market_id
-    and md.date <= '2025-07-02';
+    and md.date <= '2026-06-10';
 
   -- Products
   insert into public.products (vendor_id, name, description, price_cents, category, display_order) values
@@ -754,8 +778,8 @@ Every Wednesday from June through September we close down 8th Avenue between Oak
   -- Challenges
   insert into public.challenges (market_config_id, title, description, icon, target_count, reward_text, badge_id, is_active, starts_at, ends_at)
   values
-    (v_market_id, 'Visit 5 Vendors', 'Stamp your passport at 5 different vendors this season.', 'Footprints', 5, 'Market Explorer badge', v_badge_explorer, true, '2025-06-04','2025-09-24'),
-    (v_market_id, 'Taste the Town',  'Order from 3 food vendors this season.',                  'Utensils',   3, 'Foodie Favorite badge', v_badge_foodie,  true, '2025-06-04','2025-09-24');
+    (v_market_id, 'Visit 5 Vendors', 'Stamp your passport at 5 different vendors this season.', 'Footprints', 5, 'Market Explorer badge', v_badge_explorer, true, '2026-05-13','2026-09-09'),
+    (v_market_id, 'Taste the Town',  'Order from 3 food vendors this season.',                  'Utensils',   3, 'Foodie Favorite badge', v_badge_foodie,  true, '2026-05-13','2026-09-09');
 
   -- POP stamp types
   insert into public.pop_stamp_types (market_config_id, name, icon, description, token_reward) values
