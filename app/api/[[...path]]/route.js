@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { store, uuidv4 } from '@/lib/mock-store'
 import { getSupabaseServer, getSupabaseAdmin, getServerSupabaseConfig } from '@/lib/supabase/server'
-import { sendWaitlistConfirmation, sendLaunchReminder, sendLaunchLiveNotification } from '@/lib/email/notifications'
+import { notifyWaitlistConfirmed } from '@/lib/notifications'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -254,13 +254,13 @@ export async function POST(request, { params }) {
         return err(insertError.message, 500)
       }
       // Fire-and-forget email
-      sendWaitlistConfirmation({ launch, entry: { email, name }, baseUrl }).catch(() => {})
+      notifyWaitlistConfirmed({ launch, entry: { email, name }, baseUrl }).catch(() => {})
       return json({ ok: true })
     }
     if (store.waitlist.find(w => w.launch_id === id && w.email === email)) return json({ ok: true, dedup: true })
     const entry = { id: uuidv4(), launch_id: id, email, name: name || '', created_at: new Date().toISOString() }
     store.waitlist.push(entry)
-    sendWaitlistConfirmation({ launch, entry, baseUrl }).catch(() => {})
+    notifyWaitlistConfirmed({ launch, entry, baseUrl }).catch(() => {})
     return json({ entry })
   }
 
