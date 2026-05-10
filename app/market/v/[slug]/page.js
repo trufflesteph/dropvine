@@ -3,11 +3,10 @@ import React, { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import MarketHeader from '@/components/markets/MarketHeader'
-import { Instagram, Globe, Phone, Mail, MapPin, Tag } from 'lucide-react'
+import AddToCartButton from '@/components/markets/AddToCartButton'
+import { Instagram, Globe, Phone, Mail, Tag } from 'lucide-react'
 
-function priceFmt(cents) {
-  return `$${((cents || 0) / 100).toFixed(2)}`
-}
+function priceFmt(cents) { return `$${((cents || 0) / 100).toFixed(2)}` }
 
 export default function VendorProfilePage() {
   const { slug } = useParams()
@@ -18,10 +17,7 @@ export default function VendorProfilePage() {
     if (!slug) return
     fetch(`/api/market/vendors/${slug}`)
       .then((r) => r.json())
-      .then((j) => {
-        if (j?.error) setError(j.error)
-        else setData(j)
-      })
+      .then((j) => { if (j?.error) setError(j.error); else setData(j) })
       .catch((e) => setError(e?.message || 'failed'))
   }, [slug])
 
@@ -69,7 +65,6 @@ export default function VendorProfilePage() {
       </div>
 
       <div className="max-w-3xl mx-auto px-5 py-6">
-        {/* Categories */}
         {vendor.categories?.length ? (
           <div className="flex items-center gap-2 flex-wrap mb-4">
             <Tag className="w-3.5 h-3.5 text-stone-400" />
@@ -79,14 +74,12 @@ export default function VendorProfilePage() {
           </div>
         ) : null}
 
-        {/* Markdown description */}
         {vendor.description ? (
           <article className="prose prose-stone prose-sm max-w-none mb-6">
             <ReactMarkdown>{vendor.description}</ReactMarkdown>
           </article>
         ) : null}
 
-        {/* Contact strip */}
         <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-stone-600 border-t border-b border-stone-100 py-3 mb-8">
           {vendor.instagram_handle ? (
             <a href={`https://instagram.com/${vendor.instagram_handle.replace(/^@/, '')}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:text-stone-900">
@@ -122,12 +115,21 @@ export default function VendorProfilePage() {
                     {p.description ? <p className="text-sm text-stone-600 mt-0.5">{p.description}</p> : null}
                     {p.category ? <div className="text-[10px] uppercase tracking-wide text-stone-400 mt-1">{p.category}</div> : null}
                   </div>
-                  <div className="font-serif text-base text-stone-800 whitespace-nowrap">{priceFmt(p.price_cents)}</div>
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="font-serif text-base text-stone-800 whitespace-nowrap">{priceFmt(p.price_cents)}</div>
+                    {vendor.accepts_preorders ? (
+                      <AddToCartButton vendor={vendor} product={p} />
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </div>
             {vendor.accepts_preorders ? (
-              <p className="text-xs text-stone-500 mt-2">This vendor accepts pre-orders. Pre-order checkout coming soon.</p>
+              <p className="text-xs text-stone-500 mt-2">
+                {vendor.venmo_handle
+                  ? <>This vendor accepts pre-orders — pay via Venmo to <strong>@{vendor.venmo_handle}</strong> on checkout.</>
+                  : 'This vendor accepts pre-orders.'}
+              </p>
             ) : null}
           </section>
         ) : null}
