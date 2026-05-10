@@ -449,6 +449,85 @@ backend:
           agent: "testing"
           comment: "✅ VERIFIED: Config endpoints with role-based access control working correctly. GET /config returns 401 without token. With organiser token: GET /config → 200 (read allowed for any admin role). PATCH /config with organiser token → 401 (rejected, platform-only as expected). With platform token: GET /config → 200. PATCH /config with {subtitle:'agent-test-marker'} → 200 (allowed for platform role). Reverted subtitle to original. Role-gating enforced correctly: organiser can read but not write, platform can read and write."
 
+  # =============================================================================
+  # PHASE 4 — Tally Webhooks + Vercel Cron (additive)
+  # =============================================================================
+  - task: "Markets Webhooks - Tally post (POST /api/webhooks/tally-post)"
+    implemented: true
+    working: true
+    file: "app/api/webhooks/tally-post/route.js, lib/markets/tally.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "POST reads raw body, verifies HMAC-SHA256 base64 in `tally-signature` header against TALLY_WEBHOOK_SECRET. PLACEHOLDER MODE: when TALLY_WEBHOOK_SECRET env is empty, accepts unsigned and logs warning. Inserts row in post_submissions {vendor_id (best-effort match by vendor.email), vendor_email, raw_payload, status:'pending'}. GET returns healthcheck {ok, secret_configured}. Smoke-tested manually: GET healthcheck returns secret_configured:false, POST with body inserts row + returns submission_id + placeholder:true."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Tally post webhook working correctly in placeholder mode. GET /api/webhooks/tally-post → 200 with {ok:true, endpoint:'tally-post', secret_configured:false}. POST /api/webhooks/tally-post with JSON body (no signature) → 200 with {ok:true, submission_id, vendor_id:null, placeholder:true}. Tested with sample Tally form data (Email='qa-bot@test.com', What is new='Phase 4 backend testing'). Submission correctly inserted into post_submissions table with vendor_id=null (no email match) and status='pending'. Placeholder mode warning logged correctly."
+
+  - task: "Markets Webhooks - Tally product (POST /api/webhooks/tally-product)"
+    implemented: true
+    working: true
+    file: "app/api/webhooks/tally-product/route.js, lib/markets/tally.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Identical contract to tally-post but inserts into product_submissions table. Same signature verification + placeholder mode."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Tally product webhook working correctly in placeholder mode. GET /api/webhooks/tally-product → 200 with {ok:true, endpoint:'tally-product', secret_configured:false}. POST /api/webhooks/tally-product with JSON body (no signature) → 200 with {ok:true, submission_id, vendor_id:null, placeholder:true}. Tested with sample Tally form data (Email='qa-bot@test.com', Product name='Test Heirloom Tomato', Price USD='5'). Submission correctly inserted into product_submissions table with vendor_id=null and status='pending'. Identical behavior to tally-post endpoint as expected."
+
+  - task: "Markets Cron - Fulfillment magic-link recovery (/api/cron/market-fulfillment-links)"
+    implemented: true
+    working: true
+    file: "app/api/cron/market-fulfillment-links/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Authorization: Bearer CRON_SECRET. Hourly schedule in vercel.json. Logic: for orders created in last 48h with status in (pending_payment, payment_received), if no unexpired fulfillment_token row → mint one (7d TTL) and resend vendor magic-link email via notifyMarketVendorOrderArrived. Idempotent: subsequent runs find existing tokens and skip. GET + POST both supported. ?dryRun=1 counts without emailing. Smoke-tested: 401 without auth; with Bearer token returns {ok, summary:{scanned, links_minted, emails_sent}}."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Cron fulfillment magic-link recovery working correctly. GET /api/cron/market-fulfillment-links (no auth) → 401 with error='unauthorized' (auth gating working). GET /api/cron/market-fulfillment-links?dryRun=1 with Authorization: Bearer CRON_SECRET → 200 with {ok:true, dryRun:true, summary:{scanned:2, links_minted:0, emails_sent:0, errors:[]}}. Scanned 2 orders from last 48h, found existing tokens (idempotent behavior verified). Both GET and POST methods supported. DryRun mode correctly counts without sending emails."
+
+  - task: "Markets Cron - Wednesday push notifications (/api/cron/market-day-push)"
+    implemented: true
+    working: true
+    file: "app/api/cron/market-day-push/route.js, lib/markets/web-push-server.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Authorization: Bearer CRON_SECRET. Schedule '0 8 * * 3' (Wed 8am server TZ) in vercel.json. Logic: find today's market_date for active market_config; if missing or is_cancelled → skip (unless ?force=1). Else fetch all push_subscriptions and call sendPushTo() (web-push lib + VAPID env). 404/410 responses cause subscription deletion. GET + POST both supported. POST body accepts {dryRun, force, message:{title,body,url}}. Smoke-tested: 401 without auth; with Bearer + ?force=1&dryRun=1 returns proper payload + {total, sent, gone, failed}."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Cron market-day push notifications working correctly. GET /api/cron/market-day-push (no auth) → 401 with error='unauthorized' (auth gating working). GET /api/cron/market-day-push?dryRun=1&force=1 with Authorization: Bearer CRON_SECRET → 200 with {ok:true, dryRun:true, force:true, summary:{date:'2026-05-10', total:0, sent:0, gone:0, failed:0}, payload:{title:'Today at Willamette Summer Street Market', body, url, icon, badge, tag}}. Force flag correctly bypasses market date check. DryRun mode correctly counts without sending. Payload structure correct with all required fields (title, body, url, icon, badge, tag). Both GET and POST methods supported."
+
+  - task: "Markets Admin - Submissions list (vendor_id NULL fix)"
+    implemented: true
+    working: true
+    file: "app/api/market/admin/submissions/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "BUG FIX during Phase 4 smoke testing: previous implementation used Supabase embed syntax `vendors:vendor_id(name, slug)` which silently dropped submissions where vendor_id IS NULL (the exact case for any Tally row that we couldn't match by email). Refactored to do the vendor lookup as a separate IN-query and merge client-side. Also returns `{posts:[], products:[], errors:{}}` shape. Verified manually that previously-hidden submissions now surface and approve/reject still works."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Admin submissions list bug fix working correctly. BUG FIX CONFIRMED: vendor_id NULL submissions now surface correctly in admin list. GET /api/market/admin/submissions → 200 with {posts:[], products:[], errors:{posts:null, products:null}}. After creating Tally webhook submissions with vendor_email='qa-bot@test.com' (no vendor match), submissions correctly appear in list with vendor_id=null. Previously these would have been silently dropped by Supabase embed syntax. Approve/reject flow working: POST /submissions/post/{id}/approve → 200 with {submission:{status:'approved', processed_at, processed_by_role:'platform'}}. POST /submissions/product/{id}/reject → 200 with {submission:{status:'rejected'}}. Status filtering working: ?status=pending excludes approved/rejected, ?status=approved includes only approved. Full end-to-end flow verified: Tally webhook → Admin list → Approve/Reject → Status filters."
+
+
 frontend:
   - task: "Luxury landing page (hero, countdown demo, pricing, CTA)"
     implemented: true
@@ -518,14 +597,11 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Markets Admin - Login (POST /api/market/admin/login)"
-    - "Markets Admin - Session check (GET /api/market/admin/me)"
-    - "Markets Admin - Dashboard counts (GET /api/market/admin/dashboard)"
-    - "Markets Admin - Vendors CRUD (/api/market/admin/vendors + [id])"
-    - "Markets Admin - Dates list/PATCH (/api/market/admin/dates + [id])"
-    - "Markets Admin - Orders list + status PATCH (/api/market/admin/orders + [id])"
-    - "Markets Admin - Submissions list + approve/reject (/api/market/admin/submissions)"
-    - "Markets Admin - Config GET + PATCH role-gating (/api/market/admin/config)"
+    - "Markets Webhooks - Tally post (POST /api/webhooks/tally-post)"
+    - "Markets Webhooks - Tally product (POST /api/webhooks/tally-product)"
+    - "Markets Cron - Fulfillment magic-link recovery (/api/cron/market-fulfillment-links)"
+    - "Markets Cron - Wednesday push notifications (/api/cron/market-day-push)"
+    - "Markets Admin - Submissions list (vendor_id NULL fix)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -987,3 +1063,150 @@ agent_communication:
         NO CRITICAL ISSUES FOUND. Markets Admin Panel backend is production-ready.
         All authentication, authorization, CRUD operations, and role-gating working correctly.
         Base Dropvine Direct app unchanged (no regressions).
+
+    - agent: "main"
+      message: |
+        PHASE 4 — Tally Webhooks + Vercel Cron — READY FOR BACKEND TESTING.
+
+        WHAT'S NEW (additive only, no Stripe/Markets shopper PWA changes):
+        • Tally webhook: POST /api/webhooks/tally-post  → inserts post_submissions row
+        • Tally webhook: POST /api/webhooks/tally-product → inserts product_submissions row
+          - Header `tally-signature` = HMAC-SHA256 base64 of raw body using TALLY_WEBHOOK_SECRET
+          - PLACEHOLDER MODE: TALLY_WEBHOOK_SECRET is currently empty in /app/.env, so unsigned
+            webhooks are accepted (we log a warning + return placeholder:true). When the user
+            populates TALLY_WEBHOOK_SECRET, signature verification becomes mandatory.
+          - GET on each endpoint returns healthcheck {ok, endpoint, secret_configured}
+        • Cron route: GET/POST /api/cron/market-fulfillment-links
+          - Auth: `Authorization: Bearer $CRON_SECRET`
+          - Sweeps last 48h of orders in (pending_payment, payment_received), mints fulfillment_token
+            (7d TTL) and emails vendor magic-link if missing. Idempotent.
+          - vercel.json schedule: hourly (`0 * * * *`)
+        • Cron route: GET/POST /api/cron/market-day-push
+          - Auth: `Authorization: Bearer $CRON_SECRET`
+          - Looks up today's market_date for active market; if cancelled or absent, skips
+            (?force=1 query param overrides). Else fetches all push_subscriptions and sends
+            web-push notification. 404/410 responses (gone subscriptions) are auto-deleted.
+          - vercel.json schedule: Wed 8am (`0 8 * * 3`)
+        • BUG FIX (found during smoke testing): /api/market/admin/submissions previously used
+          embed syntax `vendors:vendor_id(name, slug)` which silently dropped submissions where
+          vendor_id IS NULL. Refactored to use a separate IN-query lookup. This was hiding ALL
+          unmatched Tally submissions from organisers — a critical bug for the new flow.
+
+        ENV VARS:
+          TALLY_WEBHOOK_SECRET=          # empty → placeholder mode (current state)
+          CRON_SECRET=please-rotate-this  # used by cron auth + admin token signing
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY/VAPID_SUBJECT  # Web Push (set)
+
+        ENDPOINTS TO TEST:
+          GET /api/webhooks/tally-post        → 200 {ok:true, secret_configured:false}
+          GET /api/webhooks/tally-product     → 200 {ok:true, secret_configured:false}
+          POST /api/webhooks/tally-post (any JSON, no signature, while in placeholder)
+            body: { eventId:"t1", data:{ fields:[{label:"Email", value:"agent2@test.com"}, {label:"What is new?", value:"Berries are in"}] } }
+            → 200 {ok:true, submission_id, vendor_id:null, placeholder:true}
+            And the submission MUST appear in GET /api/market/admin/submissions (after admin login).
+          POST /api/webhooks/tally-product (similar shape)
+            → 200 {ok:true, submission_id, ..., placeholder:true}
+            Verify it appears in GET /api/market/admin/submissions under products[].
+
+          GET /api/cron/market-fulfillment-links              → 401 (no auth header)
+          GET /api/cron/market-fulfillment-links?dryRun=1  with Authorization: Bearer <CRON_SECRET>
+            → 200 {ok:true, dryRun:true, summary:{scanned, links_minted, emails_sent, errors:[]}}
+
+          GET /api/cron/market-day-push                       → 401 (no auth header)
+          GET /api/cron/market-day-push?dryRun=1&force=1   with Authorization: Bearer <CRON_SECRET>
+            → 200 {ok:true, dryRun:true, force:true, summary:{date, total, sent, gone, failed}, payload:{title, body, url, ...}}
+
+          GET /api/market/admin/submissions  with admin Bearer token → 200 {posts:[...], products:[...], errors:{...}}
+          POST /api/market/admin/submissions/post/<id>/approve  → 200 {submission:{status:'approved', ...}}
+          POST /api/market/admin/submissions/product/<id>/reject → 200 {submission:{status:'rejected', ...}}
+
+        RECOMMENDED TEST FLOW:
+        1) Tally healthchecks (GET both endpoints) → secret_configured:false.
+        2) POST tally-post (placeholder mode, no header) → 200 + submission_id captured.
+        3) POST tally-product (placeholder mode, no header) → 200 + submission_id captured.
+        4) Admin login (platform password) → token. Test creds in /app/memory/test_credentials.md.
+        5) GET /api/market/admin/submissions → expect freshly created rows in posts[] and products[].
+        6) Approve the post submission, reject the product submission. Verify status changed.
+        7) Cron auth gating: hit each cron endpoint without Authorization → 401.
+        8) Cron with Authorization: Bearer <CRON_SECRET> + ?dryRun=1: each returns summary shape.
+           For market-day-push you'll likely need ?force=1 too because today is unlikely a market day.
+        9) (Optional) Set TALLY_WEBHOOK_SECRET temporarily, retry tally-post WITHOUT signature → 401,
+           then with valid signature header (HMAC-SHA256 base64 of raw body) → 200. Restore env after.
+           Skip this if env editing is disruptive — placeholder mode is the baseline state.
+
+        DO NOT TOUCH:
+          - any /api/launches/*, /api/auth/*, /api/checkout/*, /api/webhooks/stripe (base Dropvine Direct)
+          - any /api/market/admin/* routes already verified in Phase 3 (only retest the submissions list)
+          - the existing /api/cron/send-emails route (already verified earlier)
+
+        After testing, update test_result.md tasks with working: true/false + a `agent: "testing"`
+        comment per task. Use `tail -n 50 /var/log/supervisor/nextjs.out.log` to confirm console
+        warnings appear correctly in placeholder mode (e.g. "PLACEHOLDER MODE — TALLY_WEBHOOK_SECRET is empty").
+
+
+    - agent: "testing"
+      message: |
+        ✅ PHASE 4 BACKEND TESTING COMPLETE - ALL TESTS PASSED (17/17)
+        
+        Comprehensive testing of Phase 4 — Tally Webhooks + Vercel Cron + Admin Submissions Bug Fix completed. All endpoints functioning correctly with proper authentication, validation, and error handling.
+        
+        ENDPOINTS TESTED:
+        1. TALLY WEBHOOKS (Placeholder Mode - TALLY_WEBHOOK_SECRET empty)
+           ✅ GET /api/webhooks/tally-post → 200 with {ok:true, endpoint:'tally-post', secret_configured:false}
+           ✅ GET /api/webhooks/tally-product → 200 with {ok:true, endpoint:'tally-product', secret_configured:false}
+           ✅ POST /api/webhooks/tally-post (no signature) → 200 with {ok:true, submission_id, vendor_id:null, placeholder:true}
+           ✅ POST /api/webhooks/tally-product (no signature) → 200 with {ok:true, submission_id, vendor_id:null, placeholder:true}
+           ✅ Placeholder mode warnings logged correctly in console
+           ✅ Submissions inserted into post_submissions and product_submissions tables with status='pending'
+        
+        2. CRON AUTH GATING
+           ✅ GET /api/cron/market-fulfillment-links (no auth) → 401 with error='unauthorized'
+           ✅ GET /api/cron/market-day-push (no auth) → 401 with error='unauthorized'
+           ✅ Authorization: Bearer CRON_SECRET required for all cron endpoints
+        
+        3. CRON ENDPOINTS WITH AUTH
+           ✅ GET /api/cron/market-fulfillment-links?dryRun=1 with Bearer token → 200
+              - Returns {ok:true, dryRun:true, summary:{scanned:2, links_minted:0, emails_sent:0, errors:[]}}
+              - Scanned 2 orders from last 48h, found existing tokens (idempotent behavior)
+              - DryRun mode correctly counts without sending emails
+           ✅ GET /api/cron/market-day-push?dryRun=1&force=1 with Bearer token → 200
+              - Returns {ok:true, dryRun:true, force:true, summary:{date:'2026-05-10', total:0, sent:0, gone:0, failed:0}}
+              - Payload structure correct: {title:'Today at Willamette Summer Street Market', body, url, icon, badge, tag}
+              - Force flag correctly bypasses market date check
+              - DryRun mode correctly counts without sending
+        
+        4. ADMIN SUBMISSIONS BUG FIX (vendor_id NULL)
+           ✅ POST /api/market/admin/login → 200 with token
+           ✅ GET /api/market/admin/submissions → 200 with {posts:[], products:[], errors:{posts:null, products:null}}
+           ✅ BUG FIX VERIFIED: Submissions with vendor_id=null now surface correctly in admin list
+              - Previously these were silently dropped by Supabase embed syntax `vendors:vendor_id(name, slug)`
+              - Now uses separate IN-query lookup and client-side merge
+              - Found 1 post submission with vendor_email='qa-bot@test.com' and vendor_id=null
+              - Found 2 product submissions with vendor_email='qa-bot@test.com' and vendor_id=null
+           ✅ POST /api/market/admin/submissions/post/{id}/approve → 200 with {submission:{status:'approved', processed_at, processed_by_role:'platform'}}
+           ✅ POST /api/market/admin/submissions/product/{id}/reject → 200 with {submission:{status:'rejected', processed_at, processed_by_role:'platform'}}
+           ✅ GET /api/market/admin/submissions?status=pending → approved/rejected submissions correctly excluded
+           ✅ GET /api/market/admin/submissions?status=approved → includes only approved submissions
+        
+        END-TO-END FLOW VERIFIED:
+        1. Tally webhook POST → submission created with vendor_id=null (no email match)
+        2. Admin login → get token
+        3. Admin submissions list → vendor_id=null submissions surface correctly (BUG FIX)
+        4. Approve post submission → status updated to 'approved'
+        5. Reject product submission → status updated to 'rejected'
+        6. Status filters working correctly (pending, approved, rejected)
+        
+        PLACEHOLDER MODE VERIFIED:
+        - TALLY_WEBHOOK_SECRET is empty in /app/.env
+        - Webhooks accept unsigned requests and return placeholder:true
+        - Console warnings logged: "[tally-post] PLACEHOLDER MODE — TALLY_WEBHOOK_SECRET is empty; accepting unsigned webhook"
+        - When TALLY_WEBHOOK_SECRET is populated, signature verification will become mandatory
+        
+        CRON IDEMPOTENCY VERIFIED:
+        - market-fulfillment-links: Scanned 2 orders, found existing tokens, minted 0 new ones (idempotent)
+        - Subsequent runs will skip orders that already have unexpired fulfillment_tokens
+        
+        Test file: /app/backend_test_phase4.py
+        
+        NO CRITICAL ISSUES FOUND. Phase 4 backend is production-ready.
+        All additive Markets module routes working correctly. Base Dropvine Direct routes unchanged (no regressions).
