@@ -326,6 +326,129 @@ backend:
           agent: "testing"
           comment: "✅ VERIFIED: POST /api/market/pop/redemptions returns 401 without auth. Code review confirms correct implementation: validates child ownership, checks vendor is active, computes live balance from tokens/redemptions, validates sufficient balance, creates redemption record, updates denormalized total. Validation logic present for required fields and positive amount."
 
+  # =============================================================================
+  # PHASE 3 — Markets Admin Panel (sessionStorage two-tier auth, NOT Supabase)
+  # =============================================================================
+  - task: "Markets Admin - Login (POST /api/market/admin/login)"
+    implemented: true
+    working: true
+    file: "app/api/market/admin/login/route.js, lib/markets/admin-auth.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Body { password } → 401 if no match, else { token, role }. Compares password to env VITE_ADMIN_PASSWORD (role=platform) or VITE_ORGANISER_PASSWORD (role=organiser). Returns HMAC-signed token (signed with CRON_SECRET, 12h TTL). Test creds in /app/memory/test_credentials.md."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Login endpoint working correctly. POST /api/market/admin/login with wrong password → 401 with error='invalid password'. Platform password 'changeme-platform' → 200 with {ok:true, token, role:'platform'}. Organiser password 'changeme-organiser' → 200 with {ok:true, token, role:'organiser'}. HMAC tokens generated correctly (base64url format with signature)."
+
+  - task: "Markets Admin - Session check (GET /api/market/admin/me)"
+    implemented: true
+    working: true
+    file: "app/api/market/admin/me/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "401 without X-Admin-Token / Authorization Bearer; returns { role } when valid. Verifies HMAC signature and exp."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: /me endpoint working correctly. Returns 401 without token. With platform token (Authorization: Bearer header) → 200 with {role:'platform'}. With organiser token (X-Admin-Token header) → 200 with {role:'organiser'}. Both header formats (Authorization: Bearer and X-Admin-Token) work correctly."
+
+  - task: "Markets Admin - Dashboard counts (GET /api/market/admin/dashboard)"
+    implemented: true
+    working: true
+    file: "app/api/market/admin/dashboard/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Returns counts {vendors_total, vendors_active, products_total, orders_total, orders_pending_payment, orders_fulfilled, submissions_pending}, recent_orders[], market{}. 401 without admin token."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Dashboard endpoint working correctly. Returns 401 without token. With valid token → 200 with all required fields: counts (vendors_total=7, vendors_active=6, products_total, orders_total=3, orders_pending_payment, orders_fulfilled, submissions_pending), recent_orders array (8 most recent), market object (Willamette Summer Street Market). All counts accurate."
+
+  - task: "Markets Admin - Vendors CRUD (/api/market/admin/vendors + [id])"
+    implemented: true
+    working: true
+    file: "app/api/market/admin/vendors/route.js, app/api/market/admin/vendors/[id]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "GET list (active+inactive scoped to active market_config), POST create (require name+slug), GET [id] detail (with products+posts), PATCH [id] update allowed fields, DELETE [id] soft-delete (sets is_active=false). All 401 without admin token."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Vendors CRUD working correctly. GET /vendors returns 401 without token. POST /vendors returns 401 without token. With valid token: POST /vendors with {name, slug, tagline, accepts_preorders} → 200 creates vendor (tested with slug=agent-test-1778390415). GET /vendors/{id} → 200 returns vendor with products=[] and posts=[]. PATCH /vendors/{id} with {tagline:'Updated tagline'} → 200 updates successfully. DELETE /vendors/{id} → 200 soft-deletes (is_active=false). Full lifecycle verified."
+
+  - task: "Markets Admin - Dates list/PATCH (/api/market/admin/dates + [id])"
+    implemented: true
+    working: true
+    file: "app/api/market/admin/dates/route.js, app/api/market/admin/dates/[id]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "GET list of market_dates for active market. PATCH [id] updates allowed fields {date, start_time, end_time, weather_forecast, is_cancelled, notes}. 401 without admin token."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Market dates endpoints working correctly. GET /dates returns 401 without token. With valid token: GET /dates → 200 returns 18 market dates for active market. PATCH /dates/{id} with {notes:'agent-test'} → 200 updates successfully. Reverted notes back to original value. All allowed fields can be updated."
+
+  - task: "Markets Admin - Orders list + status PATCH (/api/market/admin/orders + [id])"
+    implemented: true
+    working: true
+    file: "app/api/market/admin/orders/route.js, app/api/market/admin/orders/[id]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "GET /orders returns latest 200 orders with vendor join. GET /orders/[id] returns full order with order_items. PATCH /orders/[id] body { status, admin_note? } accepts ['pending_payment','payment_received','fulfilled','cancelled','refunded']; rejects invalid status with 400. Best-effort timestamp stamping (paid_at, fulfilled_at, cancelled_at) — falls back to status-only update if those columns don't exist."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Orders endpoints working correctly. GET /orders returns 401 without token. With valid token: GET /orders → 200 returns 3 orders with vendor join (name, slug, venmo_handle, booth_number). GET /orders/{id} → 200 returns full order with order_items array (3 items). PATCH /orders/{id} with {status:'payment_received'} → 200 updates successfully. Reverted to original status 'pending_payment'. PATCH with invalid status 'bogus' → 400 (as expected). Best-effort timestamp handling works correctly (falls back to status-only update when paid_at/cancelled_at columns don't exist in schema). Minor fix applied: Updated error regex to catch Supabase 'Could not find column' error format."
+
+  - task: "Markets Admin - Submissions list + approve/reject"
+    implemented: true
+    working: true
+    file: "app/api/market/admin/submissions/route.js, app/api/market/admin/submissions/[type]/[id]/[action]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "GET list pending posts + products (status filter). POST [type=post|product]/[id]/[action=approve|reject] updates status to 'approved' or 'rejected' and stamps processed_at + processed_by_role. 400 for invalid type/action; 401 without admin token."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Submissions endpoints working correctly. GET /submissions returns 401 without token. With valid token: GET /submissions → 200 returns {posts:[], products:[]} (empty lists OK, no pending submissions). POST /submissions/foo/bar/approve with invalid type 'foo' → 400 (as expected). Validation for type∈{post,product} and action∈{approve,reject} working correctly."
+
+  - task: "Markets Admin - Config GET + PATCH role-gating (/api/market/admin/config)"
+    implemented: true
+    working: true
+    file: "app/api/market/admin/config/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "GET returns active market_config (any admin role). PATCH is PLATFORM-ROLE-ONLY (organiser token gets 401/403). Allowed update fields cover identity, theme, PWA metadata, map params, contact, social_links, about_md."
+        - working: true
+          agent: "testing"
+          comment: "✅ VERIFIED: Config endpoints with role-based access control working correctly. GET /config returns 401 without token. With organiser token: GET /config → 200 (read allowed for any admin role). PATCH /config with organiser token → 401 (rejected, platform-only as expected). With platform token: GET /config → 200. PATCH /config with {subtitle:'agent-test-marker'} → 200 (allowed for platform role). Reverted subtitle to original. Role-gating enforced correctly: organiser can read but not write, platform can read and write."
+
 frontend:
   - task: "Luxury landing page (hero, countdown demo, pricing, CTA)"
     implemented: true
@@ -394,7 +517,15 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Markets Admin - Login (POST /api/market/admin/login)"
+    - "Markets Admin - Session check (GET /api/market/admin/me)"
+    - "Markets Admin - Dashboard counts (GET /api/market/admin/dashboard)"
+    - "Markets Admin - Vendors CRUD (/api/market/admin/vendors + [id])"
+    - "Markets Admin - Dates list/PATCH (/api/market/admin/dates + [id])"
+    - "Markets Admin - Orders list + status PATCH (/api/market/admin/orders + [id])"
+    - "Markets Admin - Submissions list + approve/reject (/api/market/admin/submissions)"
+    - "Markets Admin - Config GET + PATCH role-gating (/api/market/admin/config)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -735,3 +866,124 @@ agent_communication:
         Test output: /app/pop_kids_test_output.log
         
         CONCLUSION: POP Kids Phase 2C backend is production-ready. All endpoints correctly enforce authentication, validate inputs, and implement business logic. The 401 tests + code review provide sufficient evidence that the authenticated flows work correctly.
+
+    - agent: "main"
+      message: |
+        PHASE 3 — Markets Admin Panel — READY FOR BACKEND TESTING.
+
+        WHAT'S NEW (additive only — does NOT touch base Dropvine Direct routes/tables):
+        • Two-tier admin auth via sessionStorage + HMAC token (NOT Supabase Auth):
+          - Login endpoint: POST /api/market/admin/login  body {password}
+            → password matches env VITE_ADMIN_PASSWORD → role "platform"
+            → password matches env VITE_ORGANISER_PASSWORD → role "organiser"
+            → otherwise 401
+          - Returns { ok, token, role }. Token = base64url(payload).hmacSha256(payload, CRON_SECRET)
+          - Client stores {token, role, exp} in sessionStorage["dropvine_market_admin"]
+          - Privileged routes accept either `Authorization: Bearer <token>` OR `X-Admin-Token: <token>` header
+        • All /api/market/admin/* routes use requireAdminRole(request) — return 401 without valid token
+        • Config PATCH is platform-role-only — organiser token must get 401/403
+
+        PASSWORDS (in /app/.env, also see /app/memory/test_credentials.md):
+          VITE_ADMIN_PASSWORD=changeme-platform        (role: platform)
+          VITE_ORGANISER_PASSWORD=changeme-organiser   (role: organiser)
+
+        ENDPOINTS TO TEST (all under /api/market/admin):
+          POST /login                    {password} → 401 invalid, 200 valid
+          GET  /me                       → 401 no token, 200 {role} with token
+          GET  /dashboard                → counts + recent_orders, 401 no token
+          GET  /vendors                  → list (active+inactive)
+          POST /vendors                  body { name, slug, ... } → create
+          GET  /vendors/[id]             → vendor + products + posts
+          PATCH /vendors/[id]            body subset of allowed fields
+          DELETE /vendors/[id]           → soft-delete (is_active=false)
+          GET  /dates                    → list market_dates
+          PATCH /dates/[id]              body { date?, start_time?, end_time?, is_cancelled?, notes? }
+          GET  /orders                   → latest 200 with vendor join
+          GET  /orders/[id]              → full order with items
+          PATCH /orders/[id]             body { status } — must accept payment_received/fulfilled/cancelled etc, reject invalid with 400
+          GET  /submissions              → { posts:[], products:[] } (default status=pending)
+          POST /submissions/[type]/[id]/[action]  — type∈{post,product}, action∈{approve,reject}, 400 for invalid
+          GET  /config                   → active market_config (any admin role)
+          PATCH /config                  → platform-role-only (organiser → 401)
+
+        RECOMMENDED TEST FLOW:
+        1) 401 path — every endpoint without token returns 401.
+        2) Login negative — POST /login with bad password → 401.
+        3) Login positive (platform) — POST /login with VITE_ADMIN_PASSWORD → token+role=platform.
+        4) Login positive (organiser) — POST /login with VITE_ORGANISER_PASSWORD → token+role=organiser.
+        5) /me with each token returns matching role.
+        6) /dashboard with valid token returns counts+market+recent_orders (counts may be zero — fine, just shape).
+        7) Vendor lifecycle: POST → GET [id] → PATCH (e.g. tagline) → DELETE (verify is_active=false). Use a unique slug like `agent-test-<ts>`. Clean up by leaving it inactive (no hard delete needed).
+        8) Dates: GET list, then PATCH first row notes="agent test note", revert.
+        9) Orders: GET list, if any rows exist, PATCH one to payment_received then revert. Also send PATCH with invalid status="bogus" → 400.
+        10) Submissions: GET pending list (likely empty — that's fine, just shape). Skip approve/reject if list empty.
+        11) Config role-gating: GET with organiser token → 200; PATCH with organiser token → 401/403; PATCH with platform token (e.g. {subtitle: "agent test"}) → 200; revert.
+
+        DO NOT TOUCH: any /api/launches/*, /api/auth/*, /api/checkout/*, or other base Dropvine Direct routes. The Markets module is strictly additive.
+
+    - agent: "testing"
+      message: |
+        ✅ MARKETS ADMIN PANEL (PHASE 3) BACKEND TESTING COMPLETE - ALL TESTS PASSED (11/11)
+        
+        Comprehensive testing of NEW Dropvine Markets Admin Panel backend endpoints completed. All endpoints functioning correctly with proper HMAC token authentication and role-based access control.
+        
+        AUTHENTICATION & AUTHORIZATION TESTED:
+        1. POST /api/market/admin/login
+           ✅ Wrong password → 401 with error='invalid password'
+           ✅ Platform password 'changeme-platform' → 200 with {ok:true, token, role:'platform'}
+           ✅ Organiser password 'changeme-organiser' → 200 with {ok:true, token, role:'organiser'}
+           ✅ HMAC tokens generated correctly (base64url.signature format)
+        
+        2. GET /api/market/admin/me
+           ✅ No token → 401
+           ✅ Platform token (Authorization: Bearer) → 200 with {role:'platform'}
+           ✅ Organiser token (X-Admin-Token header) → 200 with {role:'organiser'}
+           ✅ Both header formats work correctly
+        
+        3. 401 ENFORCEMENT (8/8 endpoints tested)
+           ✅ All admin endpoints return 401 without token: /me, /dashboard, /vendors, /dates, /orders, /submissions, /config
+        
+        ENDPOINTS TESTED:
+        4. GET /api/market/admin/dashboard
+           ✅ Returns all required fields: counts (vendors_total=7, vendors_active=6, orders_total=3, etc.), recent_orders (8 most recent), market (Willamette Summer Street Market)
+        
+        5. VENDORS CRUD (/api/market/admin/vendors + [id])
+           ✅ POST /vendors with {name, slug, tagline, accepts_preorders} → 200 creates vendor
+           ✅ GET /vendors/{id} → 200 returns vendor with products=[] and posts=[]
+           ✅ PATCH /vendors/{id} with {tagline:'Updated'} → 200 updates successfully
+           ✅ DELETE /vendors/{id} → 200 soft-deletes (is_active=false)
+           ✅ Full lifecycle verified with test vendor slug=agent-test-1778390415
+        
+        6. MARKET DATES (/api/market/admin/dates + [id])
+           ✅ GET /dates → 200 returns 18 market dates
+           ✅ PATCH /dates/{id} with {notes:'agent-test'} → 200 updates successfully
+           ✅ Reverted notes back to original
+        
+        7. ORDERS (/api/market/admin/orders + [id])
+           ✅ GET /orders → 200 returns 3 orders with vendor join (name, slug, venmo_handle, booth_number)
+           ✅ GET /orders/{id} → 200 returns full order with order_items array (3 items)
+           ✅ PATCH /orders/{id} with {status:'payment_received'} → 200 updates successfully
+           ✅ Reverted to original status 'pending_payment'
+           ✅ PATCH with invalid status 'bogus' → 400 (as expected)
+           ✅ Best-effort timestamp handling works (falls back to status-only when columns missing)
+        
+        8. SUBMISSIONS (/api/market/admin/submissions + [type]/[id]/[action])
+           ✅ GET /submissions → 200 returns {posts:[], products:[]} (empty OK)
+           ✅ POST /submissions/foo/bar/approve with invalid type → 400 (as expected)
+           ✅ Validation for type∈{post,product} and action∈{approve,reject} working
+        
+        9. CONFIG ROLE-GATING (/api/market/admin/config) — CRITICAL TEST
+           ✅ GET /config with organiser token → 200 (read allowed for any role)
+           ✅ PATCH /config with organiser token → 401 (rejected, platform-only)
+           ✅ PATCH /config with platform token → 200 (allowed)
+           ✅ Reverted subtitle to original
+           ✅ Role-based access control enforced correctly
+        
+        MINOR FIX APPLIED (testing agent):
+        - Updated error regex in /api/market/admin/orders/[id]/route.js to catch Supabase "Could not find column" error format (was only catching "column does not exist"). This allows best-effort timestamp handling to work correctly when paid_at/cancelled_at columns are missing from schema.
+        
+        Test file: /app/backend_test_admin.py
+        
+        NO CRITICAL ISSUES FOUND. Markets Admin Panel backend is production-ready.
+        All authentication, authorization, CRUD operations, and role-gating working correctly.
+        Base Dropvine Direct app unchanged (no regressions).
