@@ -1,5 +1,5 @@
 // Vercel Cron-compatible endpoint. Vercel sends GET with Authorization: Bearer $CRON_SECRET.
-// We also accept POST for manual / external schedulers; auth via either CRON_SECRET or DROPVINE_CRON_SECRET.
+// Also accepts POST for manual / external schedulers (same auth header).
 //
 // Schedule: every 10 minutes (see vercel.json). Window is forgiving — each launch is
 // only ever notified once (per kind) thanks to the reminded_at / live_notified_at /
@@ -22,12 +22,12 @@ export const dynamic = 'force-dynamic'
 const REMINDER_HOURS_BEFORE = 24
 
 function isAuthed(request) {
+  const expected = process.env.CRON_SECRET
+  if (!expected) return false
   const auth = request.headers.get('authorization') || ''
   if (!auth.startsWith('Bearer ')) return false
   const token = auth.slice('Bearer '.length).trim()
-  // Accept either CRON_SECRET (Vercel convention) or DROPVINE_CRON_SECRET (legacy / manual)
-  const acceptable = [process.env.CRON_SECRET, process.env.DROPVINE_CRON_SECRET].filter(Boolean)
-  return acceptable.includes(token)
+  return token === expected
 }
 
 async function getCreatorEmail(sb, creatorId) {
