@@ -69,7 +69,7 @@ export default function ProfilePage() {
             {pushState.subscribed ? <Bell className="w-5 h-5 text-stone-700 mt-0.5" /> : <BellOff className="w-5 h-5 text-stone-500 mt-0.5" />}
             <div className="flex-1">
               <div className="font-serif text-base text-stone-800">Market-day notifications</div>
-              <p className="text-sm text-stone-600">A gentle nudge every Wednesday morning when the market is on, plus flash deals.</p>
+              <p className="text-sm text-stone-600">A gentle nudge on market mornings, plus flash deals.</p>
             </div>
             <button onClick={togglePush} disabled={!pushState.supported || pushState.busy}
                     className="text-xs px-3 py-1.5 rounded-full transition disabled:opacity-50"

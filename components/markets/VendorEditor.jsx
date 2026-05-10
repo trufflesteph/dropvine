@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import { adminFetch } from '@/lib/markets/admin-client'
 import { toast } from 'sonner'
 import { Loader2, Mail } from 'lucide-react'
+import { MARKET_INPUT_PLACEHOLDERS } from '@/lib/markets/defaults'
 
 export default function VendorEditor({ initialVendor = null, products = [], posts = [] }) {
   const router = useRouter()
@@ -112,7 +113,7 @@ export default function VendorEditor({ initialVendor = null, products = [], post
           <input type="checkbox" checked={!!v.accepts_preorders} onChange={(e) => set('accepts_preorders', e.target.checked)} />
           Accept pre-orders for this vendor
         </label>
-        <Row><F label="Venmo handle (no @)" value={v.venmo_handle || ''} onChange={(e) => set('venmo_handle', e.target.value)} placeholder="brookside-farm" /></Row>
+        <Row><F label="Venmo handle (no @)" value={v.venmo_handle || ''} onChange={(e) => set('venmo_handle', e.target.value)} placeholder={MARKET_INPUT_PLACEHOLDERS.venmo_handle} /></Row>
         <p className="text-xs text-stone-500">Required to accept pre-orders. Shoppers will be sent to <code className="bg-stone-100 px-1 rounded">venmo.com/&lt;handle&gt;</code> with the order amount and note pre-filled.</p>
       </div>
 
@@ -124,7 +125,7 @@ export default function VendorEditor({ initialVendor = null, products = [], post
         </Row>
         <Row>
           <F label="Website" value={v.website || ''} onChange={(e) => set('website', e.target.value)} />
-          <F label="Instagram" value={v.instagram_handle || ''} onChange={(e) => set('instagram_handle', e.target.value)} placeholder="@brooksidefarmco" />
+          <F label="Instagram" value={v.instagram_handle || ''} onChange={(e) => set('instagram_handle', e.target.value)} placeholder={MARKET_INPUT_PLACEHOLDERS.instagram_handle} />
         </Row>
       </div>
 

@@ -4,6 +4,7 @@ import AdminShell from '@/components/markets/AdminShell'
 import { adminFetch } from '@/lib/markets/admin-client'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
+import { MARKET_NEUTRAL_DEFAULTS, MARKET_INPUT_PLACEHOLDERS } from '@/lib/markets/defaults'
 
 export default function AdminSettingsPage() {
   const [c, setC] = useState(null)
@@ -17,7 +18,13 @@ export default function AdminSettingsPage() {
     const fields = ['name','subtitle','season','primary_color','accent_color','pwa_short_name','pwa_theme_color','pwa_background_color','map_booth_count','map_orientation','map_street_name','map_cross_street_start','map_cross_street_end','contact_email','about_md']
     const payload = {}
     for (const k of fields) payload[k] = c[k]
-    payload.map_booth_count = parseInt(payload.map_booth_count, 10) || 12
+    // Coerce booth count to integer or null (lets the operator clear it)
+    if (payload.map_booth_count === '' || payload.map_booth_count == null) {
+      payload.map_booth_count = null
+    } else {
+      const n = parseInt(payload.map_booth_count, 10)
+      payload.map_booth_count = Number.isFinite(n) ? n : null
+    }
     const r = await adminFetch('/api/market/admin/config', { method: 'PATCH', body: JSON.stringify(payload) })
     const j = await r.json()
     if (!r.ok || j?.error) toast.error(j?.error || 'Failed')
@@ -43,23 +50,23 @@ export default function AdminSettingsPage() {
 
           <Card title="Theme">
             <Row>
-              <ColorField label="Primary" value={c.primary_color || '#2F5233'} onChange={(v) => set('primary_color', v)} />
-              <ColorField label="Accent" value={c.accent_color || '#E2A93C'} onChange={(v) => set('accent_color', v)} />
+              <ColorField label="Primary" value={c.primary_color || MARKET_NEUTRAL_DEFAULTS.primary_color} onChange={(v) => set('primary_color', v)} />
+              <ColorField label="Accent" value={c.accent_color || MARKET_NEUTRAL_DEFAULTS.accent_color} onChange={(v) => set('accent_color', v)} />
             </Row>
             <Row>
-              <ColorField label="PWA theme" value={c.pwa_theme_color || '#2F5233'} onChange={(v) => set('pwa_theme_color', v)} />
-              <ColorField label="PWA background" value={c.pwa_background_color || '#FAF7F2'} onChange={(v) => set('pwa_background_color', v)} />
+              <ColorField label="PWA theme" value={c.pwa_theme_color || MARKET_NEUTRAL_DEFAULTS.pwa_theme_color} onChange={(v) => set('pwa_theme_color', v)} />
+              <ColorField label="PWA background" value={c.pwa_background_color || MARKET_NEUTRAL_DEFAULTS.pwa_background_color} onChange={(v) => set('pwa_background_color', v)} />
             </Row>
           </Card>
 
           <Card title="Street map">
             <Row>
-              <F label="Street name" value={c.map_street_name || ''} onChange={(e) => set('map_street_name', e.target.value)} placeholder="Willamette Falls Drive" />
-              <F label="Booth count" type="number" min="2" max="40" value={c.map_booth_count ?? 12} onChange={(e) => set('map_booth_count', e.target.value)} />
+              <F label="Street name" value={c.map_street_name || ''} onChange={(e) => set('map_street_name', e.target.value)} placeholder={MARKET_INPUT_PLACEHOLDERS.street_name} />
+              <F label="Booth count" type="number" min="2" max="40" value={c.map_booth_count ?? ''} onChange={(e) => set('map_booth_count', e.target.value)} />
             </Row>
             <Row>
-              <F label="Cross street — start" value={c.map_cross_street_start || ''} onChange={(e) => set('map_cross_street_start', e.target.value)} placeholder="12th St" />
-              <F label="Cross street — end" value={c.map_cross_street_end || ''} onChange={(e) => set('map_cross_street_end', e.target.value)} placeholder="15th St" />
+              <F label="Cross street — start" value={c.map_cross_street_start || ''} onChange={(e) => set('map_cross_street_start', e.target.value)} placeholder={MARKET_INPUT_PLACEHOLDERS.cross_street_start} />
+              <F label="Cross street — end" value={c.map_cross_street_end || ''} onChange={(e) => set('map_cross_street_end', e.target.value)} placeholder={MARKET_INPUT_PLACEHOLDERS.cross_street_end} />
             </Row>
             <label className="block">
               <span className="text-xs uppercase tracking-widest text-stone-500">Orientation</span>

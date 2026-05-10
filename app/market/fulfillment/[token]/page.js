@@ -91,7 +91,7 @@ function ActionButton({ label, done, disabled, loading, onClick, primary }) {
     <button onClick={onClick} disabled={disabled || done || loading}
             className="inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm transition"
             style={primary
-              ? { background: done ? '#E2F1DE' : '#2F5233', color: done ? '#1f6e1f' : '#FAF7F2', opacity: (disabled && !done) ? 0.4 : 1 }
+              ? { background: done ? '#E2F1DE' : 'var(--market-primary, #1F1F1E)', color: done ? '#1f6e1f' : 'var(--market-bg, #FAF7F2)', opacity: (disabled && !done) ? 0.4 : 1 }
               : { border: '1px solid #C9C0AE', color: done ? '#1f6e1f' : '#3D3B36', background: done ? '#E2F1DE' : 'white', opacity: (disabled && !done) ? 0.4 : 1 }}>
       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : done ? <CheckCircle2 className="w-4 h-4" /> : null}
       {done ? `✔ ${label.replace(/^Mark /, '')}` : label}
