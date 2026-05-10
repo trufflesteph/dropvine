@@ -1,84 +1,105 @@
 'use client'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useMarketConfig } from '@/lib/markets/config-context'
+import VendorCard from '@/components/markets/VendorCard'
+import { Calendar, MapPin } from 'lucide-react'
+
+function nextMarketDate(dates = []) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return dates.find((d) => new Date(d.date + 'T00:00:00') >= today && !d.is_cancelled) || null
+}
+
+function formatDate(s) {
+  return new Date(s + 'T00:00:00').toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric',
+  })
+}
 
 export default function MarketHomePage() {
-  const { config, loading, error } = useMarketConfig()
+  const { config, loading } = useMarketConfig()
+  const [vendors, setVendors] = useState([])
+  const [dates, setDates] = useState([])
+
+  useEffect(() => {
+    if (!config) return
+    fetch('/api/market/vendors').then((r) => r.json()).then((j) => setVendors(j?.vendors || []))
+    fetch('/api/market/dates').then((r) => r.json()).then((j) => setDates(j?.dates || []))
+  }, [config])
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-stone-500">
-        Loading market…
-      </div>
-    )
+    return <div className="min-h-screen flex items-center justify-center text-stone-500">Loading market…</div>
   }
-
   if (!config) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
         <h1 className="text-2xl font-serif text-stone-800 mb-3">No active market configured</h1>
         <p className="text-stone-600 max-w-md">
-          Run <code className="bg-stone-100 px-1 rounded">supabase/markets_schema.sql</code> in the Supabase SQL Editor and ensure one
-          <code className="bg-stone-100 px-1 rounded">market_config</code> row has <code className="bg-stone-100 px-1 rounded">is_active=true</code>.
+          Run <code className="bg-stone-100 px-1 rounded">supabase/markets_schema.sql</code> in the Supabase SQL Editor.
         </p>
-        {error && <p className="text-xs text-rose-600 mt-3">{error}</p>}
-        <Link href="/" className="text-sm underline text-stone-500 mt-6">← Back to Dropvine
-        </Link>
+        <Link href="/" className="text-sm underline text-stone-500 mt-6">← Back to Dropvine</Link>
       </div>
     )
   }
 
+  const upcoming = nextMarketDate(dates)
+
   return (
-    <main className="min-h-screen">
-      <header
-        className="px-6 py-12 border-b"
-        style={{ background: 'var(--market-primary, #2F5233)', color: '#FAF7F2', borderColor: 'rgba(0,0,0,0.06)' }}
-      >
+    <main>
+      {/* Hero */}
+      <section className="px-5 pt-8 pb-10" style={{ background: 'var(--market-primary, #2F5233)', color: '#FAF7F2' }}>
         <div className="max-w-3xl mx-auto">
-          {config.pwa_short_name && (
-            <p className="uppercase tracking-[0.2em] text-xs opacity-70 mb-3">{config.pwa_short_name} · {config.season || ''}</p>
-          )}
+          <p className="uppercase tracking-[0.22em] text-[11px] opacity-70 mb-3">
+            {config.pwa_short_name} · {config.season}
+          </p>
           <h1 className="text-4xl md:text-5xl font-serif leading-tight">{config.name}</h1>
-          {config.subtitle && (
-            <p className="mt-3 text-lg opacity-90">{config.subtitle}</p>
+          {config.subtitle && <p className="mt-3 text-base md:text-lg opacity-90">{config.subtitle}</p>}
+
+          {upcoming ? (
+            <div className="mt-6 inline-flex items-center gap-3 px-4 py-3 rounded-2xl"
+                 style={{ background: 'rgba(255,255,255,0.08)' }}>
+              <Calendar className="w-4 h-4" strokeWidth={1.6} />
+              <div>
+                <div className="text-[10px] uppercase tracking-widest opacity-70">Next market</div>
+                <div className="font-serif text-lg leading-tight">{formatDate(upcoming.date)}</div>
+                <div className="text-xs opacity-80">{upcoming.start_time?.slice(0, 5)} – {upcoming.end_time?.slice(0, 5)}</div>
+              </div>
+            </div>
+          ) : null}
+
+          {(config.map_street_name || config.map_cross_street_start) && (
+            <div className="mt-3 flex items-center gap-2 text-sm opacity-80">
+              <MapPin className="w-4 h-4" strokeWidth={1.6} />
+              <span>{config.map_street_name} · {config.map_cross_street_start} → {config.map_cross_street_end}</span>
+            </div>
           )}
         </div>
-      </header>
-
-      <section className="px-6 py-10 max-w-3xl mx-auto">
-        <div className="grid sm:grid-cols-2 gap-4">
-          <ShortcutCard href="/market/shop" label="Shop the market" sub="Vendors, products & map" />
-          <ShortcutCard href="/market/calendar" label="Season calendar" sub="Every market day" />
-          <ShortcutCard href="/market/passport" label="Passport" sub="Stamps & badges" />
-          <ShortcutCard href="/market/pop" label="POP Kids" sub="Stamps, tokens & rewards" />
-        </div>
-
-        <div className="mt-10 text-sm text-stone-600 space-y-2">
-          {config.contact_email && (
-            <p>Contact: <a className="underline" href={`mailto:${config.contact_email}`}>{config.contact_email}</a></p>
-          )}
-          {config?.social_links?.instagram && (
-            <p>Instagram: <span className="font-medium">{config.social_links.instagram}</span></p>
-          )}
-        </div>
-
-        <p className="mt-12 text-xs text-stone-400">
-          Theme → primary <span style={{ color: config.primary_color }}>{config.primary_color}</span> · accent <span style={{ color: config.accent_color }}>{config.accent_color}</span>
-        </p>
       </section>
-    </main>
-  )
-}
 
-function ShortcutCard({ href, label, sub }) {
-  return (
-    <Link
-      href={href}
-      className="block rounded-2xl border border-stone-200 bg-white p-5 hover:border-stone-300 transition"
-    >
-      <div className="text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--market-accent, #E2A93C)' }}>{sub}</div>
-      <div className="text-xl font-serif text-stone-800">{label}</div>
-    </Link>
+      {/* Featured vendors */}
+      <section className="px-5 py-8 max-w-3xl mx-auto">
+        <div className="flex items-baseline justify-between mb-4">
+          <h2 className="font-serif text-xl text-stone-800">Featured vendors</h2>
+          <Link href="/market/shop" className="text-sm underline text-stone-600">See all →</Link>
+        </div>
+        {vendors.length === 0 ? (
+          <p className="text-stone-500 text-sm">No vendors yet.</p>
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-4">
+            {vendors.slice(0, 4).map((v) => <VendorCard key={v.id} vendor={v} />)}
+          </div>
+        )}
+      </section>
+
+      {/* About */}
+      {config.about_md ? (
+        <section className="px-5 pb-10 max-w-3xl mx-auto">
+          <div className="rounded-2xl border border-stone-200 bg-white p-6 whitespace-pre-line text-stone-700 leading-relaxed text-sm">
+            {config.about_md}
+          </div>
+        </section>
+      ) : null}
+    </main>
   )
 }

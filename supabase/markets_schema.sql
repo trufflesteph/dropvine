@@ -796,3 +796,17 @@ Every Wednesday from May through September we close down Willamette Falls Drive 
     (v_indigo,   'Menu update',         'Adding tinga de pollo this week alongside our usual.');
 
 end $$;
+
+-- =====================================================================
+-- POST-SEED ADJUSTMENTS — idempotent, run on every execution.
+-- =====================================================================
+-- Mark July 1, 2026 as a "dark week" for Independence Day so it appears
+-- on the calendar with the explanation rather than being silently absent.
+update public.market_dates
+set is_cancelled = true,
+    notes = 'Dark week — Independence Day holiday'
+where date = '2026-07-01'
+  and market_config_id = (
+    select id from public.market_config
+    where name = 'Willamette Summer Street Market'
+  );

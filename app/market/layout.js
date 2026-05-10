@@ -1,5 +1,6 @@
 import { MarketConfigProvider } from '@/lib/markets/config-context'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
+import BottomNav from '@/components/markets/BottomNav'
 
 export const metadata = {
   title: 'Market — Dropvine',
@@ -24,8 +25,9 @@ export default async function MarketLayout({ children }) {
   const initialConfig = await fetchActiveConfig()
   return (
     <MarketConfigProvider initialConfig={initialConfig}>
-      <div className="min-h-screen" style={{ background: 'var(--market-bg, #FAF7F2)' }}>
+      <div className="min-h-screen pb-20" style={{ background: 'var(--market-bg, #FAF7F2)' }}>
         {children}
+        <BottomNav />
       </div>
     </MarketConfigProvider>
   )
