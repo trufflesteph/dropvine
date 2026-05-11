@@ -1,0 +1,28 @@
+import { getSupabaseAdmin } from '@/lib/supabase/server'
+import MarketProviders from '@/components/markets/MarketProviders'
+import ServiceWorkerRegister from '@/components/markets/ServiceWorkerRegister'
+
+export const metadata = {
+  title: 'Market — Dropvine',
+  description: 'A white-label progressive web app for seasonal farmers markets, powered by Dropvine.',
+}
+
+async function fetchActiveConfig() {
+  try {
+    const supa = getSupabaseAdmin()
+    if (!supa) return null
+    const { data } = await supa
+      .from('market_config').select('*').eq('is_active', true).limit(1).maybeSingle()
+    return data || null
+  } catch { return null }
+}
+
+export default async function MarketLayout({ children }) {
+  const initialConfig = await fetchActiveConfig()
+  return (
+    <MarketProviders initialConfig={initialConfig}>
+      <ServiceWorkerRegister />
+      {children}
+    </MarketProviders>
+  )
+}

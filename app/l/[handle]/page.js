@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Countdown } from '@/components/dropvine/countdown'
@@ -9,6 +9,14 @@ import { toast } from 'sonner'
 import { ArrowRight, Lock, Check } from 'lucide-react'
 
 export default function PublicLaunchPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-muted-foreground text-sm">Loading…</div>}>
+      <PublicLaunchPageInner />
+    </Suspense>
+  )
+}
+
+function PublicLaunchPageInner() {
   const { handle } = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()

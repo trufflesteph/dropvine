@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { store } from '@/lib/mock-store'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
-import { sendReservationConfirmation, sendSoldOutNotification } from '@/lib/email/notifications'
+import { notifyReservationConfirmed, notifySoldOut } from '@/lib/notifications'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -45,7 +45,7 @@ async function maybeSendSoldOut({ launch, baseUrl, creatorEmail }) {
     .eq('launch_id', launch.id)
     .in('status', ['held', 'captured'])
   if (count === launch.capacity) {
-    sendSoldOutNotification({ launch, capacity: launch.capacity, creatorEmail, baseUrl }).catch(() => {})
+    notifySoldOut({ launch, capacity: launch.capacity, creatorEmail, baseUrl }).catch(() => {})
   }
 }
 
@@ -80,7 +80,7 @@ export async function POST(request) {
         const result = await markReservationStatus(session.id, 'held')
         // Fire-and-forget emails — only on first processing (idempotency)
         if (result.reservation && !result.alreadyProcessed && result.launch) {
-          sendReservationConfirmation({ launch: result.launch, reservation: result.reservation, baseUrl }).catch(() => {})
+          notifyReservationConfirmed({ launch: result.launch, reservation: result.reservation, baseUrl }).catch(() => {})
           maybeSendSoldOut({ launch: result.launch, baseUrl, creatorEmail: result.creatorEmail }).catch(() => {})
         }
       }
