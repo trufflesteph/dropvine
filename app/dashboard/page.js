@@ -3,29 +3,51 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
-import { ArrowUpRight, Plus, Calendar, Users, Sparkles } from 'lucide-react'
+import { toast } from 'sonner'
+import { ArrowUpRight, Plus, Calendar, Users, Sparkles, Loader2, Eye } from 'lucide-react'
 
 export default function DashboardPage() {
   const router = useRouter()
   const { user, loading, signOut } = useAuth() || {}
   const [launches, setLaunches] = useState([])
   const [fetching, setFetching] = useState(true)
+  const [publishingId, setPublishingId] = useState(null)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
   }, [loading, user, router])
 
-  useEffect(() => {
+  const reload = async () => {
     if (!user) return
-    const load = async () => {
-      setFetching(true)
-      const r = await fetch('/api/launches?creator=me', { headers: { 'x-user-id': user.id } })
+    setFetching(true)
+    const r = await fetch('/api/launches?creator=me', { headers: { 'x-user-id': user.id } })
+    const d = await r.json()
+    setLaunches(d.launches || [])
+    setFetching(false)
+  }
+
+  useEffect(() => { if (user) reload() }, [user])
+
+  const publish = async (launch) => {
+    if (!user) return
+    setPublishingId(launch.id)
+    try {
+      const r = await fetch(`/api/market/admin/drops/${launch.id}/publish`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        body: JSON.stringify({}),
+      })
       const d = await r.json()
-      setLaunches(d.launches || [])
-      setFetching(false)
+      if (!r.ok || d?.error) { toast.error(d?.error || 'Publish failed'); return }
+      toast.success(d.already ? 'Already published.' : 'Published — your drop is now live.')
+      // Optimistic local update
+      setLaunches((prev) => prev.map((l) => l.id === launch.id ? { ...l, status: 'published' } : l))
+    } catch (e) {
+      toast.error(e?.message || 'Publish failed')
+    } finally {
+      setPublishingId(null)
     }
-    load()
-  }, [user])
+  }
 
   if (loading || !user) {
     return <div className="min-h-screen flex items-center justify-center text-muted-foreground text-sm">Loading…</div>
@@ -82,24 +104,54 @@ export default function DashboardPage() {
             <EmptyState />
           ) : (
             <ul className="divide-y divide-border border-y border-border">
-              {launches.map(l => (
-                <li key={l.id} className="py-7 grid grid-cols-12 gap-4 items-center group">
-                  <div className="col-span-12 md:col-span-6">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-1">{l.status}</div>
-                    <div className="font-serif text-2xl tracking-tight">{l.title}</div>
-                    <div className="text-sm text-muted-foreground">/l/{l.handle}</div>
-                  </div>
-                  <div className="col-span-6 md:col-span-3 text-sm">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-1">Opens</div>
-                    <div className="tabular-nums">{new Date(l.launch_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</div>
-                  </div>
-                  <div className="col-span-6 md:col-span-3 flex items-center justify-end gap-4 text-sm">
-                    <Link href={`/l/${l.handle}`} className="inline-flex items-center gap-1 text-muted-foreground group-hover:text-foreground">
-                      View <ArrowUpRight className="h-3.5 w-3.5" />
-                    </Link>
-                  </div>
-                </li>
-              ))}
+              {launches.map(l => {
+                const isDraft = l.status === 'draft'
+                return (
+                  <li key={l.id} className="py-7 grid grid-cols-12 gap-4 items-center group">
+                    <div className="col-span-12 md:col-span-6">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">{l.status}</span>
+                        {isDraft ? (
+                          <span className="inline-flex items-center text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm" style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #F59E0B' }}>
+                            Needs review
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="font-serif text-2xl tracking-tight">{l.title}</div>
+                      <div className="text-sm text-muted-foreground">/l/{l.handle}</div>
+                    </div>
+                    <div className="col-span-6 md:col-span-3 text-sm">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-1">Opens</div>
+                      <div className="tabular-nums">{new Date(l.launch_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</div>
+                    </div>
+                    <div className="col-span-6 md:col-span-3 flex items-center justify-end gap-3 text-sm flex-wrap">
+                      {isDraft ? (
+                        <>
+                          <Link
+                            href={`/admin/drops/${l.id}/preview`}
+                            className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                          >
+                            <Eye className="h-3.5 w-3.5" /> Preview
+                          </Link>
+                          <button
+                            onClick={() => publish(l)}
+                            disabled={publishingId === l.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs uppercase tracking-wider disabled:opacity-50"
+                            style={{ background: '#F59E0B', color: '#1c1500' }}
+                          >
+                            {publishingId === l.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                            Publish
+                          </button>
+                        </>
+                      ) : (
+                        <Link href={`/l/${l.handle}`} className="inline-flex items-center gap-1 text-muted-foreground group-hover:text-foreground">
+                          View <ArrowUpRight className="h-3.5 w-3.5" />
+                        </Link>
+                      )}
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </section>

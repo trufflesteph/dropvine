@@ -102,6 +102,7 @@ export async function GET(request, { params }) {
   }
 
   // GET /api/launches/by-handle/[handle]
+  // Hides drafts from the public — only published / live-bound launches are returned.
   if (path.startsWith('launches/by-handle/')) {
     const handle = path.replace('launches/by-handle/', '')
     const sb = getSupabaseServer()
@@ -109,10 +110,12 @@ export async function GET(request, { params }) {
       const { data, error } = await sb.from('launches').select('*').eq('handle', handle).maybeSingle()
       if (error) return err(error.message, 500)
       if (!data) return err('not found', 404)
+      if (data.status === 'draft') return err('not found', 404)
       return json({ launch: data })
     }
     const found = Array.from(store.launches.values()).find(l => l.handle === handle)
     if (!found) return err('not found', 404)
+    if (found.status === 'draft') return err('not found', 404)
     return json({ launch: found })
   }
 
