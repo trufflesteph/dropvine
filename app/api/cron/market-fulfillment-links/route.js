@@ -70,7 +70,7 @@ async function runSweep({ baseUrl, dryRun }) {
     summary.links_minted++
 
     const [{ data: vendor }, { data: items }, { data: mDate }] = await Promise.all([
-      supa.from('vendors').select('id, name, email, venmo_handle, booth_number').eq('id', order.vendor_id).maybeSingle(),
+      supa.from('vendors').select('id, name, email, phone, sms_opt_in, venmo_handle, booth_number').eq('id', order.vendor_id).maybeSingle(),
       supa.from('order_items').select('*').eq('order_id', order.id),
       order.market_date_id
         ? supa.from('market_dates').select('date').eq('id', order.market_date_id).maybeSingle()
@@ -83,11 +83,12 @@ async function runSweep({ baseUrl, dryRun }) {
     }
 
     const magicUrl = `${(baseUrl || '').replace(/\/$/, '')}/market/fulfillment/${token}`
+    const vendorChannels = (vendor?.sms_opt_in === true && vendor?.phone) ? ['email', 'sms'] : ['email']
     const result = await notifyMarketVendorOrderArrived({
       order, vendor, items: items || [], magicUrl,
       marketName: market?.name || 'Market',
       marketDate: mDate?.date || null,
-    })
+    }, vendorChannels)
     const r = (result || []).find((x) => x.channel === 'email')
     if (r?.id) summary.emails_sent++
     else if (r?.error) summary.errors.push({ order: order.short_code, error: r.error })

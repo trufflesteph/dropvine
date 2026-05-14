@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { readAdminSession, clearAdminSession } from '@/lib/markets/admin-client'
 import {
   LayoutGrid, Store, Calendar, ShoppingCart, Inbox, Settings, QrCode, LogOut, ShieldCheck,
-  Sparkles, Users, MapPin, Trophy, BadgeCheck, ClipboardList, Package,
+  Sparkles, Users, MapPin, Trophy, BadgeCheck, ClipboardList, Package, MessageSquare,
 } from 'lucide-react'
 
 // Two-section IA. Sections collapse on mobile via overflow scroll.
@@ -31,6 +31,7 @@ const SECTIONS = [
       { href: '/admin/amenities',    label: 'Amenities',   Icon: MapPin,        roles: ['platform','organiser'] },
       { href: '/admin/pop',          label: 'POP Passport', Icon: BadgeCheck,   roles: ['platform','organiser'] },
       { href: '/admin/qr-codes',     label: 'QR codes',    Icon: QrCode,        roles: ['platform','organiser'] },
+      { href: '/admin/notifications',label: 'Notifications', Icon: MessageSquare, roles: ['platform'] },
       { href: '/admin/settings',     label: 'Settings',    Icon: Package,       roles: ['platform'] },
     ],
   },

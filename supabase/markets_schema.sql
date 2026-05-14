@@ -810,3 +810,11 @@ where date = '2026-07-01'
     select id from public.market_config
     where name = 'Willamette Summer Street Market'
   );
+
+-- ---------------------------------------------------------------------
+-- 21) Twilio SMS opt-in (additive — see migrations/2026-06-twilio-sms-opt-in.sql)
+-- ---------------------------------------------------------------------
+alter table public.shopper_profiles add column if not exists sms_opt_in boolean default false;
+alter table public.vendors          add column if not exists sms_opt_in boolean default false;
+create index if not exists shopper_profiles_sms_opt_in_idx on public.shopper_profiles (sms_opt_in) where sms_opt_in = true;
+create index if not exists vendors_sms_opt_in_idx          on public.vendors          (sms_opt_in) where sms_opt_in = true;

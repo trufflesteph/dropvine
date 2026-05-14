@@ -5,6 +5,10 @@ import { Nav } from '@/components/dropvine/nav'
 import { Footer } from '@/components/dropvine/footer'
 import { Countdown } from '@/components/dropvine/countdown'
 import { ArrowRight, ArrowUpRight } from 'lucide-react'
+import { getSupabaseBrowser } from '@/lib/supabase/client'
+
+const PRICING_HEADLINE_FALLBACK = "Start free. Grow when you're ready."
+const PRICING_SUBTEXT_FALLBACK = 'No credit card. No lock-in. Every tier includes all four collection modes — waitlist, pre-order, reservation, and deposit.'
 
 const NICHE_SVG = {
   ceramic:    "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSc2MDAnIGhlaWdodD0nNDAwJyB2aWV3Qm94PScwIDAgNjAwIDQwMCc+PHJlY3Qgd2lkdGg9JzYwMCcgaGVpZ2h0PSc0MDAnIGZpbGw9JyNjNDg0NWEnLz48ZWxsaXBzZSBjeD0nMzAwJyBjeT0nMzQwJyByeD0nMTYwJyByeT0nMzAnIGZpbGw9J25vbmUnIHN0cm9rZT0nIzhiNGUyYScgc3Ryb2tlLXdpZHRoPSczJyBvcGFjaXR5PScwLjUnLz48ZWxsaXBzZSBjeD0nMzAwJyBjeT0nMjAwJyByeD0nMTAwJyByeT0nMTYwJyBmaWxsPSdub25lJyBzdHJva2U9JyM4YjRlMmEnIHN0cm9rZS13aWR0aD0nMi41JyBvcGFjaXR5PScwLjQnLz48ZWxsaXBzZSBjeD0nMzAwJyBjeT0nMjAwJyByeD0nNzAnIHJ5PScxNDAnIGZpbGw9J25vbmUnIHN0cm9rZT0nI2U4YjA5MCcgc3Ryb2tlLXdpZHRoPScyJyBvcGFjaXR5PScwLjQnLz48ZWxsaXBzZSBjeD0nMzAwJyBjeT0nMjAwJyByeD0nNDAnIHJ5PScxMDAnIGZpbGw9J25vbmUnIHN0cm9rZT0nI2U4YjA5MCcgc3Ryb2tlLXdpZHRoPScxLjUnIG9wYWNpdHk9JzAuMycvPjxsaW5lIHgxPSczMDAnIHkxPSc0MCcgeDI9JzMwMCcgeTI9JzM3MCcgc3Ryb2tlPScjOGI0ZTJhJyBzdHJva2Utd2lkdGg9JzEnIG9wYWNpdHk9JzAuMjUnLz48cGF0aCBkPSdNMjMwIDgwIFEzMDAgNjAgMzcwIDgwJyBmaWxsPSdub25lJyBzdHJva2U9JyNlOGIwOTAnIHN0cm9rZS13aWR0aD0nMicgb3BhY2l0eT0nMC41Jy8+PHBhdGggZD0nTTIwMCAyMDAgUTMwMCAxODAgNDAwIDIwMCcgZmlsbD0nbm9uZScgc3Ryb2tlPScjOGI0ZTJhJyBzdHJva2Utd2lkdGg9JzEuNScgb3BhY2l0eT0nMC4zJy8+PHBhdGggZD0nTTIyMCAzMDAgUTMwMCAyODUgMzgwIDMwMCcgZmlsbD0nbm9uZScgc3Ryb2tlPScjOGI0ZTJhJyBzdHJva2Utd2lkdGg9JzEuNScgb3BhY2l0eT0nMC4zJy8+PC9zdmc+",
@@ -54,7 +58,34 @@ const TICKER_ITEMS = [
 export default function LandingPage() {
   const target = useMemo(() => new Date(Date.now() + 1000 * 60 * 60 * 36).toISOString(), [])
   const [mounted, setMounted] = useState(false)
+  const [pricingCopy, setPricingCopy] = useState({
+    headline: PRICING_HEADLINE_FALLBACK,
+    subtext: PRICING_SUBTEXT_FALLBACK,
+  })
   useEffect(() => setMounted(true), [])
+
+  // Fetch pricing headline/subtext from site_config (anon read).
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const sb = getSupabaseBrowser()
+        if (!sb) return
+        const { data, error } = await sb
+          .from('site_config')
+          .select('key, value')
+          .in('key', ['pricing_headline', 'pricing_subtext'])
+        if (error || !data || cancelled) return
+        const map = {}
+        for (const row of data) map[row.key] = row.value
+        setPricingCopy((prev) => ({
+          headline: map.pricing_headline?.trim() ? map.pricing_headline : prev.headline,
+          subtext: map.pricing_subtext?.trim() ? map.pricing_subtext : prev.subtext,
+        }))
+      } catch { /* fall back silently */ }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -295,9 +326,9 @@ export default function LandingPage() {
           <div className="md:col-span-4">
             <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Pricing</div>
             <h2 className="font-serif font-light text-4xl md:text-5xl leading-tight tracking-tighter">
-              Honest. <span className="italic">Pay when it ships.</span>
+              {pricingCopy.headline}
             </h2>
-            <p className="mt-6 text-sm text-muted-foreground leading-relaxed">Start free. Upgrade when you need more. No lock-in.</p>
+            <p className="mt-6 text-sm text-muted-foreground leading-relaxed">{pricingCopy.subtext}</p>
           </div>
           <div className="md:col-span-8 grid sm:grid-cols-3 gap-6">
             {PLANS.map(p => (

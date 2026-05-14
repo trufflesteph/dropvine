@@ -13,6 +13,7 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { sendPushTo } from '@/lib/markets/web-push-server'
+import { notifyMarketDayReminder, channelStatus } from '@/lib/notifications'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -88,18 +89,52 @@ async function runPush({ dryRun, force, message, baseUrl }) {
   if (subErr) return { error: subErr.message, status: 500 }
 
   const summary = { date: today, total: subs?.length || 0, sent: 0, gone: 0, failed: 0 }
-  if (dryRun || !subs?.length) return { summary, payload }
+  
+  // Only send push notifications if not dryRun and we have subscriptions
+  if (!dryRun && subs?.length) {
+    const goneIds = []
+    for (const sub of subs) {
+      const r = await sendPushTo(sub, payload)
+      if (r.ok) summary.sent++
+      else if (r.gone) { summary.gone++; goneIds.push(sub.id) }
+      else summary.failed++
+    }
+    if (goneIds.length) {
+      await supa.from('push_subscriptions').delete().in('id', goneIds)
+    }
+  }
 
-  const goneIds = []
-  for (const sub of subs) {
-    const r = await sendPushTo(sub, payload)
-    if (r.ok) summary.sent++
-    else if (r.gone) { summary.gone++; goneIds.push(sub.id) }
-    else summary.failed++
+  // ---- SMS fan-out (additive — opted-in shoppers only) ----
+  const status = channelStatus()
+  summary.sms = { eligible: 0, sent: 0, failed: 0, skipped: 0 }
+  if (status.sms && !dryRun) {
+    const { data: smsShoppers } = await supa.from('shopper_profiles')
+      .select('id, phone, sms_opt_in')
+      .eq('sms_opt_in', true)
+      .not('phone', 'is', null)
+    summary.sms.eligible = smsShoppers?.length || 0
+    if (smsShoppers?.length) {
+      const smsUrl = url
+      for (const sp of smsShoppers) {
+        const res = await notifyMarketDayReminder({
+          to: sp.phone,
+          marketName: market.name,
+          startTime: startHm || null,
+          endTime: endHm || null,
+          url: smsUrl,
+        }, ['sms'])
+        const r = (res || [])[0] || {}
+        if (r.sid) summary.sms.sent++
+        else if (r.skipped) summary.sms.skipped++
+        else summary.sms.failed++
+      }
+    }
+  } else if (!status.sms) {
+    summary.sms.skipped = 'twilio not configured'
+  } else if (dryRun) {
+    summary.sms.skipped = 'dryRun'
   }
-  if (goneIds.length) {
-    await supa.from('push_subscriptions').delete().in('id', goneIds)
-  }
+
   return { summary, payload }
 }
 

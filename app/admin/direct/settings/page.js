@@ -21,6 +21,13 @@ const SECTIONS = [
     ],
   },
   {
+    title: 'Pricing', kicker: 'Heading shown above the pricing tier cards',
+    fields: [
+      { key: 'pricing_headline', label: 'Pricing headline', type: 'text',     help: 'e.g. “Start free. Grow when you’re ready.”' },
+      { key: 'pricing_subtext',  label: 'Pricing subtext',  type: 'textarea', help: 'One short paragraph; renders below the headline.' },
+    ],
+  },
+  {
     title: 'Free tier', kicker: 'Hobbyist plan',
     fields: [
       { key: 'free_tier_name',        label: 'Tier name',          type: 'text' },
