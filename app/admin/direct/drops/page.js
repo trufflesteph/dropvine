@@ -4,7 +4,7 @@ import Link from 'next/link'
 import AdminShell from '@/components/markets/AdminShell'
 import { adminFetch } from '@/lib/markets/admin-client'
 import { toast } from 'sonner'
-import { Search, Eye, CheckCircle2, Archive, Loader2, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Eye, CheckCircle2, Archive, Loader2, ExternalLink, ChevronLeft, ChevronRight, Clock, BellRing, BellOff } from 'lucide-react'
 
 // Status filter labels (UI) ↔ DB values
 const FILTERS = [
@@ -19,6 +19,27 @@ const PILL = {
   published: { bg: '#E2F1DE', fg: '#1f6e1f', label: 'Live' },
   archived:  { bg: '#F2F0EA', fg: '#56534D', label: 'Closed' },
   held:      { bg: '#F2F0EA', fg: '#56534D', label: 'Held' },
+}
+
+// Returns { Icon, color, label } for the notification status of a drop row.
+// Logic mirrors the user-facing requirement: scheduled > sent > not-sent > pending-publish.
+function getNotifyStatus(d) {
+  const fmt = (iso) => {
+    if (!iso) return ''
+    const dt = new Date(iso)
+    if (Number.isNaN(dt.getTime())) return ''
+    return dt.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
+  }
+  if (d.status === 'draft') {
+    return { Icon: Clock, color: '#56534D', bg: '#F2F0EA', label: 'Pending publish' }
+  }
+  if (d.notified_at) {
+    return { Icon: CheckCircle2, color: '#1f6e1f', bg: '#E2F1DE', label: `Sent ${fmt(d.notified_at)}` }
+  }
+  if (d.notify_at && new Date(d.notify_at) > new Date()) {
+    return { Icon: BellRing, color: '#92400E', bg: '#FEF3C7', label: `Scheduled ${fmt(d.notify_at)}` }
+  }
+  return { Icon: BellOff, color: '#78716c', bg: '#F2F0EA', label: 'Not sent' }
 }
 
 export default function DirectDropsPage() {
@@ -122,6 +143,7 @@ export default function DirectDropsPage() {
                     <th className="px-4 py-3">Drop</th>
                     <th>Vendor</th>
                     <th>Status</th>
+                    <th>Notification</th>
                     <th>Created</th>
                     <th>Opens</th>
                     <th></th>
@@ -131,6 +153,7 @@ export default function DirectDropsPage() {
                   {drops.map((d) => {
                     const pill = PILL[d.status] || PILL.held
                     const isBusy = actionId === d.id
+                    const ns = getNotifyStatus(d)
                     return (
                       <tr key={d.id} className="hover:bg-stone-50">
                         <td className="px-4 py-3">
@@ -142,6 +165,12 @@ export default function DirectDropsPage() {
                           <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full"
                                 style={{ background: pill.bg, color: pill.fg }}>
                             {pill.label}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap"
+                                style={{ background: ns.bg, color: ns.color }}>
+                            <ns.Icon className="w-3 h-3" /> {ns.label}
                           </span>
                         </td>
                         <td className="text-[12px] text-stone-500 tabular-nums">{new Date(d.created_at).toLocaleDateString()}</td>

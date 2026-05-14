@@ -7,7 +7,7 @@ export default function AdminAmenitiesPage() {
       <ComingSoon
         icon={MapPin}
         title="Amenities"
-        body="Manage non-vendor map pins — Parking, Restrooms, Info Booth, First Aid, ATM, etc. Backed by the existing market_amenities table. Drag pins onto the street map, set icons and labels, toggle visibility per market_date, and preview how the overlay appears to shoppers in the PWA."
+        body="Manage map overlay pins for Parking, Restrooms, Info Booth, POP for Kids, and Live Music. Positions are shown on the shopper market map."
       />
     </AdminShell>
   )

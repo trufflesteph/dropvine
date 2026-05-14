@@ -6,12 +6,32 @@ import AdminShell from '@/components/markets/AdminShell'
 import { adminFetch } from '@/lib/markets/admin-client'
 import { Countdown } from '@/components/dropvine/countdown'
 import { toast } from 'sonner'
-import { Loader2, ArrowRight, Trash2, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Loader2, ArrowRight, Trash2, CheckCircle2, AlertTriangle, Clock, BellRing, BellOff, Send } from 'lucide-react'
 
 // Admin draft-drop preview — renders the launch identical to /l/[handle],
 // with a fixed banner on top for review actions (publish / delete).
 // All admin-only chrome lives in the banner; the preview body is a faithful
 // reproduction of the public page so the reviewer sees exactly what shoppers will.
+
+// Convert ISO → datetime-local input value (no seconds, local TZ).
+function toLocalInput(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+function fromLocalInput(v) {
+  if (!v) return null
+  const d = new Date(v)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
+}
+function fmtPretty(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+}
 
 export default function AdminDropPreviewPage() {
   const { id } = useParams()
@@ -21,6 +41,8 @@ export default function AdminDropPreviewPage() {
   const [loading, setLoading] = useState(true)
   const [publishing, setPublishing] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [sendingNow, setSendingNow] = useState(false)
+  const [notifyAtInput, setNotifyAtInput] = useState('')
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
@@ -43,19 +65,55 @@ export default function AdminDropPreviewPage() {
     return () => { cancelled = true }
   }, [id])
 
+  // Keep the datetime-local field in sync when launch loads / changes.
+  useEffect(() => {
+    if (launch?.notify_at) setNotifyAtInput(toLocalInput(launch.notify_at))
+    else setNotifyAtInput('')
+  }, [launch?.notify_at])
+
   const publish = async () => {
     if (!launch) return
     setPublishing(true)
     try {
-      const r = await adminFetch(`/api/market/admin/drops/${launch.id}/publish`, { method: 'PATCH', body: JSON.stringify({}) })
+      const body = {}
+      const iso = fromLocalInput(notifyAtInput)
+      // Always send the key so the server applies our intent (null = send immediately).
+      body.notify_at = iso
+      const r = await adminFetch(`/api/market/admin/drops/${launch.id}/publish`, {
+        method: 'PATCH', body: JSON.stringify(body),
+      })
       const d = await r.json()
       if (!r.ok || d?.error) { toast.error(d?.error || 'Publish failed'); return }
-      toast.success(d.already ? 'Already published.' : 'Published — the drop is now live.')
+      if (d.already) toast.success('Already published.')
+      else if (d.scheduled) toast.success(`Published. Notification scheduled for ${fmtPretty(d.scheduled_for)}.`)
+      else toast.success('Published — notification sent.')
       setLaunch(d.launch)
     } catch (e) {
       toast.error(e?.message || 'Publish failed')
     } finally {
       setPublishing(false)
+    }
+  }
+
+  const sendNow = async () => {
+    if (!launch) return
+    if (!confirm('Send the notification to the waitlist right now?')) return
+    setSendingNow(true)
+    try {
+      const r = await adminFetch(`/api/market/admin/drops/${launch.id}/notify-now`, { method: 'POST', body: '{}' })
+      const d = await r.json()
+      if (!r.ok || d?.error) { toast.error(d?.error || 'Send failed'); return }
+      if (d.alreadyNotified) toast('Already notified.')
+      else if (d.skipped) toast(`Skipped: ${d.skipped}`)
+      else toast.success(`Sent. Email: ${d?.sent?.email ?? 0}, SMS: ${d?.sent?.sms ?? 0}`)
+      // Refresh launch row so banner reflects the new notified_at.
+      const lr = await adminFetch(`/api/market/admin/drops/${launch.id}`)
+      const ld = await lr.json()
+      if (ld?.launch) setLaunch(ld.launch)
+    } catch (e) {
+      toast.error(e?.message || 'Send failed')
+    } finally {
+      setSendingNow(false)
     }
   }
 
@@ -120,7 +178,7 @@ export default function AdminDropPreviewPage() {
             {creator?.email ? <span className="text-stone-400"> &middot; {creator.email}</span> : null}
           </span>
           <span className="text-stone-500"><span className="text-stone-400">Submitted:</span> {submittedAt}</span>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2 flex-wrap">
             <Link href="/admin" className="text-xs text-stone-600 underline">All</Link>
             {isDraft ? (
               <>
@@ -151,6 +209,16 @@ export default function AdminDropPreviewPage() {
             )}
           </div>
         </div>
+
+        {/* Notification scheduling row — visible for draft + published */}
+        <NotifyRow
+          launch={launch}
+          isDraft={isDraft}
+          notifyAtInput={notifyAtInput}
+          setNotifyAtInput={setNotifyAtInput}
+          sendingNow={sendingNow}
+          sendNow={sendNow}
+        />
       </div>
 
       {/* Shopper-identical preview */}
@@ -251,3 +319,91 @@ export default function AdminDropPreviewPage() {
     </div>
   )
 }
+
+// Notification scheduling sub-component rendered inside the sticky preview banner.
+// Renders one of four states:
+//   1. Draft → date+time picker labelled "Notify list at" (sent as notify_at on publish).
+//   2. Published + future notify_at + null notified_at → "Notification scheduled for …" + "Send now".
+//   3. Published + notified_at set → "Notification sent …" (green).
+//   4. Published + both null → "Notification not sent" + "Send now".
+function NotifyRow({ launch, isDraft, notifyAtInput, setNotifyAtInput, sendingNow, sendNow }) {
+  const tone = (bg, fg, border) => ({ background: bg, color: fg, borderColor: border })
+
+  if (isDraft) {
+    return (
+      <div className="max-w-6xl mx-auto px-5 py-3 border-t flex flex-wrap items-center gap-3 text-[12px]"
+           style={tone('#FFF7E6', '#7A5A00', '#F4D27A')}>
+        <Clock className="w-4 h-4" />
+        <label className="font-medium">Notify list at</label>
+        <input
+          type="datetime-local"
+          value={notifyAtInput}
+          onChange={(e) => setNotifyAtInput(e.target.value)}
+          className="text-[12px] bg-white border border-stone-300 rounded px-2 py-1"
+        />
+        <span className="text-stone-500">Leave blank to notify immediately on publish.</span>
+        {notifyAtInput ? (
+          <button
+            type="button"
+            onClick={() => setNotifyAtInput('')}
+            className="text-[11px] text-stone-500 underline"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+    )
+  }
+
+  // Published states
+  const now = new Date()
+  const notifyAt = launch.notify_at ? new Date(launch.notify_at) : null
+  const notifiedAt = launch.notified_at ? new Date(launch.notified_at) : null
+  const fmt = (d) => d ? d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : ''
+
+  if (notifiedAt) {
+    return (
+      <div className="max-w-6xl mx-auto px-5 py-3 border-t flex items-center gap-3 text-[12px]"
+           style={tone('#E2F1DE', '#1f6e1f', '#A7D6A0')}>
+        <CheckCircle2 className="w-4 h-4" />
+        <span><strong>Notification sent</strong> {fmt(notifiedAt)}</span>
+      </div>
+    )
+  }
+  if (notifyAt && notifyAt > now) {
+    return (
+      <div className="max-w-6xl mx-auto px-5 py-3 border-t flex flex-wrap items-center gap-3 text-[12px]"
+           style={tone('#FFF7E6', '#7A5A00', '#F4D27A')}>
+        <BellRing className="w-4 h-4" />
+        <span><strong>Notification scheduled for</strong> {fmt(notifyAt)}</span>
+        <button
+          type="button"
+          onClick={sendNow}
+          disabled={sendingNow}
+          className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-stone-900 text-stone-50 disabled:opacity-50"
+        >
+          {sendingNow ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+          Send now
+        </button>
+      </div>
+    )
+  }
+  // Both null — drop is live, nothing has been sent.
+  return (
+    <div className="max-w-6xl mx-auto px-5 py-3 border-t flex flex-wrap items-center gap-3 text-[12px]"
+         style={tone('#F2F0EA', '#56534D', '#D8D5CD')}>
+      <BellOff className="w-4 h-4" />
+      <span><strong>Notification not sent</strong></span>
+      <button
+        type="button"
+        onClick={sendNow}
+        disabled={sendingNow}
+        className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-stone-900 text-stone-50 disabled:opacity-50"
+      >
+        {sendingNow ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+        Send now
+      </button>
+    </div>
+  )
+}
+

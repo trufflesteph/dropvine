@@ -13,8 +13,9 @@ const SECTIONS = [
   {
     title: 'Dropvine Direct',
     items: [
-      { href: '/admin/direct/drops',    label: 'Drops',    Icon: Sparkles, roles: ['platform','organiser'] },
-      { href: '/admin/direct/vendors',  label: 'Vendors',  Icon: Users,    roles: ['platform','organiser'] },
+      { href: '/admin/direct/drops',    label: 'Drops',    Icon: Sparkles,       roles: ['platform','organiser'] },
+      { href: '/admin/direct/orders',   label: 'Orders',   Icon: ClipboardList,  roles: ['platform','organiser'] },
+      { href: '/admin/direct/vendors',  label: 'Vendors',  Icon: Users,          roles: ['platform','organiser'] },
       { href: '/admin/direct/settings', label: 'Settings', Icon: Settings, roles: ['platform'] },
     ],
   },

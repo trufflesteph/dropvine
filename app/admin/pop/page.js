@@ -7,7 +7,7 @@ export default function AdminPopPage() {
       <ComingSoon
         icon={BadgeCheck}
         title="POP Passport"
-        body="Administer the kids’ POP programme — manage stamp types and their token rewards, view redemption activity across vendors, and see which children have earned which rewards. Backed by the existing pop_tokens, pop_stamp_types, and pop_redemptions tables. Includes a leaderboard view and per-child detail page."
+        body="Manage Power of Produce stamp types, view token issuance and redemption activity, and see which children have earned rewards this season."
       />
     </AdminShell>
   )

@@ -107,6 +107,17 @@ export async function POST(request) {
     const coverUrl = extractFirstUrl(coverFiles) || extractFirstUrl(galleryFiles) || null
     const photoUrls = galleryFiles.map((f) => f.url).filter(Boolean)
 
+    // notify_at — when to fan-out to the waitlist. Optional on the Tally form.
+    // Matches labels containing 'notify', 'send notification', or 'announce'.
+    const notifyRaw = getTallyText(fields, 'notify')
+      || getTallyText(fields, 'send notification')
+      || getTallyText(fields, 'announce')
+    let notifyAt = null
+    if (notifyRaw) {
+      const d = new Date(notifyRaw)
+      if (!Number.isNaN(d.getTime())) notifyAt = d.toISOString()
+    }
+
     const supa = getSupabaseAdmin()
     if (!supa) return NextResponse.json({ error: 'supabase not configured' }, { status: 500 })
 
@@ -166,6 +177,8 @@ export async function POST(request) {
       photo_urls: photoUrls.length ? photoUrls : null,
       collection_mode: collectionMode,
       venmo_handle: venmoHandle,
+      // Scheduled notifications (2026-06-launches-notify-schedule.sql)
+      notify_at: notifyAt,
     }
 
     let { data: inserted, error: insErr } = await supa.from('launches').insert(insertPayload).select('*').single()

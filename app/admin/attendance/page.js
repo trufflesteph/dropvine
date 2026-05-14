@@ -8,7 +8,7 @@ export default function AdminAttendancePage() {
       <ComingSoon
         icon={ClipboardList}
         title="Attendance"
-        body="Weekly check-in workflow for confirming which vendors are attending each market date and assigning booth numbers. Lists upcoming market_dates, with a vendor roster you can toggle attendance for, drag-and-drop booth assignment onto the street map, and a one-click 'lock day' action that freezes assignments and updates the public map."
+        body="Confirm which vendors are attending each market date and assign booth numbers. Used every Wednesday morning before the market opens."
       />
     </AdminShell>
   )

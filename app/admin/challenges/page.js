@@ -7,7 +7,7 @@ export default function AdminChallengesPage() {
       <ComingSoon
         icon={Trophy}
         title="Challenges"
-        body="Set weekly shopper challenges for the market — e.g. ‘Visit three produce vendors’, ‘Try something you’ve never had’, ‘Find this week’s rare ingredient’. Backed by the existing challenges table. Create / edit / archive challenges, set the dates each is active, and view per-challenge completion counts from shopper passport stamps."
+        body="Set weekly shopper challenges for the passport mechanic. Challenges encourage shoppers to visit specific vendor types and earn badges."
       />
     </AdminShell>
   )
