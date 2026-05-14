@@ -112,11 +112,38 @@ export async function POST(request) {
     const venmoUrl = buildVenmoUrl({ handle: vendor.venmo_handle, amountCents: subtotal, note: venmoNote })
     const magicUrl = `${baseUrl.replace(/\/$/, '')}/market/fulfillment/${token}`
 
-    // Fire emails (non-blocking, but await briefly so we surface obvious failures)
+    // Decide SMS opt-in (additive). Shopper: respect explicit body flag and
+    // any saved profile preference. Vendor: respect vendors.sms_opt_in flag.
+    let shopperSmsChannels = ['email']
+    let vendorSmsChannels = ['email']
+    try {
+      // Vendor opt-in lives on the vendor row.
+      if (vendor?.sms_opt_in === true && vendor?.phone) {
+        vendorSmsChannels = ['email', 'sms']
+      }
+      // Shopper opt-in: either inline body.sms_opt_in OR a logged-in
+      // shopper_profiles.sms_opt_in. Phone source: body.shopper.phone first.
+      let shopperOptIn = body?.sms_opt_in === true
+      let shopperPhone = shopper?.phone || null
+      if (shopperId) {
+        const { data: sp } = await supa.from('shopper_profiles')
+          .select('phone, sms_opt_in').eq('id', shopperId).maybeSingle()
+        if (sp?.sms_opt_in) shopperOptIn = true
+        if (!shopperPhone && sp?.phone) shopperPhone = sp.phone
+      }
+      if (shopperOptIn && shopperPhone) {
+        // Persist phone onto the order so the SMS function picks it up.
+        await supa.from('orders').update({ shopper_phone: shopperPhone }).eq('id', orderRow.id)
+        orderRow.shopper_phone = shopperPhone
+        shopperSmsChannels = ['email', 'sms']
+      }
+    } catch (e) { console.warn('[orders] sms opt-in resolution', e?.message) }
+
+    // Fire notifications (non-blocking, but await briefly so we surface obvious failures)
     const finalOrder = { ...orderRow, venmo_note: venmoNote }
     Promise.all([
-      notifyMarketOrderPlaced({ order: finalOrder, vendor, items: insertedItems || itemRows, venmoUrl, marketName: market?.name }),
-      notifyMarketVendorOrderArrived({ order: finalOrder, vendor, items: insertedItems || itemRows, magicUrl, marketName: market?.name, marketDate: null }),
+      notifyMarketOrderPlaced({ order: finalOrder, vendor, items: insertedItems || itemRows, venmoUrl, marketName: market?.name }, shopperSmsChannels),
+      notifyMarketVendorOrderArrived({ order: finalOrder, vendor, items: insertedItems || itemRows, magicUrl, marketName: market?.name, marketDate: null }, vendorSmsChannels),
     ]).catch((e) => console.warn('[orders] notify error', e?.message))
 
     return NextResponse.json({
