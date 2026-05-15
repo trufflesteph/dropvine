@@ -9,13 +9,18 @@
 //     email:      string (required),
 //     name?:      string,
 //     phone?:     string,
-//     quantity?:  integer (default 1, capped at launches.capacity if set),
 //     venmo_note: string (required, the unique <handle>-XXXX note the shopper
 //                        sent the payment with),
+//
+//     // Multi-product mode (preferred when the launch has launch_products):
+//     items?:     [{ launch_product_id: uuid, quantity: int }],
+//
+//     // Single-product mode (legacy fallback when no launch_products exist):
+//     quantity?:  integer (default 1),
 //   }
 //
-// Returns 201 with the created order row OR 400/409/422 on validation errors.
-// NEVER 500s on email failure — the order row is always saved first.
+// Returns 201 with the created order + its order_items, OR 400/409/422 on
+// validation errors. NEVER 500s on email failure — order row is saved first.
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
@@ -54,30 +59,91 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: 'this drop has no Venmo handle configured' }, { status: 422 })
   }
 
-  // Quantity — default 1, cap to capacity (if set), reject ≤ 0.
-  let quantity = parseInt(body.quantity ?? '1', 10)
-  if (Number.isNaN(quantity) || quantity < 1) quantity = 1
-  if (launch.capacity && launch.capacity > 0) {
-    quantity = Math.min(quantity, launch.capacity)
-  }
+  // Load multi-product catalogue (may be empty → legacy single-product path).
+  let products = []
+  try {
+    const { data: prods, error: pErr } = await supa
+      .from('launch_products').select('*')
+      .eq('launch_id', launch.id).order('sort_order', { ascending: true })
+    if (!pErr && Array.isArray(prods)) products = prods
+  } catch {}
 
-  const unitPrice = parseInt(launch.price_cents || 0, 10)
-  const totalCents = unitPrice * quantity
+  // --- Resolve the line items + totals --------------------------------------
+  // If the launch has products AND the client sent an items[] array, validate
+  // each line, enforce per-product hard caps from launch_products.quantity,
+  // and snapshot price into order_items.
+  // Else (no products OR items[] empty/missing), fall back to single-SKU mode
+  // using launches.price_cents + a top-level quantity.
+
+  let totalCents = 0
+  let totalQty = 0
   let depositCents = null
   let balanceCents = null
-  if (mode === 'deposit') {
-    depositCents = parseInt(launch.reservation_hold_cents || 0, 10) * quantity
-    balanceCents = Math.max(0, totalCents - depositCents)
+  let orderItemRows = [] // { launch_product_id, product_name, price_cents, quantity }
+
+  const incomingItems = Array.isArray(body.items) ? body.items : []
+  const multiMode = products.length > 0 && incomingItems.length > 0
+
+  if (multiMode) {
+    const byId = new Map(products.map((p) => [p.id, p]))
+    for (const raw of incomingItems) {
+      const pid = typeof raw?.launch_product_id === 'string' ? raw.launch_product_id : null
+      const prod = pid ? byId.get(pid) : null
+      if (!prod) continue
+      let q = parseInt(raw?.quantity ?? '0', 10)
+      if (!Number.isFinite(q) || q <= 0) continue
+      // Hard cap per product. Quantity null = unlimited.
+      if (prod.quantity != null && prod.quantity > 0) q = Math.min(q, prod.quantity)
+      orderItemRows.push({
+        launch_product_id: prod.id,
+        product_name: prod.name,
+        price_cents: parseInt(prod.price_cents || 0, 10),
+        quantity: q,
+      })
+      totalQty += q
+      totalCents += (parseInt(prod.price_cents || 0, 10) * q)
+    }
+    if (!orderItemRows.length) {
+      return NextResponse.json({ error: 'no valid items selected' }, { status: 400 })
+    }
+    if (mode === 'deposit') {
+      // Per-unit deposit applies to the whole basket count.
+      depositCents = parseInt(launch.reservation_hold_cents || 0, 10) * totalQty
+      balanceCents = Math.max(0, totalCents - depositCents)
+    }
+  } else {
+    // Legacy single-product mode.
+    let quantity = parseInt(body.quantity ?? '1', 10)
+    if (Number.isNaN(quantity) || quantity < 1) quantity = 1
+    if (launch.capacity && launch.capacity > 0) quantity = Math.min(quantity, launch.capacity)
+    const unit = parseInt(launch.price_cents || 0, 10)
+    totalQty = quantity
+    totalCents = unit * quantity
+    if (mode === 'deposit') {
+      depositCents = parseInt(launch.reservation_hold_cents || 0, 10) * quantity
+      balanceCents = Math.max(0, totalCents - depositCents)
+    }
+    // Snapshot a single synthetic line item using the launch title — so the
+    // email + admin UI can still itemise consistently even in legacy mode.
+    orderItemRows.push({
+      launch_product_id: null,
+      product_name: launch.title || 'Drop',
+      price_cents: unit,
+      quantity,
+    })
   }
 
-  // Insert the order. Unique (launch_id, venmo_note) guards against accidental
-  // double-submits if the shopper hits the confirm button twice.
+  // Unit price column on drop_orders: keep the OLD semantic (per-unit cost
+  // of one item) for legacy compatibility. In multi-mode it's a weighted avg
+  // when totalQty > 0, otherwise 0.
+  const unitPrice = totalQty > 0 ? Math.round(totalCents / totalQty) : 0
+
   const insertPayload = {
     launch_id: launch.id,
     shopper_email: email,
     shopper_name: typeof body.name === 'string' ? body.name.trim().slice(0, 120) : null,
     shopper_phone: typeof body.phone === 'string' ? body.phone.trim().slice(0, 32) : null,
-    quantity,
+    quantity: totalQty,
     unit_price_cents: unitPrice,
     total_cents: totalCents,
     deposit_cents: depositCents,
@@ -94,17 +160,16 @@ export async function POST(request, { params }) {
     // Unique violation — client probably double-clicked. Surface the existing row.
     if (/duplicate key value|unique constraint/i.test(iErr.message)) {
       const { data: existing } = await supa
-        .from('drop_orders')
-        .select('*')
-        .eq('launch_id', launch.id)
-        .eq('venmo_note', venmoNote)
-        .maybeSingle()
-      if (existing) return NextResponse.json({ ok: true, order: existing, duplicate: true }, { status: 200 })
+        .from('drop_orders').select('*')
+        .eq('launch_id', launch.id).eq('venmo_note', venmoNote).maybeSingle()
+      if (existing) {
+        // Best-effort: return existing line items too.
+        const { data: existItems } = await supa
+          .from('order_items').select('*').eq('order_id', existing.id)
+          .order('created_at', { ascending: true })
+        return NextResponse.json({ ok: true, order: existing, items: existItems || [], duplicate: true }, { status: 200 })
+      }
     }
-    // Tolerated when migration not applied — surface a 503 rather than 500 so
-    // the UI can show a friendly retry message. Supabase PostgREST emits
-    // either "relation … does not exist" (PG) or "Could not find the table … in
-    // the schema cache" (PostgREST) — match both.
     if (/relation .* does not exist|could not find the table|schema cache/i.test(iErr.message)) {
       return NextResponse.json({
         error: 'orders table not provisioned yet',
@@ -114,15 +179,33 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: iErr.message }, { status: 500 })
   }
 
+  // Insert line items (best-effort — never blocks the order). If order_items
+  // table is missing, log + continue so the legacy single-row UI keeps working.
+  let insertedItems = []
+  try {
+    const itemsPayload = orderItemRows.map((r) => ({ order_id: order.id, ...r }))
+    const { data: items, error: itErr } = await supa
+      .from('order_items').insert(itemsPayload).select('*')
+    if (itErr) {
+      if (/could not find the table|relation .* does not exist|schema cache/i.test(itErr.message)) {
+        console.warn('[drops/preorder] order_items table missing — run supabase/migrations/2026-06-multi-product.sql')
+      } else {
+        console.warn('[drops/preorder] order_items insert failed (non-fatal):', itErr.message)
+      }
+    } else insertedItems = items || []
+  } catch (e) {
+    console.warn('[drops/preorder] order_items unexpected:', e?.message)
+  }
+
   // Fire confirmation email — non-blocking failure.
   try {
     await sendDropOrderConfirmation({
-      order, launch, to: email,
+      order, launch, items: insertedItems, to: email,
       baseUrl: process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin,
     })
   } catch (e) {
     console.warn('[drops/preorder] email failed:', e?.message)
   }
 
-  return NextResponse.json({ ok: true, order }, { status: 201 })
+  return NextResponse.json({ ok: true, order, items: insertedItems }, { status: 201 })
 }

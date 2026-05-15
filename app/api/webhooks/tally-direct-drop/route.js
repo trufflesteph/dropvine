@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { getTallyField, getTallyEmail, getTallyText, getTallyNumber, getTallyFiles } from '@/lib/markets/tally'
+import { extractLaunchProducts } from '@/lib/markets/tally-products'
 import { sendDraftDropReview } from '@/lib/email/notifications'
 
 export const runtime = 'nodejs'
@@ -202,6 +203,44 @@ export async function POST(request) {
       return NextResponse.json({ error: insErr.message }, { status: 500 })
     }
 
+    // === Multi-product seeding ===========================================
+    // Two parsing modes (priority order):
+    //   1. CSV/spreadsheet upload → parse rows into launch_products.
+    //   2. Manual repeating fields (`product_1_name`, `product_1_price`, …).
+    // If neither produced rows, the public /l/[handle] page falls back to the
+    // existing single-product behaviour driven by launches.price_cents.
+    let productsSource = 'none'
+    let productsInserted = 0
+    try {
+      const { products, source } = await extractLaunchProducts(fields)
+      productsSource = source
+      if (products.length) {
+        const payload = products.map((p, i) => ({
+          launch_id: inserted.id,
+          name: p.name,
+          description: p.description,
+          price_cents: p.price_cents,
+          quantity: p.quantity,
+          photo_url: p.photo_url,
+          sort_order: typeof p.sort_order === 'number' ? p.sort_order : i,
+        }))
+        const { data: ins, error: pErr } = await supa.from('launch_products').insert(payload).select('id')
+        if (pErr) {
+          // Migration not run yet — log + continue. Admin can re-seed manually
+          // from the Preview page once the table exists.
+          if (/could not find the table|relation .* does not exist|schema cache/i.test(pErr.message)) {
+            console.warn('[tally-direct-drop] launch_products table missing — run supabase/migrations/2026-06-multi-product.sql')
+          } else {
+            console.warn('[tally-direct-drop] launch_products insert failed (non-fatal):', pErr.message)
+          }
+        } else {
+          productsInserted = ins?.length || 0
+        }
+      }
+    } catch (e) {
+      console.warn('[tally-direct-drop] product extraction failed (non-fatal):', e?.message || e)
+    }
+
     // Notify the platform owner (fire-and-forget — never blocks)
     const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin).replace(/\/$/, '')
     const previewUrl = `${baseUrl}/admin/drops/${inserted.id}/preview`
@@ -228,6 +267,7 @@ export async function POST(request) {
       preview_url: previewUrl,
       placeholder: !!verify.placeholder || !isSecretConfigured(),
       creator_matched: !!creatorId,
+      products: { source: productsSource, inserted: productsInserted },
     })
   } catch (e) {
     console.error('[tally-direct-drop] unexpected:', e?.message || e)

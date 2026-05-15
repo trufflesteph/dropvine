@@ -103,6 +103,8 @@ export async function GET(request, { params }) {
 
   // GET /api/launches/by-handle/[handle]
   // Hides drafts from the public — only published / live-bound launches are returned.
+  // Also resolves the multi-product catalogue (launch_products) when present.
+  // Falls back gracefully if the table hasn't been migrated yet.
   if (path.startsWith('launches/by-handle/')) {
     const handle = path.replace('launches/by-handle/', '')
     const sb = getSupabaseServer()
@@ -111,12 +113,22 @@ export async function GET(request, { params }) {
       if (error) return err(error.message, 500)
       if (!data) return err('not found', 404)
       if (data.status === 'draft') return err('not found', 404)
-      return json({ launch: data })
+      // Resolve products (best-effort — empty list ⇒ legacy single-price UI).
+      let products = []
+      try {
+        const { data: prods, error: pErr } = await sb
+          .from('launch_products')
+          .select('id, name, description, price_cents, quantity, photo_url, sort_order')
+          .eq('launch_id', data.id)
+          .order('sort_order', { ascending: true })
+        if (!pErr && Array.isArray(prods)) products = prods
+      } catch {}
+      return json({ launch: data, products })
     }
     const found = Array.from(store.launches.values()).find(l => l.handle === handle)
     if (!found) return err('not found', 404)
     if (found.status === 'draft') return err('not found', 404)
-    return json({ launch: found })
+    return json({ launch: found, products: [] })
   }
 
   // GET /api/launches/[id]/reservations  (creator-scoped via RLS)

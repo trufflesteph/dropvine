@@ -88,9 +88,19 @@ export async function PATCH(request, { params }) {
   let emailResult = null
   if (nextStatus === 'paid' && !alreadyAtTarget && updated?.shopper_email) {
     try {
+      // Fetch order_items so the email can itemise multi-product orders.
+      // Best-effort: ignore missing table.
+      let items = []
+      try {
+        const { data: iRows, error: iErr } = await supa
+          .from('order_items').select('*').eq('order_id', params.id)
+          .order('created_at', { ascending: true })
+        if (!iErr && Array.isArray(iRows)) items = iRows
+      } catch {}
       emailResult = await sendDropOrderPaidConfirmation({
         order: { ...updated, launches: undefined },
         launch: updated.launches || null,
+        items,
         to: updated.shopper_email,
       })
     } catch (e) {

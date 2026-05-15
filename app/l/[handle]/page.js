@@ -65,6 +65,7 @@ function PublicLaunchPageInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [launch, setLaunch] = useState(null)
+  const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
@@ -80,6 +81,7 @@ function PublicLaunchPageInner() {
         if (!r.ok) { setLaunch(null); return }
         const d = await r.json()
         setLaunch(d.launch)
+        setProducts(Array.isArray(d.products) ? d.products : [])
       } finally { setLoading(false) }
     }
     if (handle) load()
@@ -185,6 +187,7 @@ function PublicLaunchPageInner() {
     rightRail = (
       <PreorderPanel
         launch={launch}
+        products={products}
         isDeposit={mode === 'deposit'}
       />
     )
@@ -355,15 +358,28 @@ function ReservationStripePanel({ launch, email, setEmail, reservationStatus, re
 
 // Pre-order & Deposit share most of the flow — `isDeposit` toggles which
 // amount is the Venmo subject + adds the balance-at-pickup copy.
-function PreorderPanel({ launch, isDeposit }) {
+//
+// When `products` is non-empty, renders a catalogue grid with per-product
+// quantity steppers (hard-capped by `launch_products.quantity`). When empty,
+// falls back to the legacy single-SKU flow driven by `launch.price_cents`.
+function PreorderPanel({ launch, products, isDeposit }) {
+  const hasProducts = Array.isArray(products) && products.length > 0
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  // Legacy single-SKU qty.
   const [qty, setQty] = useState(1)
+  // Multi-SKU per-product qty map keyed by product id.
+  const [productQty, setProductQty] = useState(() => {
+    const m = {}
+    for (const p of (products || [])) m[p.id] = 0
+    return m
+  })
   const [step, setStep] = useState('form')   // 'form' | 'venmo' | 'submitting' | 'confirmed'
   const [note, setNote] = useState('')
   const [order, setOrder] = useState(null)
 
+  // -- Single-SKU helpers (legacy fallback) ---------------------------------
   const maxQty = useMemo(() => {
     const cap = parseInt(launch?.capacity || '0', 10)
     return cap > 0 ? cap : 99
@@ -371,21 +387,59 @@ function PreorderPanel({ launch, isDeposit }) {
   const inc = () => setQty((q) => Math.min(q + 1, maxQty))
   const dec = () => setQty((q) => Math.max(1, q - 1))
 
-  const unitPrice = parseInt(launch?.price_cents || 0, 10)
-  const totalCents = unitPrice * qty
-  const depositCents = isDeposit ? parseInt(launch?.reservation_hold_cents || 0, 10) * qty : 0
-  const balanceCents = isDeposit ? Math.max(0, totalCents - depositCents) : 0
-  const venmoAmount = isDeposit ? depositCents : totalCents
-  const venmoUrl = venmoDeepLink({ handle: launch?.venmo_handle, amountCents: venmoAmount, note })
+  // -- Multi-SKU helpers ----------------------------------------------------
+  const stepProductQty = (productId, delta) => {
+    setProductQty((m) => {
+      const cap = (() => {
+        const prod = products.find((p) => p.id === productId)
+        const q = parseInt(prod?.quantity ?? '0', 10)
+        return q > 0 ? q : 99
+      })()
+      const next = Math.max(0, Math.min((m[productId] || 0) + delta, cap))
+      return { ...m, [productId]: next }
+    })
+  }
+
+  // -- Totals --------------------------------------------------------------
+  const totals = useMemo(() => {
+    if (hasProducts) {
+      let totalCents = 0
+      let totalQty = 0
+      for (const p of products) {
+        const q = productQty[p.id] || 0
+        if (q <= 0) continue
+        totalCents += parseInt(p.price_cents || 0, 10) * q
+        totalQty += q
+      }
+      const depositPerUnit = parseInt(launch?.reservation_hold_cents || 0, 10)
+      const depositCents = isDeposit ? depositPerUnit * totalQty : 0
+      const balanceCents = isDeposit ? Math.max(0, totalCents - depositCents) : 0
+      const venmoAmount = isDeposit ? depositCents : totalCents
+      return { totalCents, totalQty, depositCents, balanceCents, venmoAmount }
+    }
+    // Legacy path
+    const unit = parseInt(launch?.price_cents || 0, 10)
+    const totalCents = unit * qty
+    const depositCents = isDeposit ? parseInt(launch?.reservation_hold_cents || 0, 10) * qty : 0
+    const balanceCents = isDeposit ? Math.max(0, totalCents - depositCents) : 0
+    const venmoAmount = isDeposit ? depositCents : totalCents
+    return { totalCents, totalQty: qty, depositCents, balanceCents, venmoAmount }
+  }, [hasProducts, products, productQty, qty, isDeposit, launch?.price_cents, launch?.reservation_hold_cents])
+
+  const venmoUrl = venmoDeepLink({ handle: launch?.venmo_handle, amountCents: totals.venmoAmount, note })
 
   const proceedToVenmo = (e) => {
     e?.preventDefault?.()
     if (!email) { toast.error('Enter your email first.'); return }
-    if (isDeposit && depositCents <= 0) {
+    if (hasProducts && totals.totalQty <= 0) {
+      toast.error('Pick at least one item to continue.')
+      return
+    }
+    if (isDeposit && totals.depositCents <= 0) {
       toast.error('This drop has no deposit amount configured.')
       return
     }
-    if (venmoAmount <= 0) {
+    if (totals.venmoAmount <= 0) {
       toast.error('This drop has no price configured.')
       return
     }
@@ -397,9 +451,18 @@ function PreorderPanel({ launch, isDeposit }) {
     if (!note) return
     setStep('submitting')
     try {
+      // Build the request payload — multi-mode sends items[], legacy sends quantity.
+      const payload = { email, name, phone, venmo_note: note }
+      if (hasProducts) {
+        payload.items = products
+          .filter((p) => (productQty[p.id] || 0) > 0)
+          .map((p) => ({ launch_product_id: p.id, quantity: productQty[p.id] }))
+      } else {
+        payload.quantity = qty
+      }
       const r = await fetch(`/api/drops/${launch.handle}/preorder`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, phone, quantity: qty, venmo_note: note }),
+        body: JSON.stringify(payload),
       })
       const d = await r.json()
       if (!r.ok) {
@@ -407,7 +470,7 @@ function PreorderPanel({ launch, isDeposit }) {
         setStep('venmo')
         return
       }
-      setOrder(d.order)
+      setOrder({ ...d.order, items: d.items || [] })
       setStep('confirmed')
       toast.success(d?.duplicate ? 'Already recorded — see your inbox.' : 'Order recorded — see your inbox.')
     } catch (e) {
@@ -426,6 +489,16 @@ function PreorderPanel({ launch, isDeposit }) {
         <p className="mt-4 text-sm text-muted-foreground">
           We&rsquo;ve emailed a receipt to <strong>{order.shopper_email}</strong>. The maker will mark it paid once your Venmo transfer comes through.
         </p>
+        {Array.isArray(order.items) && order.items.length > 1 ? (
+          <div className="mt-6 pt-6 border-t border-border space-y-1 text-sm">
+            {order.items.map((it) => (
+              <div key={it.id} className="flex justify-between">
+                <span className="text-muted-foreground">{it.quantity}× {it.product_name}</span>
+                <span>{money((it.price_cents || 0) * (it.quantity || 0))}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className="mt-6 pt-6 border-t border-border space-y-1 text-sm">
           <div className="flex justify-between"><span className="text-muted-foreground">Quantity</span><span>{order.quantity}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">{isDeposit ? 'Deposit paid' : 'Total'}</span><span>{money(isDeposit ? order.deposit_cents : order.total_cents)}</span></div>
@@ -444,11 +517,11 @@ function PreorderPanel({ launch, isDeposit }) {
       <div data-testid="preorder-venmo">
         <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Send Venmo</div>
         <div className="font-serif text-2xl md:text-3xl tracking-tighter mb-4">
-          {isDeposit ? `Send the deposit of ${money(venmoAmount)}.` : `Send ${money(venmoAmount)} via Venmo.`}
+          {isDeposit ? `Send the deposit of ${money(totals.venmoAmount)}.` : `Send ${money(totals.venmoAmount)} via Venmo.`}
         </div>
         <p className="text-sm text-muted-foreground">
           Pay <strong className="text-foreground">@{String(launch.venmo_handle).replace(/^@/, '')}</strong> the exact amount and include the note below in the Venmo memo.
-          {isDeposit ? <> Balance of <strong className="text-foreground">{money(balanceCents)}</strong> due at pickup.</> : null}
+          {isDeposit ? <> Balance of <strong className="text-foreground">{money(totals.balanceCents)}</strong> due at pickup.</> : null}
         </p>
         <div className="mt-6 border border-border p-4 bg-stone-50">
           <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Venmo memo</div>
@@ -493,9 +566,64 @@ function PreorderPanel({ launch, isDeposit }) {
           ? <>Secure your order with a <strong>{money(parseInt(launch?.reservation_hold_cents || 0, 10))} deposit</strong> via Venmo.</>
           : <>Pre-order via Venmo.</>}
       </div>
-      {isDeposit ? (
-        <p className="mt-2 text-xs text-muted-foreground">Balance of <strong className="text-foreground">{money(unitPrice - parseInt(launch?.reservation_hold_cents || 0, 10))}</strong> due at pickup.</p>
+      {isDeposit && !hasProducts ? (
+        <p className="mt-2 text-xs text-muted-foreground">Balance of <strong className="text-foreground">{money(parseInt(launch?.price_cents || 0, 10) - parseInt(launch?.reservation_hold_cents || 0, 10))}</strong> due at pickup.</p>
       ) : null}
+
+      {/* Catalogue grid (multi-product mode) */}
+      {hasProducts ? (
+        <div className="mt-6 space-y-3" data-testid="product-catalogue">
+          {products.map((p) => {
+            const q = productQty[p.id] || 0
+            const cap = parseInt(p.quantity ?? '0', 10)
+            const remaining = cap > 0 ? cap : null
+            return (
+              <div key={p.id} className="border border-border p-4 flex gap-4" data-testid={`product-row-${p.id}`}>
+                {p.photo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.photo_url} alt="" className="w-16 h-16 object-cover border border-border shrink-0" />
+                ) : (
+                  <div className="w-16 h-16 bg-stone-100 border border-border shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="font-serif text-base text-foreground truncate">{p.name}</div>
+                    <div className="text-sm tabular-nums shrink-0">{money(p.price_cents)}</div>
+                  </div>
+                  {p.description ? (
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2 whitespace-pre-line">{p.description}</p>
+                  ) : null}
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="inline-flex items-center border border-border">
+                      <button type="button"
+                              onClick={() => stepProductQty(p.id, -1)}
+                              disabled={q <= 0}
+                              className="px-2.5 h-8 border-r border-border hover:bg-stone-50 disabled:opacity-30"
+                              aria-label={`Decrease ${p.name}`}>
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <div className="px-4 font-mono text-xs tabular-nums" data-testid={`qty-${p.id}`}>{q}</div>
+                      <button type="button"
+                              onClick={() => stepProductQty(p.id, 1)}
+                              disabled={remaining != null && q >= remaining}
+                              className="px-2.5 h-8 border-l border-border hover:bg-stone-50 disabled:opacity-30"
+                              aria-label={`Increase ${p.name}`}>
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
+                    {remaining != null ? (
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                        {remaining - q} left
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
+
       <form onSubmit={proceedToVenmo} className="mt-8 space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -511,7 +639,8 @@ function PreorderPanel({ launch, isDeposit }) {
           <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Email</Label>
           <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@studio.com" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
         </div>
-        {launch?.capacity ? (
+        {/* Legacy single-SKU quantity stepper — only when there's no product catalogue. */}
+        {!hasProducts && launch?.capacity ? (
           <div className="space-y-2">
             <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Quantity (max {maxQty})</Label>
             <div className="inline-flex items-center border border-border">
@@ -522,20 +651,21 @@ function PreorderPanel({ launch, isDeposit }) {
           </div>
         ) : null}
         <div className="pt-4 border-t border-border space-y-1 text-sm">
-          <div className="flex justify-between"><span className="text-muted-foreground">{isDeposit ? 'Order total' : 'Total'}</span><span data-testid="order-total">{money(totalCents)}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">{isDeposit ? 'Order total' : 'Total'}</span><span data-testid="order-total">{money(totals.totalCents)}</span></div>
           {isDeposit ? (
             <>
-              <div className="flex justify-between"><span className="text-muted-foreground">Deposit due now</span><span className="font-medium" data-testid="deposit-due">{money(depositCents)}</span></div>
-              <div className="flex justify-between text-xs text-muted-foreground"><span>Balance at pickup</span><span>{money(balanceCents)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Deposit due now</span><span className="font-medium" data-testid="deposit-due">{money(totals.depositCents)}</span></div>
+              <div className="flex justify-between text-xs text-muted-foreground"><span>Balance at pickup</span><span>{money(totals.balanceCents)}</span></div>
             </>
           ) : null}
         </div>
         <button
           type="submit"
-          className="w-full bg-foreground text-background h-12 text-sm hover:opacity-90 inline-flex items-center justify-center gap-2"
+          disabled={hasProducts && totals.totalQty <= 0}
+          className="w-full bg-foreground text-background h-12 text-sm hover:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-2"
           data-testid="preorder-submit"
         >
-          {isDeposit ? <>Send {money(depositCents)} deposit via Venmo <ArrowRight className="h-4 w-4" /></>
+          {isDeposit ? <>Send {money(totals.depositCents)} deposit via Venmo <ArrowRight className="h-4 w-4" /></>
                      : <>Pre-order via Venmo <ArrowRight className="h-4 w-4" /></>}
         </button>
       </form>

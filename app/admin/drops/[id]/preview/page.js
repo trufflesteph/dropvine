@@ -6,7 +6,7 @@ import AdminShell from '@/components/markets/AdminShell'
 import { adminFetch } from '@/lib/markets/admin-client'
 import { Countdown } from '@/components/dropvine/countdown'
 import { toast } from 'sonner'
-import { Loader2, ArrowRight, Trash2, CheckCircle2, AlertTriangle, Clock, BellRing, BellOff, Send } from 'lucide-react'
+import { Loader2, ArrowRight, Trash2, CheckCircle2, AlertTriangle, Clock, BellRing, BellOff, Send, Plus, X, GripVertical, Image as ImageIcon, Save } from 'lucide-react'
 
 // Admin draft-drop preview — renders the launch identical to /l/[handle],
 // with a fixed banner on top for review actions (publish / delete).
@@ -306,6 +306,11 @@ export default function AdminDropPreviewPage() {
           </aside>
         </section>
 
+        {/* Product catalogue editor — admins can curate launch_products here. */}
+        <section className="container max-w-5xl pb-24">
+          <ProductsEditor launchId={launch.id} />
+        </section>
+
         {/* Gallery */}
         {Array.isArray(launch.photo_urls) && launch.photo_urls.length ? (
           <section className="container max-w-5xl pb-24 grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -407,3 +412,415 @@ function NotifyRow({ launch, isDraft, notifyAtInput, setNotifyAtInput, sendingNo
   )
 }
 
+
+// ---------------------------------------------------------------------------
+// Products editor — manage launch_products for this launch. Renders below the
+// preview body. When at least one row is saved, the public /l/[handle] page
+// switches from single-SKU mode to the catalogue grid.
+// ---------------------------------------------------------------------------
+
+// Tiny RFC-4180-ish CSV parser (client-side mirror of lib/markets/tally-products.js).
+// Pure JS, no deps — safe to ship to the browser.
+function parseCsvClient(text) {
+  const rows = []; let row = []; let field = ''; let inQuotes = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++ } else inQuotes = false
+      } else field += ch
+    } else {
+      if (ch === '"') inQuotes = true
+      else if (ch === ',') { row.push(field); field = '' }
+      else if (ch === '\r') { /* swallow */ }
+      else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = '' }
+      else field += ch
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row) }
+  return rows.filter((r) => r.some((c) => c && c.trim().length))
+}
+
+function csvRowsToProducts(rows) {
+  if (!rows.length) return []
+  // Header detection: if first row has known column names, treat as headers; else assume name,price,quantity,description,photo_url order.
+  const lower = rows[0].map((c) => String(c || '').toLowerCase().trim().replace(/[_\s-]+/g, ''))
+  const headerKeys = ['name', 'price', 'quantity', 'description', 'desc', 'photourl', 'photo', 'image', 'title']
+  const looksLikeHeader = lower.some((k) => headerKeys.includes(k))
+  const map = {}
+  let body = rows
+  if (looksLikeHeader) {
+    lower.forEach((k, i) => {
+      if (k === 'name' || k === 'product' || k === 'title') map.name = i
+      else if (k === 'description' || k === 'desc') map.description = i
+      else if (k === 'price' || k === 'cost') map.price = i
+      else if (k === 'quantity' || k === 'qty' || k === 'capacity' || k === 'stock') map.quantity = i
+      else if (k === 'photourl' || k === 'photo' || k === 'image' || k === 'imageurl' || k === 'photolink') map.photo_url = i
+    })
+    body = rows.slice(1)
+  } else {
+    // Positional fallback.
+    map.name = 0; map.price = 1; map.quantity = 2; map.description = 3; map.photo_url = 4
+  }
+  if (map.name == null) return []
+  const out = []
+  for (const r of body) {
+    const name = String(r[map.name] || '').trim()
+    if (!name) continue
+    const priceRaw = r[map.price] != null ? String(r[map.price]).replace(/[^0-9.\-]/g, '') : ''
+    const priceNum = parseFloat(priceRaw)
+    const price_cents = Number.isFinite(priceNum)
+      ? (priceNum >= 1000 ? Math.round(priceNum) : Math.round(priceNum * 100))
+      : 0
+    const quantityStr = r[map.quantity] != null ? String(r[map.quantity]).replace(/[^0-9\-]/g, '') : ''
+    const quantity = quantityStr ? Math.max(0, parseInt(quantityStr, 10)) : null
+    out.push({
+      _new: true,
+      name,
+      description: map.description != null && r[map.description] ? String(r[map.description]).trim() : null,
+      price_cents,
+      quantity,
+      photo_url: map.photo_url != null && r[map.photo_url] ? String(r[map.photo_url]).trim() : null,
+      sort_order: out.length,
+    })
+  }
+  return out
+}
+
+function ProductsEditor({ launchId }) {
+  const [rows, setRows] = useState(null)         // null = loading; [] = none
+  const [migrationPending, setMigrationPending] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [dragIdx, setDragIdx] = useState(null)
+  const [overIdx, setOverIdx] = useState(null)
+  const [csvOpen, setCsvOpen] = useState(false)
+  const [csvText, setCsvText] = useState('')
+  const [csvMode, setCsvMode] = useState('append') // 'append' | 'replace'
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const r = await adminFetch(`/api/market/admin/drops/${launchId}/products`)
+        const d = await r.json()
+        if (cancelled) return
+        if (!r.ok) { toast.error(d?.error || 'Failed to load products'); setRows([]); return }
+        setRows(d.products || [])
+        setMigrationPending(!!d.migration_pending)
+      } catch (e) {
+        if (!cancelled) { toast.error(e?.message || 'Failed to load'); setRows([]) }
+      }
+    }
+    if (launchId) load()
+    return () => { cancelled = true }
+  }, [launchId])
+
+  const addRow = () => {
+    setRows((r) => [...(r || []), {
+      _new: true, name: '', description: '', price_cents: 0,
+      quantity: null, photo_url: '', sort_order: (r?.length || 0),
+    }])
+    setDirty(true)
+  }
+
+  const removeRow = (idx) => {
+    setRows((r) => (r || []).filter((_, i) => i !== idx))
+    setDirty(true)
+  }
+
+  const updateRow = (idx, patch) => {
+    setRows((r) => (r || []).map((row, i) => i === idx ? { ...row, ...patch } : row))
+    setDirty(true)
+  }
+
+  const moveRow = (idx, delta) => {
+    setRows((r) => {
+      const next = [...(r || [])]
+      const tgt = idx + delta
+      if (tgt < 0 || tgt >= next.length) return next
+      ;[next[idx], next[tgt]] = [next[tgt], next[idx]]
+      return next.map((row, i) => ({ ...row, sort_order: i }))
+    })
+    setDirty(true)
+  }
+
+  // Drag-and-drop reorder. Uses HTML5 native DnD — keyboard accessibility
+  // still served by the ↑/↓ buttons.
+  const onDragStartRow = (idx) => () => setDragIdx(idx)
+  const onDragOverRow = (idx) => (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (overIdx !== idx) setOverIdx(idx)
+  }
+  const onDropRow = (idx) => (e) => {
+    e.preventDefault()
+    const src = dragIdx
+    setDragIdx(null); setOverIdx(null)
+    if (src == null || src === idx) return
+    setRows((r) => {
+      const next = [...(r || [])]
+      const [moved] = next.splice(src, 1)
+      next.splice(idx, 0, moved)
+      return next.map((row, i) => ({ ...row, sort_order: i }))
+    })
+    setDirty(true)
+  }
+  const onDragEnd = () => { setDragIdx(null); setOverIdx(null) }
+
+  const importCsv = () => {
+    const txt = csvText.trim()
+    if (!txt) { toast.error('Paste some CSV first.'); return }
+    const parsed = parseCsvClient(txt)
+    const newRows = csvRowsToProducts(parsed)
+    if (!newRows.length) {
+      toast.error('No products found in CSV. First column should be the product name.')
+      return
+    }
+    setRows((cur) => {
+      const base = csvMode === 'replace' ? [] : (cur || [])
+      const offset = base.length
+      const merged = [...base, ...newRows.map((p, i) => ({ ...p, sort_order: offset + i }))]
+      return merged
+    })
+    setDirty(true)
+    setCsvText('')
+    setCsvOpen(false)
+    toast.success(`Imported ${newRows.length} product${newRows.length === 1 ? '' : 's'} (${csvMode}). Click Save to persist.`)
+  }
+
+  const save = async () => {
+    if (!rows) return
+    // Validate: name required, price >= 0.
+    const cleaned = rows.map((r, i) => ({
+      id: r.id,
+      name: (r.name || '').trim(),
+      description: (r.description || '').trim() || null,
+      price_cents: Math.max(0, parseInt(r.price_cents || 0, 10) || 0),
+      quantity: r.quantity === '' || r.quantity == null ? null : Math.max(0, parseInt(r.quantity, 10) || 0),
+      photo_url: (r.photo_url || '').trim() || null,
+      sort_order: i,
+    })).filter((r) => r.name)
+    setSaving(true)
+    try {
+      const r = await adminFetch(`/api/market/admin/drops/${launchId}/products`, {
+        method: 'PUT', body: JSON.stringify({ products: cleaned }),
+      })
+      const d = await r.json()
+      if (!r.ok || d?.error) { toast.error(d?.error || 'Save failed'); return }
+      setRows(d.products || [])
+      setDirty(false)
+      toast.success(`Saved · ${d.counts.inserted} added · ${d.counts.updated} updated · ${d.counts.deleted} removed`)
+    } catch (e) {
+      toast.error(e?.message || 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (rows == null) {
+    return <div className="text-sm text-stone-400 py-10 text-center">Loading products…</div>
+  }
+
+  return (
+    <div className="border border-border bg-background p-6 md:p-10">
+      <div className="flex items-end justify-between gap-3 mb-5">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Multi-product catalogue</div>
+          <h2 className="font-serif text-2xl md:text-3xl tracking-tight mt-1">Products</h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            When you add at least one product here, the public drop page switches from a single-price flow
+            to a catalogue grid with per-product quantity steppers. Each product&rsquo;s <em>Quantity</em>{' '}
+            is a hard cap. Drag rows to reorder, or paste a CSV to bulk-import.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => setCsvOpen((o) => !o)}
+                  className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-white border border-stone-300 text-stone-700 hover:bg-stone-50">
+            Paste CSV
+          </button>
+          <button onClick={addRow}
+                  className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-white border border-stone-300 text-stone-700 hover:bg-stone-50">
+            <Plus className="w-3 h-3" /> Add product
+          </button>
+          <button onClick={save} disabled={!dirty || saving}
+                  className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-stone-900 text-stone-50 disabled:opacity-40">
+            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+            Save
+          </button>
+        </div>
+      </div>
+
+      {csvOpen ? (
+        <div className="mb-5 border border-stone-200 bg-stone-50 p-4">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="text-[11px] uppercase tracking-[0.25em] text-stone-500">Paste CSV</div>
+            <div className="flex items-center gap-2 text-[11px]">
+              <label className="inline-flex items-center gap-1 cursor-pointer">
+                <input type="radio" name="csvmode" checked={csvMode === 'append'} onChange={() => setCsvMode('append')} />
+                Append
+              </label>
+              <label className="inline-flex items-center gap-1 cursor-pointer">
+                <input type="radio" name="csvmode" checked={csvMode === 'replace'} onChange={() => setCsvMode('replace')} />
+                Replace all
+              </label>
+            </div>
+          </div>
+          <p className="text-[11px] text-stone-500 mb-2">
+            Expected columns: <code>name,price,quantity,description,photo_url</code> (in any order if a header row is present). Prices can be dollars (8.50) or cents (850).
+          </p>
+          <textarea
+            value={csvText}
+            onChange={(e) => setCsvText(e.target.value)}
+            placeholder={`name,price,quantity,description,photo_url\nApples,8.00,50,Crisp Honeycrisp,https://...\nBread,12.00,10,Sourdough loaf,`}
+            rows={6}
+            className="w-full font-mono text-xs bg-white border border-stone-200 rounded px-3 py-2"
+          />
+          <div className="mt-2 flex items-center justify-end gap-2">
+            <button onClick={() => { setCsvText(''); setCsvOpen(false) }}
+                    className="text-[11px] text-stone-500 underline">Cancel</button>
+            <button onClick={importCsv}
+                    className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-stone-900 text-stone-50">
+              Import
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {migrationPending ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 text-amber-900 px-3 py-2 text-xs mb-4">
+          The <code>launch_products</code> table has not been provisioned yet.
+          Apply <code className="mx-1">supabase/migrations/2026-06-multi-product.sql</code> in your Supabase SQL editor
+          to enable multi-product drops.
+        </div>
+      ) : null}
+
+      {rows.length === 0 ? (
+        <div className="text-sm text-stone-500 text-center py-12 border border-dashed border-stone-300">
+          No products yet — public page will use single-price fallback.
+          <div className="mt-2"><button onClick={addRow} className="underline">Add the first product</button></div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {rows.map((row, idx) => (
+            <ProductRow
+              key={row.id || `new-${idx}`}
+              idx={idx}
+              row={row}
+              total={rows.length}
+              isDragging={dragIdx === idx}
+              isDragOver={overIdx === idx && dragIdx != null && dragIdx !== idx}
+              onDragStart={onDragStartRow(idx)}
+              onDragOver={onDragOverRow(idx)}
+              onDrop={onDropRow(idx)}
+              onDragEnd={onDragEnd}
+              onChange={(patch) => updateRow(idx, patch)}
+              onRemove={() => removeRow(idx)}
+              onMoveUp={() => moveRow(idx, -1)}
+              onMoveDown={() => moveRow(idx, 1)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ProductRow({ idx, row, total, isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd, onChange, onRemove, onMoveUp, onMoveDown }) {
+  // price_cents stored as cents; we display dollars in the input.
+  const priceDollars = row.price_cents != null && row.price_cents !== ''
+    ? (Number(row.price_cents) / 100).toFixed(2) : ''
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      className={`border p-4 grid grid-cols-12 gap-3 items-start transition ${
+        isDragging ? 'border-stone-400 opacity-50' : isDragOver ? 'border-stone-900 bg-stone-50' : 'border-stone-200'
+      }`}
+    >
+      <div className="col-span-12 md:col-span-2 flex flex-col gap-2">
+        <div className="aspect-square bg-stone-50 border border-stone-200 flex items-center justify-center overflow-hidden">
+          {row.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={row.photo_url} alt="" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+          ) : (
+            <ImageIcon className="w-6 h-6 text-stone-300" />
+          )}
+        </div>
+        <input
+          type="url"
+          value={row.photo_url || ''}
+          onChange={(e) => onChange({ photo_url: e.target.value })}
+          placeholder="https://photo.jpg"
+          className="text-[11px] bg-white border border-stone-200 rounded px-2 py-1 w-full font-mono"
+        />
+      </div>
+      <div className="col-span-12 md:col-span-7 space-y-2">
+        <input
+          type="text"
+          value={row.name || ''}
+          onChange={(e) => onChange({ name: e.target.value })}
+          placeholder="Product name"
+          className="w-full font-serif text-lg bg-white border border-stone-200 rounded px-3 py-2"
+        />
+        <textarea
+          value={row.description || ''}
+          onChange={(e) => onChange({ description: e.target.value })}
+          placeholder="Description (optional)"
+          rows={2}
+          className="w-full text-sm bg-white border border-stone-200 rounded px-3 py-2"
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-widest text-stone-500">Price ($)</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={priceDollars}
+              onChange={(e) => {
+                const n = parseFloat(e.target.value)
+                onChange({ price_cents: Number.isFinite(n) ? Math.round(n * 100) : 0 })
+              }}
+              placeholder="0.00"
+              className="mt-0.5 w-full bg-white border border-stone-200 rounded px-3 py-1.5 text-sm"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-widest text-stone-500">Quantity cap</span>
+            <input
+              type="number"
+              min="0"
+              value={row.quantity ?? ''}
+              onChange={(e) => onChange({ quantity: e.target.value === '' ? null : parseInt(e.target.value, 10) })}
+              placeholder="Unlimited"
+              className="mt-0.5 w-full bg-white border border-stone-200 rounded px-3 py-1.5 text-sm"
+            />
+          </label>
+        </div>
+      </div>
+      <div className="col-span-12 md:col-span-3 flex md:flex-col items-end gap-1">
+        <button onClick={onRemove} title="Remove" aria-label="Remove product"
+                className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-white border border-stone-300 text-stone-600 hover:bg-stone-50">
+          <X className="w-3 h-3" /> Remove
+        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={onMoveUp} disabled={idx === 0}
+                  title="Move up" aria-label="Move up"
+                  className="inline-flex items-center px-1.5 py-1 rounded border border-stone-200 text-stone-500 disabled:opacity-30 hover:bg-stone-50">
+            ↑
+          </button>
+          <button onClick={onMoveDown} disabled={idx >= total - 1}
+                  title="Move down" aria-label="Move down"
+                  className="inline-flex items-center px-1.5 py-1 rounded border border-stone-200 text-stone-500 disabled:opacity-30 hover:bg-stone-50">
+            ↓
+          </button>
+          <span className="text-[10px] text-stone-400 ml-1"><GripVertical className="w-3 h-3 inline" />{idx + 1}</span>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -68,13 +68,39 @@ export async function GET(request) {
   }
 
   // Flatten launches join + compute counts per status for the filter bar.
-  const orders = (data || []).map((r) => ({
+  const baseOrders = (data || []).map((r) => ({
     ...r,
     launch_title: r.launches?.title || null,
     launch_handle: r.launches?.handle || null,
     launch_pickup_details: r.launches?.pickup_details || null,
     launches: undefined,
   }))
+
+  // Bulk-fetch order_items for ALL orders on this page in a single query.
+  // Group client-side. Tolerates missing table (multi-product migration).
+  let itemsByOrder = {}
+  let itemsTablePending = false
+  if (baseOrders.length) {
+    const orderIds = baseOrders.map((o) => o.id)
+    const { data: iRows, error: iErr } = await supa
+      .from('order_items').select('*').in('order_id', orderIds)
+      .order('created_at', { ascending: true })
+    if (iErr) {
+      if (/could not find the table|relation .* does not exist|schema cache/i.test(iErr.message)) {
+        itemsTablePending = true
+      } else {
+        console.warn('[admin/direct/orders] order_items fetch failed (non-fatal):', iErr.message)
+      }
+    } else {
+      for (const it of (iRows || [])) {
+        (itemsByOrder[it.order_id] ||= []).push(it)
+      }
+    }
+  }
+  const orders = baseOrders.map((o) => {
+    const items = itemsByOrder[o.id] || []
+    return { ...o, items, items_count: items.length }
+  })
 
   // Optional cheap counts for the tab bar — separate query, single round-trip.
   // Skipped when filtering by status to keep response small; UI can issue one
@@ -97,5 +123,6 @@ export async function GET(request) {
     page,
     pageSize,
     counts,
+    items_migration_pending: itemsTablePending,
   })
 }

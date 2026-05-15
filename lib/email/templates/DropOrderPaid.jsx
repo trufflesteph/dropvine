@@ -10,11 +10,16 @@ function money(cents) {
 // Sent when a maker / admin marks a pending pre-order or deposit as paid via
 // the /admin/direct/orders page. Includes pickup details so the shopper knows
 // what to expect next.
-export function DropOrderPaid({ order, launch }) {
+//
+// Itemised when `items[]` is provided (multi-product drops). Falls back to a
+// single line when items is empty (legacy single-SKU drops).
+export function DropOrderPaid({ order, launch, items = [] }) {
   const isDeposit = order?.collection_mode === 'deposit'
   const balanceLine = isDeposit && order?.balance_cents > 0
     ? `Balance of ${money(order.balance_cents)} is due at pickup.`
     : null
+  const showItems = Array.isArray(items) && items.length > 0
+    && (items.length > 1 || items[0]?.launch_product_id)
 
   return (
     <EmailShell preview={`Payment confirmed — ${launch?.title || 'your drop'} #${order.short_code}`}>
@@ -24,6 +29,21 @@ export function DropOrderPaid({ order, launch }) {
         Your payment has been received. Your order <strong>{order.short_code}</strong> for{' '}
         <Italic>{launch?.title || 'this drop'}</Italic> is confirmed. See you at pickup!
       </P>
+
+      {showItems ? (
+        <>
+          <Divider />
+          <Section>
+            <Text style={styles.eyebrow}>Items</Text>
+            {items.map((it) => (
+              <Text key={it.id || it.launch_product_id || it.product_name}
+                    style={{ ...styles.detailRow, margin: '0 0 4px' }}>
+                {it.quantity}× {it.product_name} — {money((it.price_cents || 0) * (it.quantity || 0))}
+              </Text>
+            ))}
+          </Section>
+        </>
+      ) : null}
 
       <Divider />
       <Detail label="Order" value={`#${order.short_code}`} />

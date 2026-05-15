@@ -52,6 +52,7 @@ function DirectOrdersInner() {
   const [data, setData] = useState({ orders: [], total: 0, counts: null, migration_pending: false })
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState(null)
+  const [expandedId, setExpandedId] = useState(null) // currently-open row id
 
   // Debounce the search input.
   useEffect(() => {
@@ -162,11 +163,12 @@ function DirectOrdersInner() {
           <table className="w-full text-sm">
             <thead className="bg-stone-50 text-[11px] uppercase tracking-widest text-stone-500">
               <tr>
+                <th className="px-4 py-3 w-8"></th>
                 <th className="px-4 py-3 text-left">Code</th>
                 <th className="px-4 py-3 text-left">Drop</th>
                 <th className="px-4 py-3 text-left">Shopper</th>
                 <th className="px-4 py-3 text-left">Mode</th>
-                <th className="px-4 py-3 text-right">Qty</th>
+                <th className="px-4 py-3 text-right">Items</th>
                 <th className="px-4 py-3 text-right">Total</th>
                 <th className="px-4 py-3 text-left">Status</th>
                 <th className="px-4 py-3 text-left">Placed</th>
@@ -175,15 +177,33 @@ function DirectOrdersInner() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="9" className="px-4 py-10 text-center text-stone-400"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Loading…</td></tr>
+                <tr><td colSpan="10" className="px-4 py-10 text-center text-stone-400"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Loading…</td></tr>
               ) : data.orders.length === 0 ? (
-                <tr><td colSpan="9" className="px-4 py-10 text-center text-stone-400">No orders match this filter.</td></tr>
+                <tr><td colSpan="10" className="px-4 py-10 text-center text-stone-400">No orders match this filter.</td></tr>
               ) : data.orders.map((o) => {
                 const s = STATUS_PILL[o.status] || { bg: '#F2F0EA', fg: '#56534D', label: o.status }
                 const m = MODE_PILL[o.collection_mode] || { bg: '#F2F0EA', fg: '#56534D', label: o.collection_mode || '—' }
                 const busy = busyId === o.id
+                const items = Array.isArray(o.items) ? o.items : []
+                const itemCount = items.length
+                const isExpanded = expandedId === o.id
+                const canExpand = itemCount > 1 || (itemCount === 1 && items[0]?.launch_product_id)
                 return (
-                  <tr key={o.id} className="border-t border-stone-100 hover:bg-stone-50">
+                  <React.Fragment key={o.id}>
+                  <tr className={`border-t border-stone-100 hover:bg-stone-50 ${isExpanded ? 'bg-stone-50/60' : ''}`}>
+                    <td className="px-4 py-3 align-top">
+                      {canExpand ? (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedId(isExpanded ? null : o.id)}
+                          aria-label={isExpanded ? 'Collapse line items' : 'Expand line items'}
+                          className="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-stone-200 text-stone-500"
+                          data-testid={`expand-${o.id}`}
+                        >
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs">{o.short_code}</td>
                     <td className="px-4 py-3">
                       <div className="font-serif text-stone-900">{o.launch_title || '—'}</div>
@@ -198,7 +218,15 @@ function DirectOrdersInner() {
                         {m.label}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums">{o.quantity}</td>
+                    <td className="px-4 py-3 text-right">
+                      {itemCount > 1 ? (
+                        <span className="inline-flex items-center text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full bg-stone-100 text-stone-700">
+                          {itemCount} items
+                        </span>
+                      ) : (
+                        <span className="tabular-nums text-stone-700">{o.quantity}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {o.collection_mode === 'deposit'
                         ? <><div>{money(o.deposit_cents)}</div><div className="text-[11px] text-stone-400">/ {money(o.total_cents)}</div></>
@@ -239,6 +267,34 @@ function DirectOrdersInner() {
                       </div>
                     </td>
                   </tr>
+                  {isExpanded ? (
+                    <tr className="border-t border-stone-100 bg-stone-50/40" data-testid={`items-${o.id}`}>
+                      <td></td>
+                      <td colSpan="9" className="px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-widest text-stone-500 mb-2">Line items</div>
+                        <table className="w-full text-xs">
+                          <tbody>
+                            {items.map((it) => (
+                              <tr key={it.id} className="border-b border-stone-200 last:border-b-0">
+                                <td className="py-1.5 pr-3 tabular-nums text-stone-500 w-10">{it.quantity}×</td>
+                                <td className="py-1.5 pr-3 text-stone-800">{it.product_name}</td>
+                                <td className="py-1.5 pr-3 tabular-nums text-stone-500">{money(it.price_cents)} ea</td>
+                                <td className="py-1.5 tabular-nums text-stone-800 text-right">
+                                  {money((it.price_cents || 0) * (it.quantity || 0))}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {o.venmo_note ? (
+                          <div className="mt-3 text-[11px] text-stone-500">
+                            Venmo memo: <span className="font-mono text-stone-700">{o.venmo_note}</span>
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ) : null}
+                  </React.Fragment>
                 )
               })}
             </tbody>
