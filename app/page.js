@@ -20,7 +20,7 @@ const DEFAULTS = {
   // second line can render in italic (matches the original visual). Set
   // `hero_headline_line2` to empty string to suppress the italic line entirely.
   hero_headline_line1:       'Your next drop',
-  hero_headline_line2:       'deserves a moment.',
+  hero_headline_line2:       '',
   hero_subtext:              'Build a timed page, collect waitlists, pre-orders, reservations, or deposits — then open the doors at exactly the right second.',
   hero_microcopy:            'Used for drops, workshops, and limited releases.',
   hero_primary_cta:          'Build your drop page',
