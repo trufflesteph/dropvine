@@ -19,11 +19,11 @@ const DEFAULTS = {
   // Hero — fully DB-driven. The headline is split across two lines so the
   // second line can render in italic (matches the original visual). Set
   // `hero_headline_line2` to empty string to suppress the italic line entirely.
-  hero_headline_line1:       'Your next drop',
+  hero_headline_line1:       'Orders, handled.',
   hero_headline_line2:       '',
-  hero_subtext:              'Build a timed page, collect waitlists, pre-orders, reservations, or deposits — then open the doors at exactly the right second.',
-  hero_microcopy:            'Used for drops, workshops, and limited releases.',
-  hero_primary_cta:          'Build your drop page',
+  hero_subtext:              'Set your products and pricing, pick a deadline - and let Dropvine do the rest. Every drop builds your list Every list makes the next one bigger.',
+  hero_microcopy:            '',
+  hero_primary_cta:          'Try it free',
   hero_primary_cta_href:     '/signup',
   hero_secondary_cta:        'See it in action',
   hero_secondary_cta_href:   '#example',
