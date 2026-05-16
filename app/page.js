@@ -16,6 +16,18 @@ const PRICING_SUBTEXT_FALLBACK = 'No credit card. No lock-in. Every tier include
 // here is what renders. Keep this list in sync with the SECTIONS map in
 // app/admin/direct/settings/page.js.
 const DEFAULTS = {
+  // Hero — fully DB-driven. The headline is split across two lines so the
+  // second line can render in italic (matches the original visual). Set
+  // `hero_headline_line2` to empty string to suppress the italic line entirely.
+  hero_headline_line1:       'Your next drop',
+  hero_headline_line2:       'deserves a moment.',
+  hero_subtext:              'Build a timed page, collect waitlists, pre-orders, reservations, or deposits — then open the doors at exactly the right second.',
+  hero_microcopy:            'Used for drops, workshops, and limited releases.',
+  hero_primary_cta:          'Build your drop page',
+  hero_primary_cta_href:     '/signup',
+  hero_secondary_cta:        'See it in action',
+  hero_secondary_cta_href:   '#example',
+
   // Pricing
   pricing_headline: PRICING_HEADLINE_FALLBACK,
   pricing_subtext: PRICING_SUBTEXT_FALLBACK,
@@ -209,24 +221,32 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-2 gap-16 items-center">
             <div>
               <h1 className="font-serif font-light text-[44px] sm:text-6xl md:text-7xl leading-[0.96] tracking-tightest text-balance animate-fade-up">
-                Your next drop
-                <br />
-                <span className="italic font-extralight">deserves a moment.</span>
+                {config.hero_headline_line1}
+                {config.hero_headline_line2 ? (
+                  <>
+                    <br />
+                    <span className="italic font-extralight">{config.hero_headline_line2}</span>
+                  </>
+                ) : null}
               </h1>
               <p className="mt-10 max-w-xl text-base md:text-lg text-muted-foreground leading-relaxed text-pretty animate-fade-up" style={{ animationDelay: '120ms' }}>
-                Build a timed page, collect waitlists, pre-orders, reservations, or deposits — then open the doors at exactly the right second.
+                {config.hero_subtext}
               </p>
-              <p className="mt-3 font-serif italic text-foreground/60 text-base animate-fade-up" style={{ animationDelay: '160ms' }}>
-                Used for drops, workshops, and limited releases.
-              </p>
+              {config.hero_microcopy ? (
+                <p className="mt-3 font-serif italic text-foreground/60 text-base animate-fade-up" style={{ animationDelay: '160ms' }}>
+                  {config.hero_microcopy}
+                </p>
+              ) : null}
               <div className="mt-12 flex flex-col sm:flex-row items-start sm:items-center gap-5 animate-fade-up" style={{ animationDelay: '220ms' }}>
-                <Link href="/signup" className="group inline-flex items-center gap-3 bg-foreground text-background px-7 py-4 text-sm hover:opacity-90 transition">
-                  Build your drop page
+                <Link href={config.hero_primary_cta_href || '/signup'} className="group inline-flex items-center gap-3 bg-foreground text-background px-7 py-4 text-sm hover:opacity-90 transition">
+                  {stripTrailingArrow(config.hero_primary_cta) || 'Get started'}
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
-                <Link href="#example" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-2">
-                  See it in action <ArrowUpRight className="h-3.5 w-3.5" />
-                </Link>
+                {config.hero_secondary_cta ? (
+                  <Link href={config.hero_secondary_cta_href || '#example'} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-2">
+                    {stripTrailingArrow(config.hero_secondary_cta)} <ArrowUpRight className="h-3.5 w-3.5" />
+                  </Link>
+                ) : null}
               </div>
             </div>
 
