@@ -13,8 +13,8 @@ const fraunces = Fraunces({
 })
 
 export const metadata = {
-  title: 'Dropvine — Timed launches for the considered',
-  description: 'A quiet platform for creators to release their work on their own clock. Waitlists, reservations, and countdowns — designed like an object.',
+  title: 'Dropvine Direct — Orders, handled.',
+  description: 'Set your products and pricing, pick a deadline, and let Dropvine do the rest. Your customers get a link, you get a clean order list — no DMs, no spreadsheets, no chaos.',
 }
 
 export default function RootLayout({ children }) {

@@ -69,7 +69,7 @@ const DEFAULTS = {
   // Bottom CTA
   bottom_cta_headline:       'Ready to stop managing orders through DMs?',
   bottom_cta_subtext:        'Set your products and pricing, pick a deadline, and let Dropvine handle the rest.',
-  bottom_cta_button:         'Try it free →',
+  bottom_cta_button:         'Try it free',
 }
 
 // All keys we read from `site_config`. Pricing tier keys are listed inline
@@ -86,6 +86,14 @@ function parseFeatures(raw) {
   if (!raw) return []
   // Accept both real newlines and literal "\n" seed artifacts.
   return String(raw).split(/\\n|\r?\n/).map((s) => s.trim()).filter(Boolean)
+}
+
+// Strip a trailing arrow (→ and variants) from CTA copy. Some operators paste
+// the arrow into site_config; the button JSX already renders an <ArrowRight />,
+// so we'd otherwise show two arrows. This collapses to one.
+function stripTrailingArrow(s) {
+  if (!s) return s
+  return String(s).replace(/\s*[→➜➝➞➟➠]+\s*$/u, '').trim()
 }
 
 function formatPrice({ label, cents }) {
@@ -114,18 +122,26 @@ function buildPlans(cfg) {
     { slug: 'maker',  prefix: 'maker_tier_',  defaultName: 'Maker'  },
     { slug: 'studio', prefix: 'studio_tier_', defaultName: 'Studio' },
   ]
-  return tiers.map(({ slug, prefix, defaultName }) => ({
-    slug,
-    name: cfg[`${prefix}name`]?.trim() || defaultName,
-    price: formatPrice({
+  return tiers.map(({ slug, prefix, defaultName }) => {
+    const rawPrice = formatPrice({
       label: cfg[`${prefix}price_label`],
       cents: cfg[`${prefix}price_cents`],
-    }),
-    features: parseFeatures(cfg[`${prefix}features`]),
-    cta: cfg[`${prefix}cta`]?.trim() || 'Get started',
-    href: slug === 'free' ? '/signup' : `/signup?plan=${slug}`,
-    featured: isTruthyFlag(cfg[`${prefix}popular`]),
-  }))
+    })
+    // Append `/month` to paid tiers only when the price label isn't already
+    // a sentence like "Always free" or doesn't already contain a slash/period.
+    const isPaidNumeric = slug !== 'free' && /^\$[\d.,]+$/.test(rawPrice)
+    const price = isPaidNumeric ? `${rawPrice}/month` : rawPrice
+    return {
+      slug,
+      name: cfg[`${prefix}name`]?.trim() || defaultName,
+      price,
+      features: parseFeatures(cfg[`${prefix}features`]),
+      // strip operator-pasted trailing arrows so we don't render two arrows.
+      cta: stripTrailingArrow(cfg[`${prefix}cta`]) || 'Get started',
+      href: slug === 'free' ? '/signup' : `/signup?plan=${slug}`,
+      featured: isTruthyFlag(cfg[`${prefix}popular`]),
+    }
+  })
 }
 
 
@@ -192,10 +208,6 @@ export default function LandingPage() {
         <div className="container">
           <div className="grid md:grid-cols-2 gap-16 items-center">
             <div>
-              <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-10 animate-fade-in">
-                <span className="h-px w-8 bg-foreground/30" />
-                <span>The anticipation engine — Edition 01</span>
-              </div>
               <h1 className="font-serif font-light text-[44px] sm:text-6xl md:text-7xl leading-[0.96] tracking-tightest text-balance animate-fade-up">
                 Your next drop
                 <br />
@@ -272,8 +284,7 @@ export default function LandingPage() {
         <div className="container py-14 md:py-20">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-10">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Live demonstration</div>
-              <h2 className="font-serif font-light text-3xl md:text-5xl leading-tight tracking-tighter">
+              <h2 className="font-serif font-light text-3xl md:text-5xl leading-[0.96] tracking-tightest">
                 The next drop opens in
               </h2>
             </div>
@@ -297,7 +308,7 @@ export default function LandingPage() {
       {/* COLLECTION MODES */}
       <section id="collect" className="container py-24 md:py-40">
         <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Four ways to collect</div>
-        <h2 className="font-serif font-light text-4xl md:text-5xl leading-tight tracking-tighter text-balance mb-4">
+        <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest text-balance mb-4">
           {config.modes_headline}
         </h2>
         <p className="text-muted-foreground leading-relaxed max-w-xl mb-16">
@@ -317,7 +328,7 @@ export default function LandingPage() {
       <section id="use-cases" className="border-t border-border bg-secondary/40">
         <div className="container py-24 md:py-40">
           <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Use cases</div>
-          <h2 className="font-serif font-light text-4xl md:text-5xl leading-tight tracking-tighter text-balance mb-16 max-w-3xl">
+          <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest text-balance mb-16 max-w-3xl">
             {config.use_cases_headline}
           </h2>
           <div className="grid md:grid-cols-3 gap-6">
@@ -337,7 +348,7 @@ export default function LandingPage() {
         <div className="grid md:grid-cols-12 gap-12 md:gap-16">
           <div className="md:col-span-4">
             <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">The method</div>
-            <h2 className="font-serif font-light text-4xl md:text-5xl leading-tight tracking-tighter text-balance">
+            <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest text-balance">
               {config.how_it_works_headline}
             </h2>
           </div>
@@ -358,7 +369,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-12 gap-12">
             <div className="md:col-span-5">
               <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">An example</div>
-              <h2 className="font-serif font-light text-4xl md:text-5xl leading-tight tracking-tighter">
+              <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest">
                 {config.example_business_name}
                 <br /><span className="italic">{config.example_tagline}</span>
               </h2>
@@ -394,7 +405,7 @@ export default function LandingPage() {
         <div className="grid md:grid-cols-12 gap-10 md:gap-16">
           <div className="md:col-span-4">
             <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Pricing</div>
-            <h2 className="font-serif font-light text-4xl md:text-5xl leading-tight tracking-tighter">
+            <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest">
               {config.pricing_headline}
             </h2>
             <p className="mt-6 text-sm text-muted-foreground leading-relaxed">{config.pricing_subtext}</p>
@@ -441,7 +452,7 @@ export default function LandingPage() {
             {config.bottom_cta_subtext}
           </p>
           <Link href="/signup" className="mt-12 inline-flex items-center gap-3 bg-background text-foreground px-8 py-4 text-sm hover:opacity-90">
-            {config.bottom_cta_button} <ArrowRight className="h-4 w-4" />
+            {stripTrailingArrow(config.bottom_cta_button) || 'Try it free'} <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </section>
