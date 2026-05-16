@@ -179,22 +179,22 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: iErr.message }, { status: 500 })
   }
 
-  // Insert line items (best-effort — never blocks the order). If order_items
+  // Insert line items (best-effort — never blocks the order). If drop_order_items
   // table is missing, log + continue so the legacy single-row UI keeps working.
   let insertedItems = []
   try {
     const itemsPayload = orderItemRows.map((r) => ({ order_id: order.id, ...r }))
     const { data: items, error: itErr } = await supa
-      .from('order_items').insert(itemsPayload).select('*')
+      .from('drop_order_items').insert(itemsPayload).select('*')
     if (itErr) {
       if (/could not find the table|relation .* does not exist|schema cache/i.test(itErr.message)) {
-        console.warn('[drops/preorder] order_items table missing — run supabase/migrations/2026-06-multi-product.sql')
+        console.warn('[drops/preorder] drop_order_items table missing — run supabase/migrations/2026-06-multi-product.sql')
       } else {
-        console.warn('[drops/preorder] order_items insert failed (non-fatal):', itErr.message)
+        console.warn('[drops/preorder] drop_order_items insert failed (non-fatal):', itErr.message)
       }
     } else insertedItems = items || []
   } catch (e) {
-    console.warn('[drops/preorder] order_items unexpected:', e?.message)
+    console.warn('[drops/preorder] drop_order_items unexpected:', e?.message)
   }
 
   // Fire confirmation email — non-blocking failure.

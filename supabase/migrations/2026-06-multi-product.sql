@@ -3,15 +3,19 @@
 -- ===========================================================================
 -- Adds two tables that turn a single-SKU launch into a basket-style drop:
 --
---   • launch_products  — many products per launch (each with its own price,
---                        capacity, photo, sort order). Publicly readable so
---                        the /l/[handle] page can render the catalogue
---                        without an authenticated session.
+--   • launch_products    — many products per launch (each with its own price,
+--                          capacity, photo, sort order). Publicly readable so
+--                          the /l/[handle] page can render the catalogue
+--                          without an authenticated session.
 --
---   • order_items      — line items rolled up under a parent drop_orders row.
---                        Snapshots product_name + price_cents at order time
---                        so admin reporting stays correct if the maker later
---                        edits the launch_products catalogue.
+--   • drop_order_items   — line items rolled up under a parent drop_orders row.
+--                          Snapshots product_name + price_cents at order time
+--                          so admin reporting stays correct if the maker later
+--                          edits the launch_products catalogue.
+--
+-- NB: named `drop_order_items` rather than `order_items` because the Dropvine
+-- Markets module already owns a `public.order_items` table with a totally
+-- different schema (per-vendor market pre-orders).
 --
 -- Both tables RLS-enabled. Public anon: SELECT only on launch_products.
 -- Service-role (used by server routes) bypasses RLS.
@@ -56,7 +60,7 @@ begin
   end if;
 end$$;
 
-create table if not exists public.order_items (
+create table if not exists public.drop_order_items (
   id                uuid primary key default gen_random_uuid(),
   order_id          uuid references public.drop_orders(id) on delete cascade,
   launch_product_id uuid references public.launch_products(id),
@@ -66,21 +70,21 @@ create table if not exists public.order_items (
   created_at        timestamptz default now()
 );
 
-create index if not exists order_items_order_idx
-  on public.order_items (order_id);
-create index if not exists order_items_product_idx
-  on public.order_items (launch_product_id);
+create index if not exists drop_order_items_order_idx
+  on public.drop_order_items (order_id);
+create index if not exists drop_order_items_product_idx
+  on public.drop_order_items (launch_product_id);
 
-alter table public.order_items enable row level security;
+alter table public.drop_order_items enable row level security;
 
 do $$
 begin
   if not exists (
     select 1 from pg_policies
-    where schemaname = 'public' and tablename = 'order_items'
-      and policyname = 'Service role full access order items'
+    where schemaname = 'public' and tablename = 'drop_order_items'
+      and policyname = 'Service role full access drop order items'
   ) then
-    create policy "Service role full access order items"
-      on public.order_items using (true);
+    create policy "Service role full access drop order items"
+      on public.drop_order_items using (true);
   end if;
 end$$;

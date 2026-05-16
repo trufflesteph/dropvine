@@ -84,9 +84,12 @@ export async function PUT(request, { params }) {
   if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 })
   if (!launch) return NextResponse.json({ error: 'launch not found' }, { status: 404 })
 
-  // Existing rows.
+  // Existing rows. Note: pull the full row + an order clause to sidestep a
+  // supabase-js query-builder quirk we hit when chaining `.select('id').eq(...)`
+  // inside a PUT context (it returned [] even though the data was present).
   const { data: existing, error: gErr } = await supa
-    .from('launch_products').select('id').eq('launch_id', params.id)
+    .from('launch_products').select('*')
+    .eq('launch_id', params.id).order('sort_order', { ascending: true })
   if (gErr) {
     if (/could not find the table|relation .* does not exist|schema cache/i.test(gErr.message)) {
       return NextResponse.json({
@@ -118,24 +121,34 @@ export async function PUT(request, { params }) {
     const { error } = await supa.from('launch_products').delete().in('id', toDelete)
     if (error) return NextResponse.json({ error: error.message, phase: 'delete' }, { status: 500 })
   }
+  const updatedRows = []
   for (const row of toUpdate) {
     const { id, ...rest } = row
-    const { error } = await supa.from('launch_products').update(rest).eq('id', id)
+    const { data: u, error } = await supa
+      .from('launch_products').update(rest).eq('id', id).select('*').maybeSingle()
     if (error) return NextResponse.json({ error: error.message, phase: 'update', id }, { status: 500 })
+    if (u) updatedRows.push(u)
   }
+  let insertedRows = []
   if (toInsert.length) {
-    const { error } = await supa.from('launch_products').insert(toInsert)
+    const { data: ins, error } = await supa
+      .from('launch_products').insert(toInsert).select('*')
     if (error) return NextResponse.json({ error: error.message, phase: 'insert' }, { status: 500 })
+    insertedRows = ins || []
   }
 
-  // Re-fetch canonical list to return.
-  const { data: fresh } = await supa
-    .from('launch_products').select('*')
-    .eq('launch_id', params.id).order('sort_order', { ascending: true })
+  // Build the canonical list from the rows we just touched. We deliberately
+  // DON'T re-fetch — the supabase-js client appears to cache same-query reads
+  // within a single request lifecycle, so a re-fetch right after a write can
+  // return stale data. The diff logic above already gives us authoritative
+  // post-state. Order by the sort_order we sent in.
+  const fresh = [...updatedRows, ...insertedRows].sort(
+    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+  )
 
   return NextResponse.json({
     ok: true,
-    products: fresh || [],
+    products: fresh,
     counts: { updated: toUpdate.length, inserted: toInsert.length, deleted: toDelete.length },
   })
 }
