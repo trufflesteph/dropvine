@@ -222,7 +222,9 @@ export default function LandingPage() {
             <div>
               <h1 className="font-serif font-light text-[44px] sm:text-6xl md:text-7xl leading-[0.96] tracking-tightest text-balance animate-fade-up">
                 {config.hero_headline_line1}
-                {config.hero_headline_line2 ? (
+                {/* Empty string OR whitespace-only OR missing → skip the
+                    second line entirely (no <br>, no italic span). */}
+                {config.hero_headline_line2 && String(config.hero_headline_line2).trim() ? (
                   <>
                     <br />
                     <span className="italic font-extralight">{config.hero_headline_line2}</span>
@@ -232,7 +234,8 @@ export default function LandingPage() {
               <p className="mt-10 max-w-xl text-base md:text-lg text-muted-foreground leading-relaxed text-pretty animate-fade-up" style={{ animationDelay: '120ms' }}>
                 {config.hero_subtext}
               </p>
-              {config.hero_microcopy ? (
+              {/* Hidden entirely when value is empty / whitespace. */}
+              {config.hero_microcopy && String(config.hero_microcopy).trim() ? (
                 <p className="mt-3 font-serif italic text-foreground/60 text-base animate-fade-up" style={{ animationDelay: '160ms' }}>
                   {config.hero_microcopy}
                 </p>
@@ -242,7 +245,7 @@ export default function LandingPage() {
                   {stripTrailingArrow(config.hero_primary_cta) || 'Get started'}
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
-                {config.hero_secondary_cta ? (
+                {config.hero_secondary_cta && String(config.hero_secondary_cta).trim() ? (
                   <Link href={config.hero_secondary_cta_href || '#example'} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-2">
                     {stripTrailingArrow(config.hero_secondary_cta)} <ArrowUpRight className="h-3.5 w-3.5" />
                   </Link>
@@ -420,44 +423,48 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* PRICING */}
+      {/* PRICING — heading stacked above a full-width 3-column grid so the
+          Studio card never gets clipped at standard desktop widths.
+          (Previously: heading took 4/12 + cards squeezed into 8/12, which
+          made each card ~240px and clipped the price + "Most popular" badge
+          on Studio at 1024–1280px breakpoints.) */}
       <section id="pricing" className="container py-24 md:py-40">
-        <div className="grid md:grid-cols-12 gap-10 md:gap-16">
-          <div className="md:col-span-4">
-            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Pricing</div>
-            <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest">
-              {config.pricing_headline}
-            </h2>
-            <p className="mt-6 text-sm text-muted-foreground leading-relaxed">{config.pricing_subtext}</p>
-          </div>
-          <div className="md:col-span-8 grid sm:grid-cols-3 gap-6">
-            {plans.map((p) => (
-              <div
-                key={p.slug}
-                className={`relative border p-8 md:p-10 transition-colors flex flex-col ${p.featured ? 'bg-foreground text-background border-foreground' : 'bg-background border-border hover:border-foreground'}`}
-              >
-                {p.featured ? (
-                  <div className="absolute -top-3 left-8 inline-flex items-center px-2.5 py-0.5 text-[10px] uppercase tracking-[0.18em] bg-background text-foreground border border-foreground">
-                    Most popular
-                  </div>
-                ) : null}
-                <div className={`text-[10px] uppercase tracking-[0.2em] mb-6 ${p.featured ? 'text-background/50' : 'text-muted-foreground'}`}>{p.name}</div>
-                <div className={`font-serif text-xl tracking-tight ${p.featured ? 'text-background' : ''}`}>{p.name}</div>
-                <div className={`font-serif text-5xl font-light tracking-tighter mt-6 ${p.featured ? 'text-background' : ''}`}>{p.price}</div>
-                <ul className="space-y-3 text-sm flex-1 mt-8">
-                  {p.features.map((f) => (
-                    <li key={f} className="flex items-start gap-3">
-                      <span className={`mt-1.5 inline-block h-px w-4 shrink-0 ${p.featured ? 'bg-background/30' : 'bg-foreground/40'}`} />
-                      <span className={p.featured ? 'text-background/75' : ''}>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link href={p.href} className={`mt-10 inline-flex items-center justify-center gap-2 px-5 py-3 text-sm transition ${p.featured ? 'bg-background text-foreground hover:opacity-90' : 'border border-border hover:border-foreground'}`}>
-                  {p.cta} <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-            ))}
-          </div>
+        <div className="max-w-3xl mb-12 md:mb-16">
+          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Pricing</div>
+          <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest text-balance">
+            {config.pricing_headline}
+          </h2>
+          <p className="mt-6 text-sm md:text-base text-muted-foreground leading-relaxed max-w-2xl">
+            {config.pricing_subtext}
+          </p>
+        </div>
+        <div className="grid md:grid-cols-3 gap-6">
+          {plans.map((p) => (
+            <div
+              key={p.slug}
+              className={`relative border p-8 md:p-10 transition-colors flex flex-col min-w-0 ${p.featured ? 'bg-foreground text-background border-foreground' : 'bg-background border-border hover:border-foreground'}`}
+            >
+              {p.featured ? (
+                <div className="absolute -top-3 left-8 inline-flex items-center px-2.5 py-0.5 text-[10px] uppercase tracking-[0.18em] bg-background text-foreground border border-foreground">
+                  Most popular
+                </div>
+              ) : null}
+              <div className={`text-[10px] uppercase tracking-[0.2em] mb-6 ${p.featured ? 'text-background/50' : 'text-muted-foreground'}`}>{p.name}</div>
+              <div className={`font-serif text-xl tracking-tight ${p.featured ? 'text-background' : ''}`}>{p.name}</div>
+              <div className={`font-serif text-4xl lg:text-5xl font-light tracking-tighter mt-6 whitespace-nowrap ${p.featured ? 'text-background' : ''}`}>{p.price}</div>
+              <ul className="space-y-3 text-sm flex-1 mt-8">
+                {p.features.map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <span className={`mt-1.5 inline-block h-px w-4 shrink-0 ${p.featured ? 'bg-background/30' : 'bg-foreground/40'}`} />
+                    <span className={p.featured ? 'text-background/75' : ''}>{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link href={p.href} className={`mt-10 inline-flex items-center justify-center gap-2 px-5 py-3 text-sm transition ${p.featured ? 'bg-background text-foreground hover:opacity-90' : 'border border-border hover:border-foreground'}`}>
+                {p.cta} <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          ))}
         </div>
       </section>
 

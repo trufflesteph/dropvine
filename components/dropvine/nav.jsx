@@ -14,9 +14,14 @@ function stripTrailingArrow(s) {
 export function Nav({ variant = 'light' }) {
   const { user, signOut } = useAuth() || {}
   const [logoUrl, setLogoUrl] = useState(null)
+  // The nav's primary CTA mirrors the homepage hero CTA (`hero_primary_cta`)
+  // so the operator can edit them in one place from /admin/direct/settings.
+  // Falls back to "Start your drop" + /signup if the keys aren't set.
+  const [primaryCtaText, setPrimaryCtaText] = useState('Start your drop')
+  const [primaryCtaHref, setPrimaryCtaHref] = useState('/signup')
 
-  // Best-effort logo fetch from site_config. Falls back to the text wordmark
-  // when no logo_url is configured OR if the network round-trip fails / errors.
+  // Best-effort site_config fetch (logo_url + hero_primary_cta + href).
+  // One query, multiple keys.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -24,11 +29,17 @@ export function Nav({ variant = 'light' }) {
         const sb = getSupabaseBrowser()
         if (!sb) return
         const { data, error } = await sb
-          .from('site_config').select('value').eq('key', 'logo_url').maybeSingle()
-        if (error || cancelled) return
-        const v = (data?.value || '').trim()
-        if (v) setLogoUrl(v)
-      } catch { /* fall back to wordmark */ }
+          .from('site_config').select('key, value')
+          .in('key', ['logo_url', 'hero_primary_cta', 'hero_primary_cta_href'])
+        if (error || cancelled || !Array.isArray(data)) return
+        const m = Object.fromEntries(data.map((r) => [r.key, r.value]))
+        const logo = (m.logo_url || '').trim()
+        if (logo) setLogoUrl(logo)
+        const cta = stripTrailingArrow(m.hero_primary_cta || '')
+        if (cta) setPrimaryCtaText(cta)
+        const href = (m.hero_primary_cta_href || '').trim()
+        if (href) setPrimaryCtaHref(href)
+      } catch { /* keep fallbacks */ }
     })()
     return () => { cancelled = true }
   }, [])
@@ -66,8 +77,8 @@ export function Nav({ variant = 'light' }) {
           ) : (
             <>
               <Link href="/login" className="text-muted-foreground hover:text-foreground transition-colors hidden sm:inline">Sign in</Link>
-              <Link href="/signup" className="inline-flex items-center gap-2 border border-foreground px-4 py-2 hover:bg-foreground hover:text-background transition-colors">
-                Start your drop <span aria-hidden>→</span>
+              <Link href={primaryCtaHref} className="inline-flex items-center gap-2 border border-foreground px-4 py-2 hover:bg-foreground hover:text-background transition-colors">
+                {primaryCtaText} <span aria-hidden>→</span>
               </Link>
             </>
           )}
