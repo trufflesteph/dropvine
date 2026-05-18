@@ -388,40 +388,41 @@ export default function LandingPage() {
       </section>
 
       {/* EXAMPLE */}
-      <section id="example" className="border-t border-border bg-stone-100/60">
-        <div className="container py-24 md:py-40">
-          <div className="grid md:grid-cols-12 gap-12">
-            <div className="md:col-span-5">
-              <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">An example</div>
-              <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest">
-                {config.example_business_name}
-                <br /><span className="italic">{config.example_tagline}</span>
-              </h2>
-              <p className="mt-6 text-muted-foreground leading-relaxed max-w-md">
-                {config.example_description}
-              </p>
-              <div className="mt-12 grid grid-cols-2 gap-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="border border-border p-4">
-                    <div className="font-serif text-3xl tracking-tighter">{config[`example_stat_${i}_value`]}</div>
-                    <div className="text-xs text-muted-foreground mt-1">{config[`example_stat_${i}_label`]}</div>
-                  </div>
-                ))}
-              </div>
+<section id="example" className="border-t border-border bg-stone-100/60">
+  <div className="container py-24 md:py-40">
+    <div className="grid md:grid-cols-12 gap-12">
+      <div className="md:col-span-5">
+        <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">An example</div>
+        <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest">
+          {config.example_business_name}
+          <br /><span className="italic">{config.example_tagline}</span>
+        </h2>
+        <p className="mt-6 text-muted-foreground leading-relaxed max-w-md">
+          {config.example_description}
+        </p>
+        <div className="mt-12 grid grid-cols-2 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="border border-border p-4">
+              <div className="font-serif text-3xl tracking-tighter">{config[`example_stat_${i}_value`]}</div>
+              <div className="text-xs text-muted-foreground mt-1">{config[`example_stat_${i}_label`]}</div>
             </div>
-            <div className="md:col-span-7">
-              <div className="aspect-[4/5] md:aspect-[5/6] relative overflow-hidden">
-                <Image
-                  src="https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/vendor-photos/omni-b39154d1-a70e-4b57-a0b5-4f74266c3b3a.png"
-                  alt="Good Flour Bakery"
-                  fill
-                  className="object-cover"
-                   />
-              <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 px-8 py-8 text-white">
-                  <div className="text-[11px] uppercase tracking-[0.25em] mb-3 text-white/70">Opens in</div>
-                  <div className="[&_*]:!text-white">
+          ))}
+        </div>
+      </div>
+      <div className="md:col-span-7">
+        <div className="aspect-[4/5] md:aspect-[5/6] relative overflow-hidden">
+          <Image
+            src="https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/vendor-photos/omni-b39154d1-a70e-4b57-a0b5-4f74266c3b3a.png"
+            alt="Good Flour Bakery"
+            fill
+            className="object-cover"
+          />
+          <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 px-8 py-8 text-white">
+            <div className="text-[11px] uppercase tracking-[0.25em] mb-3 text-white/70">Opens in</div>
+            <div className="[&_*]:!text-white">
               {mounted && <Countdown target={target} size="md" />}
+            </div>
           </div>
         </div>
       </div>
