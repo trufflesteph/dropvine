@@ -256,7 +256,7 @@ export default function LandingPage() {
             {/* Demo drop cards */}
             <div className="flex flex-col gap-3">
               {/* Sauce Mamas — featured live card */}
-              <div className="relative overflow-hidden p-8 text-white" style={{ background: '#8b2218' }}>
+              <div className="relative overflow-hidden p-8 text-white" style={{ background: '#6e2b22' }}>
                 <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.15em] text-white/40 mb-6">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                   Live right now
@@ -289,7 +289,7 @@ export default function LandingPage() {
               </div>
 
               {/* Baxter Farmstand */}
-              <div className="flex items-center justify-between px-5 py-4 text-white" style={{ background: '#99c68e' }}>
+              <div className="flex items-center justify-between px-5 py-4 text-white" style={{ background: '#515a45' }}>
                 <div>
                   <div className="text-sm font-medium text-white/90">Baxter Farmstand</div>
                   <div className="text-[11px] text-white/40 uppercase tracking-wider mt-0.5">Produce boxes</div>
