@@ -7,7 +7,7 @@ import { Countdown } from '@/components/dropvine/countdown'
 import { ArrowRight, ArrowUpRight } from 'lucide-react'
 import { getSupabaseBrowser } from '@/lib/supabase/client'
 
-const PRICING_HEADLINE_FALLBACK = "Start free. Grow when you're ready."
+const PRICING_HEADLINE_FALLBACK = "Start free. Scale fast."
 const PRICING_SUBTEXT_FALLBACK = 'No credit card. No lock-in. Every tier includes all four collection modes — waitlist, pre-order, reservation, and deposit.'
 
 // Centralised defaults for every editable copy field on the marketing site.
@@ -158,7 +158,7 @@ function buildPlans(cfg) {
 
 
 const TICKER_ITEMS = [
-  'Ceramic workshops', 'Tattoo flash drops', 'Limited print releases',
+  'Bakery drops', 'Ceramic workshops', 'Brand swag releases',
   'Photography sessions', 'Vintage clothing drops', 'Writing cohorts',
   'Design masterclasses', 'Music listening sessions', 'Floral workshops', 'Small-batch product launches',
 ]
@@ -255,14 +255,14 @@ export default function LandingPage() {
 
             {/* Demo drop cards */}
             <div className="flex flex-col gap-3">
-              {/* Clay Collective — featured live card */}
+              {/* Sauce Mamas — featured live card */}
               <div className="relative overflow-hidden p-8 text-white" style={{ background: '#7d726a' }}>
                 <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.15em] text-white/40 mb-6">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                   Live right now
                 </div>
-                <div className="font-serif text-2xl font-light tracking-tight mb-1">The Clay Collective</div>
-                <div className="text-sm text-white/50 mb-6">Workshop — 8 seats remaining</div>
+                <div className="font-serif text-2xl font-light tracking-tight mb-1">Sauce Mamas</div>
+                <div className="text-sm text-white/50 mb-6">Workshop — 25 seats</div>
                 {mounted && (
                   <div className="grid grid-cols-4 gap-3 mb-6">
                     {[['02','hrs'],['47','min'],['33','sec'],['8','seats']].map(([n, l]) => (
@@ -274,16 +274,16 @@ export default function LandingPage() {
                   </div>
                 )}
                 <div className="flex items-center justify-between pt-4 border-t border-white/10 text-xs text-white/40">
-                  <span>246 on waitlist</span>
-                  <span className="border border-white/20 px-3 py-1 text-white/60 font-mono tracking-wide text-[10px]">RESERVE SPOT</span>
+                  <span>8 on waitlist</span>
+                  <span className="border border-white/20 px-3 py-1 text-white/60 font-mono tracking-wide text-[10px]">Join Waitlist</span>
                 </div>
               </div>
 
-              {/* Flash Tattoo Drop */}
+              {/* Wildflour Cookies */}
               <div className="flex items-center justify-between px-5 py-4 text-white" style={{ background: '#2a2420' }}>
                 <div>
-                  <div className="text-sm font-medium text-white/90">Flash Tattoo Drop — June</div>
-                  <div className="text-[11px] text-white/40 uppercase tracking-wider mt-0.5">Flash Drop</div>
+                  <div className="text-sm font-medium text-white/90">Wildflour Cookies</div>
+                  <div className="text-[11px] text-white/40 uppercase tracking-wider mt-0.5">This Week - Market Pre-Order</div>
                 </div>
                 <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-yellow-900/40 text-yellow-300">Opens in 3d</span>
               </div>
