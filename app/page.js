@@ -318,7 +318,7 @@ export default function LandingPage() {
       </section>
 
       {/* TICKER */}
-      <div className="border-b border-border bg-foreground text-background overflow-hidden py-4">
+      <div className="border-b border-border bg-olive text-background overflow-hidden py-4">
         <div className="flex gap-12 animate-ticker whitespace-nowrap">
           {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
             <span key={i} className="font-serif italic text-sm opacity-60 shrink-0">
@@ -452,7 +452,7 @@ export default function LandingPage() {
               className={`relative border p-8 md:p-10 transition-colors flex flex-col min-w-0 ${p.featured ? 'bg-foreground text-background border-foreground' : 'bg-background border-border hover:border-foreground'}`}
             >
               {p.featured ? (
-                <div className="absolute -top-3 left-8 inline-flex items-center px-2.5 py-0.5 text-[10px] uppercase tracking-[0.18em] bg-background text-foreground border border-foreground">
+                <div className="absolute -top-3 left-8 inline-flex items-center px-2.5 py-0.5 text-[10px] uppercase tracking-[0.18em] p.featured ? bg-olive text-background border-olive">
                   Most popular
                 </div>
               ) : null}
@@ -476,7 +476,7 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="border-t border-border bg-foreground text-background">
+      <section className="border-t border-border bg-olive text-background">
         <div className="container py-24 md:py-40 text-center">
           <div className="text-[11px] uppercase tracking-[0.25em] text-background/40 mb-8">Ready when you are</div>
           <h2 className="font-serif font-light text-4xl md:text-7xl leading-[1.02] tracking-tightest max-w-3xl mx-auto text-balance">
