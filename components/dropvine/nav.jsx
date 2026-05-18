@@ -77,7 +77,7 @@ export function Nav({ variant = 'light' }) {
           ) : (
             <>
               <Link href="/login" className="text-muted-foreground hover:text-foreground transition-colors hidden sm:inline">Sign in</Link>
-              <Link href={primaryCtaHref} className="inline-flex items-center gap-2 border border-foreground px-4 py-2 hover:bg-foreground hover:text-background transition-colors">
+              <Link href={primaryCtaHref} className="inline-flex items-center gap-2 border border-olive text-olive px-4 py-2 hover:bg-olive hover:text-background transition-colors">
                 {primaryCtaText} <span aria-hidden>→</span>
               </Link>
             </>
