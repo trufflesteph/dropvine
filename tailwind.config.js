@@ -60,6 +60,7 @@ module.exports = {
                     800: '#26241F',
                     900: '#0E0E0C',
                 },
+                 olive: '#2D4A2A',
             },
             borderRadius: {
                 lg: 'var(--radius)',
