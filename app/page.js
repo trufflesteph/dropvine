@@ -418,7 +418,8 @@ export default function LandingPage() {
                   className="object-cover"
                    />
           <div className="absolute inset-0 grain opacity-60" />
-          <div className="absolute inset-0 flex items-end p-8 md:p-12">
+            <div className="absolute inset-0 flex items-end p-8 md:p-12">
+              <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/70 to-transparent" />
             {mounted && <Countdown target={target} size="md" />}
           </div>
         </div>
