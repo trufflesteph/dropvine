@@ -256,7 +256,7 @@ export default function LandingPage() {
             {/* Demo drop cards */}
             <div className="flex flex-col gap-3">
               {/* Sauce Mamas — featured live card */}
-              <div className="relative overflow-hidden p-8 text-white" style={{ background: '#7d726a' }}>
+              <div className="relative overflow-hidden p-8 text-white" style={{ background: '#8b2218' }}>
                 <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.15em] text-white/40 mb-6">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                   Live right now
@@ -288,13 +288,13 @@ export default function LandingPage() {
                 <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-yellow-900/40 text-yellow-300">Opens in 3d</span>
               </div>
 
-              {/* Batch 004 */}
-              <div className="flex items-center justify-between px-5 py-4 text-white" style={{ background: '#8b2218' }}>
+              {/* Baxter Farmstand */}
+              <div className="flex items-center justify-between px-5 py-4 text-white" style={{ background: '#00FF7F' }}>
                 <div>
-                  <div className="text-sm font-medium text-white/90">Batch 004</div>
-                  <div className="text-[11px] text-white/40 uppercase tracking-wider mt-0.5">Small-batch</div>
+                  <div className="text-sm font-medium text-white/90">Baxter Farmstand</div>
+                  <div className="text-[11px] text-white/40 uppercase tracking-wider mt-0.5">Produce boxes</div>
                 </div>
-                <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-green-900/40 text-green-300">Live now</span>
+                <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-green-900/40 text-green-300">Reserve Now</span>
               </div>
             </div>
           </div>
