@@ -409,11 +409,15 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="md:col-span-7">
-              <div className="aspect-[4/5] md:aspect-[5/6] bg-gradient-to-b from-stone-200 to-stone-300 relative overflow-hidden">
+              <div className="aspect-[4/5] md:aspect-[5/6] relative overflow-hidden">
+                <Image
+                  src="https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/vendor-photos/omni-b39154d1-a70e-4b57-a0b5-4f74266c3b3a.png"
+                  alt="Good Flour Bakery"
+                  fill
+                  className="object-cover"
+                />
                 <div className="absolute inset-0 grain opacity-60" />
                 <div className="absolute inset-0 flex items-end p-8 md:p-12">
-                  <div className="text-stone-900">
-                    <div className="text-[11px] uppercase tracking-[0.25em] mb-3">Opens in</div>
                     {mounted && <Countdown target={target} size="md" />}
                   </div>
                 </div>
