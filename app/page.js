@@ -262,7 +262,7 @@ export default function LandingPage() {
                   Live right now
                 </div>
                 <div className="font-serif text-2xl font-light tracking-tight mb-1">Sauce Mamas</div>
-                <div className="text-sm text-white/50 mb-6">Workshop — 25 seats</div>
+                <div className="text-sm text-white/50 mb-6">Workshop</div>
                 {mounted && (
                   <div className="grid grid-cols-4 gap-3 mb-6">
                     {[['02','hrs'],['47','min'],['33','sec'],['8','seats']].map(([n, l]) => (
@@ -274,7 +274,7 @@ export default function LandingPage() {
                   </div>
                 )}
                 <div className="flex items-center justify-between pt-4 border-t border-white/10 text-xs text-white/40">
-                  <span>8 on waitlist</span>
+                  <span>6 on waitlist</span>
                   <span className="border border-white/20 px-3 py-1 text-white/60 font-mono tracking-wide text-[10px]">Join Waitlist</span>
                 </div>
               </div>
