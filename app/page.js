@@ -280,7 +280,7 @@ export default function LandingPage() {
               </div>
 
               {/* Wildflour Cookies */}
-              <div className="flex items-center justify-between px-5 py-4 text-white" style={{ background: '#2a2420' }}>
+              <div className="flex items-center justify-between px-5 py-4 text-white" style={{ background: '#411900' }}>
                 <div>
                   <div className="text-sm font-medium text-white/90">Wildflour Cookies</div>
                   <div className="text-[11px] text-white/40 uppercase tracking-wider mt-0.5">This Week - Market Pre-Order</div>
@@ -289,7 +289,7 @@ export default function LandingPage() {
               </div>
 
               {/* Baxter Farmstand */}
-              <div className="flex items-center justify-between px-5 py-4 text-white" style={{ background: '#00FF7F' }}>
+              <div className="flex items-center justify-between px-5 py-4 text-white" style={{ background: '#99c68e' }}>
                 <div>
                   <div className="text-sm font-medium text-white/90">Baxter Farmstand</div>
                   <div className="text-[11px] text-white/40 uppercase tracking-wider mt-0.5">Produce boxes</div>
