@@ -417,10 +417,11 @@ export default function LandingPage() {
                   fill
                   className="object-cover"
                    />
-           <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 px-8 py-8 text-white">
-                <div className="text-[11px] uppercase tracking-[0.25em] mb-3 text-white/70">Opens in</div>
-            {mounted && <Countdown target={target} size="md" />}
+                  <div className="text-[11px] uppercase tracking-[0.25em] mb-3 text-white/70">Opens in</div>
+                  <div className="[&_*]:!text-white">
+              {mounted && <Countdown target={target} size="md" />}
           </div>
         </div>
       </div>
