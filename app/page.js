@@ -415,17 +415,16 @@ export default function LandingPage() {
                   alt="Good Flour Bakery"
                   fill
                   className="object-cover"
-                />
-                <div className="absolute inset-0 grain opacity-60" />
-                <div className="absolute inset-0 flex items-end p-8 md:p-12">
-                    {mounted && <Countdown target={target} size="md" />}
-                  </div>
-                </div>
-              </div>
-            </div>
+                   />
+          <div className="absolute inset-0 grain opacity-60" />
+          <div className="absolute inset-0 flex items-end p-8 md:p-12">
+            {mounted && <Countdown target={target} size="md" />}
           </div>
         </div>
-      </section>
+      </div>
+    </div>
+  </div>
+</section>
 
       {/* PRICING — heading stacked above a full-width 3-column grid so the
           Studio card never gets clipped at standard desktop widths.
