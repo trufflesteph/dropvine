@@ -47,14 +47,14 @@ export function Nav({ variant = 'light' }) {
   return (
     <header className="absolute top-0 left-0 right-0 z-30">
       <div className="container flex items-center justify-between py-6 md:py-8">
-        <Link href="/" className="inline-flex items-center font-serif text-x3 tracking-tighter" aria-label="Dropvine home">
+        <Link href="/" className="inline-flex items-center font-serif text-x1 tracking-tighter" aria-label="Dropvine home">
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={logoUrl}
               alt="Dropvine"
               height={40}
-              style={{ height: '40px', width: 'auto' }}
+              style={{ height: '60px', width: 'auto' }}
               className="block"
               onError={() => setLogoUrl(null)}
             />
