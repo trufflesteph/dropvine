@@ -290,7 +290,7 @@ export default function LandingPage() {
               </div>
 
               {/* Baxter Farmstand */}
-              <div className="flex items-center justify-between px-5 py-4 text-white" style={{ background: '#515a45' }}>
+              <div className="flex items-center justify-between px-5 py-4 text-white" style={{ background: '#3a4e30' }}>
                 <div>
                   <div className="text-sm font-medium text-white/90">Baxter Farmstand</div>
                   <div className="text-[11px] text-white/40 uppercase tracking-wider mt-0.5">Produce boxes</div>
