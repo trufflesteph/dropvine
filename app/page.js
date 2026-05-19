@@ -421,7 +421,7 @@ export default function LandingPage() {
           <div className="absolute inset-x-0 bottom-0 px-8 py-8 text-white">
             <div className="text-[11px] uppercase tracking-[0.25em] mb-3 text-white/70">Opens in</div>
             <div className="[&_*]:!text-white">
-              {mounted && <Countdown target={target} size="md" />}
+              {mounted && <Countdown target={target} size="sm" />}
             </div>
           </div>
         </div>
