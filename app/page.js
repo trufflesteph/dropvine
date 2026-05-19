@@ -429,7 +429,7 @@ export default function LandingPage() {
     </div>
   </div>
 </section>
-
+}
       {/* PRICING — heading stacked above a full-width 3-column grid so the
           Studio card never gets clipped at standard desktop widths.
           (Previously: heading took 4/12 + cards squeezed into 8/12, which
