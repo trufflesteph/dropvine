@@ -321,7 +321,7 @@ export default function LandingPage() {
       <div className="border-b border-border bg-olive text-background overflow-hidden py-4">
         <div className="flex gap-12 animate-ticker whitespace-nowrap">
           {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
-            <span key={i} className="font-serif italic text-sm opacity-60 shrink-0">
+            <span key={i} className="font-serif italic text-sm text-white opacity-80 shrink-0">
               {item}
               <span className="ml-12 inline-block w-1 h-1 rounded-full bg-current opacity-40 align-middle" />
             </span>
