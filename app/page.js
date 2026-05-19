@@ -387,7 +387,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* EXAMPLE */}
+     {/* EXAMPLE */}
 <section id="example" className="border-t border-border bg-stone-100/60">
   <div className="container py-24 md:py-40">
     <div className="grid md:grid-cols-12 gap-12">
@@ -410,7 +410,7 @@ export default function LandingPage() {
         </div>
       </div>
       <div className="md:col-span-7">
-        <div className="relative overflow-hidden w-full h-[400px] md:aspect-[5/6] md:h-auto"><div className="relative overflow-hidden w-full h-[400px] md:aspect-[5/6] md:h-auto">
+        <div className="relative overflow-hidden w-full h-[400px] md:aspect-[5/6] md:h-auto">
           <Image
             src="https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/vendor-photos/omni-b39154d1-a70e-4b57-a0b5-4f74266c3b3a.png"
             alt="Good Flour Bakery"
@@ -429,7 +429,7 @@ export default function LandingPage() {
     </div>
   </div>
 </section>
-}
+
       {/* PRICING — heading stacked above a full-width 3-column grid so the
           Studio card never gets clipped at standard desktop widths.
           (Previously: heading took 4/12 + cards squeezed into 8/12, which
