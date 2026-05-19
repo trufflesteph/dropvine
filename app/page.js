@@ -242,7 +242,7 @@ export default function LandingPage() {
                 </p>
               ) : null}
               <div className="mt-12 flex flex-col sm:flex-row items-start sm:items-center gap-5 animate-fade-up" style={{ animationDelay: '220ms' }}>
-                <Link href={config.hero_primary_cta_href || '/signup'} className="group inline-flex items-center gap-3 bg-foreground text-background px-7 py-4 text-sm hover:opacity-90 transition">
+              <Link href={config.hero_primary_cta_href || '/signup'} className="group inline-flex items-center gap-3 bg-olive text-background px-7 py-4 text-sm hover:opacity-90 transition">
                   {stripTrailingArrow(config.hero_primary_cta) || 'Get started'}
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
