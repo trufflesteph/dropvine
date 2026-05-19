@@ -133,7 +133,7 @@ function buildPlans(cfg) {
   const tiers = [
     { slug: 'free',   prefix: 'free_tier_',   defaultName: 'Free'   },
     { slug: 'maker',  prefix: 'maker_tier_',  defaultName: 'Maker'  },
-    { slug: 'studio', prefix: 'studio_tier_', defaultName: 'Studio' },
+    { slug: 'studio', prefix: 'studio_tier_', defaultName: 'Shop' },
   ]
   return tiers.map(({ slug, prefix, defaultName }) => {
     const rawPrice = formatPrice({
