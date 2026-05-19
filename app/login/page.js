@@ -29,10 +29,10 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen grid md:grid-cols-2">
       <aside className="hidden md:flex flex-col justify-between p-12 bg-stone-100 border-r border-border">
-        <Link href="/" className="font-serif text-xl tracking-tighter">Dropvine<span className="align-super text-[8px] ml-0.5 text-muted-foreground">®</span></Link>
+        <Link href="/"><img src="https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/assets/dropvine%202%20color%20logo_transparent.png" alt="Dropvine" style={{ height: '40px', width: 'auto' }} /></Link>
         <div>
-          <p className="font-serif italic text-3xl leading-snug tracking-tight max-w-md">“A quieter way to launch — the design holds its breath until the moment is right.”</p>
-          <p className="mt-6 text-sm text-muted-foreground">— An early studio, Edition 01</p>
+          <p className="font-serif italic text-3xl leading-snug tracking-tight max-w-md">"Five minutes to set up. Zero DMs to manage. Made for every product and service."</p>
+          <p className="mt-6 text-sm text-muted-foreground">— Dropvine Founder, Stephanie Baturoni</p>
         </div>
         <div className="text-xs text-muted-foreground">© {new Date().getFullYear()} Dropvine</div>
       </aside>
