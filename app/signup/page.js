@@ -65,7 +65,7 @@ export default function SignupPage() {
               <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Password</Label>
               <Input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="At least 6 characters" />
             </div>
-            <button disabled={loading} className="w-full bg-foreground text-background h-12 text-sm hover:opacity-90 disabled:opacity-50">
+            <button disabled={loading} className="w-full bg-olive text-background h-12 text-sm hover:opacity-90 disabled:opacity-50">
               {loading ? 'Creating…' : 'Create studio'}
             </button>
           </form>
