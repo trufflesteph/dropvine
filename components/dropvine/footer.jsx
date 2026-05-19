@@ -33,7 +33,7 @@ export function Footer() {
           <img
             src="https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/assets/dropvine%202%20color%20logo_transparent.png"
             alt="Dropvine"
-            style={{ height: '40px', width: 'auto' }}
+            style={{ height: '60px', width: 'auto' }}
             className="block"
           />
           <p className="mt-3 text-muted-foreground max-w-sm leading-relaxed">{tagline}</p>
