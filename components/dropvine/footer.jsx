@@ -30,7 +30,12 @@ export function Footer() {
     <footer className="border-t border-border mt-32">
       <div className="container py-14 md:py-20 grid grid-cols-2 md:grid-cols-4 gap-10 text-sm">
         <div className="col-span-2 md:col-span-2">
-          <div className="font-serif text-2xl tracking-tighter">Dropvine</div>
+          <img
+            src="https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/assets/dropvine%202%20color%20logo_transparent.png"
+            alt="Dropvine"
+            style={{ height: '40px', width: 'auto' }}
+            className="block"
+          />
           <p className="mt-3 text-muted-foreground max-w-sm leading-relaxed">{tagline}</p>
         </div>
         <div>
