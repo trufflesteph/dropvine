@@ -449,7 +449,7 @@ export default function LandingPage() {
           {plans.map((p) => (
             <div
               key={p.slug}
-              className={`relative border p-8 md:p-10 transition-colors flex flex-col min-w-0 ${p.featured ? 'bg-foreground text-background border-foreground' : 'bg-background border-border hover:border-foreground'}`}
+              className={`relative border p-8 md:p-10 transition-colors flex flex-col min-w-0 ${p.featured ? 'bg-olive text-background border-olive' : 'bg-background border-border hover:border-foreground'}`}
             >
               {p.featured ? (
                 <div className="absolute -top-3 left-8 inline-flex items-center px-2.5 py-0.5 text-[10px] uppercase tracking-[0.18em] p.featured ? bg-olive text-background border-olive">
