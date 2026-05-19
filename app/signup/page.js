@@ -36,8 +36,8 @@ export default function SignupPage() {
       <aside className="hidden md:flex flex-col justify-between p-12 bg-stone-100 border-r border-border">
         <Link href="/"><img src="https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/assets/dropvine%202%20color%20logo_transparent.png" alt="Dropvine" style={{ height: '60px', width: 'auto' }} /></Link>
         <div>
-          <p className="font-serif italic text-3xl leading-snug tracking-tight max-w-md">“The launch is the work. Treat it that way.”</p>
-          <p className="mt-6 text-sm text-muted-foreground">— Dropvine, Edition 01</p>
+          <p className="font-serif italic text-3xl leading-snug tracking-tight max-w-md">“Ready, set, launch!”</p>
+          <p className="mt-6 text-sm text-muted-foreground">— Dropvine, Your New BBF (best business friend) </p>
         </div>
         <div className="text-xs text-muted-foreground">© {new Date().getFullYear()} Dropvine</div>
       </aside>
@@ -46,7 +46,7 @@ export default function SignupPage() {
         <div className="w-full max-w-sm">
           <div className="md:hidden mb-12"><Link href="/" className="font-serif text-xl tracking-tighter">Dropvine</Link></div>
           <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Begin</div>
-          <h1 className="font-serif font-light text-4xl tracking-tighter">Create your studio.</h1>
+          <h1 className="font-serif font-light text-4xl tracking-tighter">Create your account.</h1>
           {!configured && (
             <p className="mt-4 text-xs text-muted-foreground border border-dashed border-border p-3 leading-relaxed">
               Mock mode — Supabase keys not yet configured. Account is held in memory for this session.
@@ -66,7 +66,7 @@ export default function SignupPage() {
               <Input type="password" required minLength={6} value={password} onChange={e => setPassword(e.target.value)} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="At least 6 characters" />
             </div>
             <button disabled={loading} className="w-full bg-olive text-background h-12 text-sm hover:opacity-90 disabled:opacity-50">
-              {loading ? 'Creating…' : 'Create studio'}
+              {loading ? 'Creating…' : 'Sign Up'}
             </button>
           </form>
           <p className="mt-8 text-sm text-muted-foreground">
