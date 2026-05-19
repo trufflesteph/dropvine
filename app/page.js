@@ -456,7 +456,6 @@ export default function LandingPage() {
                   Most popular
                 </div>
               ) : null}
-              <div className={`text-[10px] uppercase tracking-[0.2em] mb-6 ${p.featured ? 'text-background/50' : 'text-muted-foreground'}`}>{p.name}</div>
               <div className={`font-serif text-xl tracking-tight ${p.featured ? 'text-background' : ''}`}>{p.name}</div>
               <div className={`font-serif text-4xl lg:text-5xl font-light tracking-tighter mt-6 whitespace-nowrap ${p.featured ? 'text-background' : ''}`}>{p.price}</div>
               <ul className="space-y-3 text-sm flex-1 mt-8">
