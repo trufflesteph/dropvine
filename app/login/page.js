@@ -56,7 +56,7 @@ export default function LoginPage() {
               <Label htmlFor="password" className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Password</Label>
               <Input id="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="••••••••" />
             </div>
-            <button disabled={loading} className="w-full bg-foreground text-background h-12 text-sm hover:opacity-90 disabled:opacity-50">
+            <button disabled={loading} className="w-full bg-olive text-background h-12 text-sm hover:opacity-90 disabled:opacity-50">
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
