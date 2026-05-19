@@ -410,7 +410,7 @@ export default function LandingPage() {
         </div>
       </div>
       <div className="md:col-span-7">
-        <div className="relative overflow-hidden w-full h-[400px] md:aspect-[5/6] md:h-auto">
+        <div className="relative overflow-hidden w-full h-[400px] md:aspect-[5/6] md:h-auto"><div className="relative overflow-hidden w-full h-[400px] md:aspect-[5/6] md:h-auto">
           <Image
             src="https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/vendor-photos/omni-b39154d1-a70e-4b57-a0b5-4f74266c3b3a.png"
             alt="Good Flour Bakery"
