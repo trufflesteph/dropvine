@@ -392,7 +392,7 @@ export default function LandingPage() {
   <div className="container py-24 md:py-40">
     <div className="grid md:grid-cols-12 gap-12">
       <div className="md:col-span-5">
-        <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">An example</div>
+        <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">A Case Study</div>
         <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest">
           {config.example_business_name}
           <br /><span className="italic">{config.example_tagline}</span>
