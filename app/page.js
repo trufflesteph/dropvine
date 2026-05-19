@@ -43,16 +43,16 @@ const DEFAULTS = {
   how_it_works_step3_body:   'Every order is logged in your dashboard. Customers pay you directly via Venmo. You mark orders paid and fulfilled as they come in — all in one place.',
 
   // Use cases
-  use_cases_headline:        'Built for businesses that make things on a schedule.',
-  use_case_1_emoji:          '🥐',
+  use_cases_headline:        'Built for businesses that sell before the doors open.',
+  use_case_1_emoji:          '',
   use_case_1_title:          'Weekly bakery menus',
   use_case_1_body:           'Upload your menu and photos, set a pre-order cutoff, and send your list a link. Customers pre-order, you know exactly what to bake. No guessing, no waste.',
-  use_case_2_emoji:          '🌿',
+  use_case_2_emoji:          '',
   use_case_2_title:          'Farmers market vendors',
   use_case_2_body:           'Post your weekly harvest or product list before market day. Collect pre-orders so your best stuff is spoken for before you load the van.',
-  use_case_3_emoji:          '🎨',
-  use_case_3_title:          'Limited-run makers',
-  use_case_3_body:           'Releasing something in small quantities? Set a pre-order window, cap the orders, and open it to your list. First come, first served — automatically.',
+  use_case_3_emoji:          '',
+  use_case_3_title:          'Specialty Classes and Workshops',
+  use_case_3_body:           'Fill your class twice as fast with the Dropvine anticipation engine working for you.',
 
   // Example
   example_business_name:     'Good Flour Bakery',
