@@ -452,7 +452,7 @@ export default function LandingPage() {
               className={`relative border p-8 md:p-10 transition-colors flex flex-col min-w-0 ${p.featured ? 'bg-olive text-background border-olive' : 'bg-background border-border hover:border-foreground'}`}
             >
               {p.featured ? (
-                <div className="absolute -top-3 left-8 inline-flex items-center px-2.5 py-0.5 text-[10px] uppercase tracking-[0.18em] p.featured ? bg-olive text-background border-olive">
+                <div className="absolute -top-3 left-8 inline-flex items-center px-2.5 py-0.5 text-[10px] uppercase tracking-[0.18em] bg-background text-olive border border-olive">
                   Most popular
                 </div>
               ) : null}
