@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { getSupabaseBrowser } from '@/lib/supabase/client'
+import { DROPVINE_LOGO_URL } from '@/components/dropvine/logo'
 
 const FOOTER_TAGLINE_FALLBACK = 'The anticipation engine for considered drops. Built for makers who release in moments, not catalogs.'
 
@@ -31,7 +32,7 @@ export function Footer() {
       <div className="container py-14 md:py-20 grid grid-cols-2 md:grid-cols-4 gap-10 text-sm">
         <div className="col-span-2 md:col-span-2">
           <img
-            src="https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/assets/dropvine%202%20color%20logo_transparent.png"
+            src={DROPVINE_LOGO_URL}
             alt="Dropvine"
             style={{ height: '60px', width: 'auto' }}
             className="block"

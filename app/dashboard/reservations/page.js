@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { ArrowUpRight, Sparkles, Users, CheckCircle2, Clock, Infinity as InfinityIcon, Mail } from 'lucide-react'
+import { DropvineLogo } from '@/components/dropvine/logo'
 
 export default function ReservationsPage() {
   const router = useRouter()
@@ -64,7 +65,7 @@ export default function ReservationsPage() {
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r border-border p-8 bg-stone-50">
-        <Link href="/" className="font-serif text-xl tracking-tighter mb-12">Dropvine</Link>
+        <Link href="/" className="inline-flex items-center mb-12" aria-label="Dropvine home"><DropvineLogo height={48} /></Link>
         <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-4">Studio</div>
         <nav className="space-y-1 text-sm">
           <Link href="/dashboard" className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground">Launches</Link>
@@ -82,7 +83,7 @@ export default function ReservationsPage() {
       <main className="flex-1 min-w-0">
         {/* Mobile sidebar / top bar */}
         <div className="md:hidden border-b border-border px-6 py-5 flex items-center justify-between">
-          <Link href="/" className="font-serif text-lg tracking-tighter">Dropvine</Link>
+          <Link href="/" className="inline-flex items-center" aria-label="Dropvine home"><DropvineLogo height={36} /></Link>
           <Link href="/dashboard" className="text-xs text-muted-foreground">← Launches</Link>
         </div>
 

@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { Countdown } from '@/components/dropvine/countdown'
+import { DropvineLogo } from '@/components/dropvine/logo'
 
 const STEPS = ['Identity', 'Story', 'Moment', 'Commerce', 'Review']
 
@@ -91,7 +92,7 @@ export default function NewLaunchPage() {
           <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" /> Back to studio
           </Link>
-          <div className="font-serif text-xl tracking-tighter">Dropvine</div>
+          <div className="inline-flex items-center"><DropvineLogo height={40} /></div>
           <div className="text-xs text-muted-foreground tabular-nums">{step + 1} / {STEPS.length}</div>
         </div>
       </header>

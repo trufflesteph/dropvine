@@ -257,7 +257,12 @@ export default function LandingPage() {
             {/* Demo drop cards */}
             <div className="flex flex-col gap-3">
               {/* Sauce Mamas — featured live card */}
-              <div className="relative overflow-hidden p-8 text-white" style={{ background: '#792318' }}>
+              <Link
+                href="/l/sauce-mamas-workshop-june"
+                className="relative overflow-hidden p-8 text-white block hover:opacity-95 transition-opacity"
+                style={{ background: '#792318' }}
+              >
+                <span className="absolute top-3 right-3 text-[9px] uppercase tracking-[0.18em] px-2 py-1 bg-white/10 text-white/70 border border-white/15">Demo</span>
                 <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.15em] text-white/40 mb-6">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                   Live right now
@@ -278,25 +283,39 @@ export default function LandingPage() {
                   <span>6 on waitlist</span>
                   <span className="border border-white/20 px-3 py-1 text-white/60 font-mono tracking-wide text-[10px]">Join Waitlist</span>
                 </div>
-              </div>
+              </Link>
 
               {/* Wildflour Cookies */}
-              <div className="flex items-center justify-between px-5 py-4 text-white" style={{ background: '#411900' }}>
+              <Link
+                href="/l/wildflour-may-21"
+                className="relative flex items-center justify-between px-5 py-4 text-white hover:opacity-95 transition-opacity"
+                style={{ background: '#411900' }}
+              >
                 <div>
                   <div className="text-sm font-medium text-white/90">Wildflour Cookies</div>
                   <div className="text-[11px] text-white/40 uppercase tracking-wider mt-0.5">This Week - Market Pre-Order</div>
                 </div>
-                <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-yellow-900/40 text-yellow-300">Opens in 3d</span>
-              </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 bg-white/10 text-white/60 border border-white/15">Demo</span>
+                  <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-yellow-900/40 text-yellow-300">Opens in 3d</span>
+                </div>
+              </Link>
 
               {/* Baxter Farmstand */}
-              <div className="flex items-center justify-between px-5 py-4 text-white" style={{ background: '#3a4e30' }}>
+              <Link
+                href="/l/baxter-produce-may-21"
+                className="relative flex items-center justify-between px-5 py-4 text-white hover:opacity-95 transition-opacity"
+                style={{ background: '#3a4e30' }}
+              >
                 <div>
                   <div className="text-sm font-medium text-white/90">Baxter Farmstand</div>
                   <div className="text-[11px] text-white/40 uppercase tracking-wider mt-0.5">Produce boxes</div>
                 </div>
-                <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-green-900/40 text-green-300">Reserve Now</span>
-              </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 bg-white/10 text-white/60 border border-white/15">Demo</span>
+                  <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-green-900/40 text-green-300">Reserve Now</span>
+                </div>
+              </Link>
             </div>
           </div>
         </div>

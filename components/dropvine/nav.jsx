@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { getSupabaseBrowser } from '@/lib/supabase/client'
+import { DROPVINE_LOGO_URL } from '@/components/dropvine/logo'
 
 // Strip a trailing arrow (→) from CTA-style copy that some operators paste in
 // — keeps the button rendering one arrow icon, not two.
@@ -13,7 +14,7 @@ function stripTrailingArrow(s) {
 
 export function Nav({ variant = 'light' }) {
   const { user, signOut } = useAuth() || {}
-  const [logoUrl, setLogoUrl] = useState(null)
+  const [logoUrl, setLogoUrl] = useState(DROPVINE_LOGO_URL)
   // The nav's primary CTA mirrors the homepage hero CTA (`hero_primary_cta`)
   // so the operator can edit them in one place from /admin/direct/settings.
   // Falls back to "Start your drop" + /signup if the keys aren't set.
@@ -47,7 +48,7 @@ export function Nav({ variant = 'light' }) {
   return (
     <header className="absolute top-0 left-0 right-0 z-30">
       <div className="container flex items-center justify-between py-6 md:py-8">
-        <Link href="/" className="inline-flex items-center font-serif text-xl tracking-tighter" aria-label="Dropvine home">
+        <Link href="/" className="inline-flex items-center font-serif text-x1 tracking-tighter" aria-label="Dropvine home">
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -56,7 +57,7 @@ export function Nav({ variant = 'light' }) {
               height={40}
               style={{ height: '60px', width: 'auto' }}
               className="block"
-              onError={() => setLogoUrl(null)}
+              onError={() => setLogoUrl(DROPVINE_LOGO_URL === logoUrl ? null : DROPVINE_LOGO_URL)}
             />
           ) : (
             <>Dropvine<span className="align-super text-[8px] ml-0.5 text-muted-foreground">®</span></>

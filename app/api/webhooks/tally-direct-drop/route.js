@@ -17,6 +17,8 @@ import crypto from 'crypto'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { getTallyField, getTallyEmail, getTallyText, getTallyNumber, getTallyFiles } from '@/lib/markets/tally'
 import { extractLaunchProducts } from '@/lib/markets/tally-products'
+import { extractLaunchSubscribers, ingestLaunchSubscribers } from '@/lib/drop-lifecycle/contacts'
+import { scheduleDropLifecycle } from '@/lib/drop-lifecycle/cadence'
 import { sendDraftDropReview } from '@/lib/email/notifications'
 
 export const runtime = 'nodejs'
@@ -119,6 +121,19 @@ export async function POST(request) {
       if (!Number.isNaN(d.getTime())) notifyAt = d.toISOString()
     }
 
+    // closes_at — when this drop stops accepting orders. Optional. Matches
+    // labels containing 'close', 'closes', 'order deadline', or 'cutoff'.
+    // Used by the lifecycle cron to schedule pre-close + close-summary emails.
+    const closeRaw = getTallyText(fields, 'close')
+      || getTallyText(fields, 'closes')
+      || getTallyText(fields, 'order deadline')
+      || getTallyText(fields, 'cutoff')
+    let closesAt = null
+    if (closeRaw) {
+      const d = new Date(closeRaw)
+      if (!Number.isNaN(d.getTime())) closesAt = d.toISOString()
+    }
+
     const supa = getSupabaseAdmin()
     if (!supa) return NextResponse.json({ error: 'supabase not configured' }, { status: 500 })
 
@@ -180,6 +195,8 @@ export async function POST(request) {
       venmo_handle: venmoHandle,
       // Scheduled notifications (2026-06-launches-notify-schedule.sql)
       notify_at: notifyAt,
+      // Phase A lifecycle (2026-06-drop-lifecycle.sql)
+      closes_at: closesAt,
     }
 
     let { data: inserted, error: insErr } = await supa.from('launches').insert(insertPayload).select('*').single()
@@ -241,6 +258,40 @@ export async function POST(request) {
       console.warn('[tally-direct-drop] product extraction failed (non-fatal):', e?.message || e)
     }
 
+    // === Phase A: contact list ingestion ================================
+    // If a Tally CSV (label: contacts / audience / subscribers / mailing list)
+    // OR a pasted email block is present, insert rows into launch_subscribers
+    // for downstream fan-out by the lifecycle cron.
+    let subscribersIngested = 0
+    let subscribersSource = 'none'
+    try {
+      const { rows: subRows, source: subSource } = await extractLaunchSubscribers(fields)
+      subscribersSource = subSource
+      if (subRows.length) {
+        const ingest = await ingestLaunchSubscribers({ supa, launch_id: inserted.id, rows: subRows })
+        if (ingest.ok) subscribersIngested = ingest.inserted
+        else if (ingest.error === 'migration_pending') {
+          console.warn('[tally-direct-drop] launch_subscribers migration pending — contacts not persisted')
+        }
+      }
+    } catch (e) {
+      console.warn('[tally-direct-drop] contacts ingest failed (non-fatal):', e?.message || e)
+    }
+
+    // === Phase A: lifecycle email cadence ===============================
+    // Pre-compute open / +5d / pre-close / close-summary rows in email_schedules.
+    // The cron at /api/cron/drop-lifecycle picks them up when due.
+    let cadenceScheduled = null
+    try {
+      const schedule = await scheduleDropLifecycle({ supa, launch: inserted })
+      if (schedule.ok) cadenceScheduled = schedule.plan || {}
+      else if (schedule.error === 'migration_pending') {
+        console.warn('[tally-direct-drop] email_schedules migration pending — cadence not scheduled')
+      }
+    } catch (e) {
+      console.warn('[tally-direct-drop] cadence schedule failed (non-fatal):', e?.message || e)
+    }
+
     // Notify the platform owner (fire-and-forget — never blocks)
     const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin).replace(/\/$/, '')
     const previewUrl = `${baseUrl}/admin/drops/${inserted.id}/preview`
@@ -268,6 +319,8 @@ export async function POST(request) {
       placeholder: !!verify.placeholder || !isSecretConfigured(),
       creator_matched: !!creatorId,
       products: { source: productsSource, inserted: productsInserted },
+      subscribers: { source: subscribersSource, inserted: subscribersIngested },
+      lifecycle: cadenceScheduled,
     })
   } catch (e) {
     console.error('[tally-direct-drop] unexpected:', e?.message || e)

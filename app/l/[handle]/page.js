@@ -3,6 +3,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Countdown } from '@/components/dropvine/countdown'
+import { DropvineLogo } from '@/components/dropvine/logo'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
@@ -219,9 +220,22 @@ function PublicLaunchPageInner() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="absolute top-0 inset-x-0 z-30">
+      {launch.is_demo && (
+        // Non-dismissible "demo page" banner. Renders only when launches.is_demo
+        // is true. Warm amber / muted — intentionally distinct from real
+        // success/error UI. Pushes the floating header down by ~36px (see
+        // `top-9` override on the header below).
+        <div className="relative z-40 bg-amber-100/80 text-amber-900 border-b border-amber-200/60 text-[12px] leading-snug text-center py-2 px-4">
+          This is a demo page — Dropvine is currently in beta. No real orders will be processed.
+          {' '}
+          <Link href="/" className="underline underline-offset-2 hover:text-amber-950 font-medium">
+            Learn more or join the waitlist
+          </Link>
+        </div>
+      )}
+      <header className={`absolute inset-x-0 z-30 ${launch.is_demo ? 'top-9' : 'top-0'}`}>
         <div className="container flex items-center justify-between py-6">
-          <Link href="/" className="font-serif text-lg tracking-tighter">Dropvine</Link>
+          <Link href="/" className="inline-flex items-center" aria-label="Dropvine home"><DropvineLogo height={44} /></Link>
           <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Launch — {launch.handle}</div>
         </div>
       </header>

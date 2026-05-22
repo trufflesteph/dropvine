@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import { ArrowUpRight, Plus, Calendar, Users, Sparkles, Loader2, Eye } from 'lucide-react'
+import { DropvineLogo } from '@/components/dropvine/logo'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -40,6 +41,7 @@ export default function DashboardPage() {
       const d = await r.json()
       if (!r.ok || d?.error) { toast.error(d?.error || 'Publish failed'); return }
       toast.success(d.already ? 'Already published.' : 'Published — your drop is now live.')
+      // Optimistic local update
       setLaunches((prev) => prev.map((l) => l.id === launch.id ? { ...l, status: 'published' } : l))
     } catch (e) {
       toast.error(e?.message || 'Publish failed')
@@ -53,16 +55,16 @@ export default function DashboardPage() {
   }
 
   const upcoming = launches.filter(l => new Date(l.launch_at) > new Date())
-  const totalWaitlist = 0
+  const totalWaitlist = 0 // placeholder; could fetch counts per launch
 
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r border-border p-8 bg-stone-50">
-        <Link href="/" className="font-serif text-xl tracking-tighter mb-12">Dropvine</Link>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-4">Shop</div>
+        <Link href="/" className="inline-flex items-center mb-12" aria-label="Dropvine home"><DropvineLogo height={48} /></Link>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-4">Studio</div>
         <nav className="space-y-1 text-sm">
-          <Link href="/dashboard" className="block py-2 px-3 -mx-3 bg-olive text-background">Drops</Link>
+          <Link href="/dashboard" className="block py-2 px-3 -mx-3 bg-foreground text-background">Launches</Link>
           <Link href="/dashboard/reservations" className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground">Reservations</Link>
           <a className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground cursor-not-allowed opacity-60">Audience</a>
           <a className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground cursor-not-allowed opacity-60">Settings</a>
@@ -79,23 +81,23 @@ export default function DashboardPage() {
         <header className="border-b border-border">
           <div className="px-6 md:px-12 py-8 flex items-end justify-between gap-4 flex-wrap">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Shop</div>
-              <h1 className="font-serif font-light text-4xl md:text-5xl tracking-tighter">Your drops</h1>
+              <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Studio</div>
+              <h1 className="font-serif font-light text-4xl md:text-5xl tracking-tighter">Your launches</h1>
             </div>
-            <Link href="/dashboard/launches/new" className="inline-flex items-center gap-2 bg-olive text-background px-5 py-3 text-sm hover:opacity-90">
-              <Plus className="h-4 w-4" /> New drop
+            <Link href="/dashboard/launches/new" className="inline-flex items-center gap-2 bg-foreground text-background px-5 py-3 text-sm hover:opacity-90">
+              <Plus className="h-4 w-4" /> New launch
             </Link>
           </div>
         </header>
 
         {/* Stats */}
         <section className="px-6 md:px-12 py-10 grid grid-cols-1 sm:grid-cols-3 gap-6 border-b border-border">
-          <Stat icon={<Sparkles className="h-4 w-4" />} label="Total drops" value={launches.length} />
+          <Stat icon={<Sparkles className="h-4 w-4" />} label="Total launches" value={launches.length} />
           <Stat icon={<Calendar className="h-4 w-4" />} label="Upcoming" value={upcoming.length} />
-          <Stat icon={<Users className="h-4 w-4" />} label="Waitlist (all)" value={totalWaitlist} hint="View per drop →" />
+          <Stat icon={<Users className="h-4 w-4" />} label="Waitlist (all)" value={totalWaitlist} hint="View per launch →" />
         </section>
 
-        {/* Drops list */}
+        {/* Launches list */}
         <section className="px-6 md:px-12 py-12">
           {fetching ? (
             <div className="text-sm text-muted-foreground">Loading…</div>
@@ -172,11 +174,11 @@ function Stat({ icon, label, value, hint }) {
 function EmptyState() {
   return (
     <div className="border border-dashed border-border p-12 md:p-20 text-center">
-      <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Your shop is quiet</div>
-      <h2 className="font-serif font-light text-3xl md:text-4xl tracking-tighter">Begin your first drop.</h2>
-      <p className="mt-3 text-muted-foreground max-w-md mx-auto text-sm">A drop is a single page with a story, a moment, and an audience waiting.</p>
-      <Link href="/dashboard/launches/new" className="mt-8 inline-flex items-center gap-2 bg-olive text-background px-6 py-3 text-sm hover:opacity-90">
-        <Plus className="h-4 w-4" /> Compose a drop
+      <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Your studio is quiet</div>
+      <h2 className="font-serif font-light text-3xl md:text-4xl tracking-tighter">Begin your first launch.</h2>
+      <p className="mt-3 text-muted-foreground max-w-md mx-auto text-sm">A launch is a single page with a story, a moment, and an audience waiting.</p>
+      <Link href="/dashboard/launches/new" className="mt-8 inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 text-sm">
+        <Plus className="h-4 w-4" /> Compose a launch
       </Link>
     </div>
   )
