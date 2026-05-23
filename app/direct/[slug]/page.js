@@ -204,10 +204,22 @@ export default function VendorProfilePage() {
 }
 
 function DropCard({ drop }) {
+  // A drop has three lifecycle states:
+  //   • upcoming   — launch_at is in the future
+  //   • live       — launch_at has passed AND (no closes_at OR closes_at in future)
+  //   • past       — closes_at has passed (or it never launched + has no close window)
+  //
+  // The previous implementation only checked launch_at, which incorrectly
+  // flagged any drop seeded with launch_at=now() as "Past drop" the moment the
+  // page loaded — even if closes_at was weeks away.
+  const now = Date.now()
   const launchMs = drop.launch_at ? Date.parse(drop.launch_at) : 0
-  const upcoming = launchMs && launchMs > Date.now()
+  const closesMs = drop.closes_at ? Date.parse(drop.closes_at) : 0
+  const upcoming = launchMs && launchMs > now
+  const live = !upcoming && (!closesMs || closesMs > now)
   const cd = upcoming ? fmtCountdown(launchMs) : null
   const price = money(drop.price_cents)
+  const label = upcoming ? 'Upcoming' : live ? 'Live now' : 'Past drop'
 
   return (
     <Link
@@ -222,8 +234,13 @@ function DropCard({ drop }) {
       )}
       <div className="p-6 md:p-8">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
-            {upcoming ? 'Upcoming' : 'Past drop'}
+          <div className={`text-[10px] uppercase tracking-[0.25em] ${live ? 'text-foreground' : 'text-muted-foreground'}`}>
+            {live ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                {label}
+              </span>
+            ) : label}
           </div>
           {cd ? (
             <div className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 bg-foreground text-background tabular-nums">

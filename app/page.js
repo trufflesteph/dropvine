@@ -43,7 +43,7 @@ const DEFAULTS = {
   how_it_works_step3_body:   'Every order is logged in your dashboard. Customers pay you directly via Venmo. You mark orders paid and fulfilled as they come in — all in one place.',
 
   // Use cases
-  use_cases_headline:        'Built for businesses that sell before the doors open.',
+  use_cases_headline:        'Dropvine sells for you.',
   use_case_1_emoji:          '',
   use_case_1_title:          'Weekly bakery menus',
   use_case_1_body:           'Upload your menu and photos, set a pre-order cutoff, and send your list a link. Customers pre-order, you know exactly what to bake. No guessing, no waste.',
@@ -271,29 +271,31 @@ export default function LandingPage() {
                   backgroundColor: '#792318',
                 }}
               >
-                {/* Dark gradient overlay — opaque at the bottom so the CTA + name read cleanly, transparent up top so the image shows through. */}
-                <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/50 to-black/15" />
+                {/* Dark gradient overlay — strong at the bottom for CTA legibility,
+                    still dark enough at the top to keep "Live right now" + vendor
+                    name readable against busy food photography. */}
+                <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-black/45" />
                 <div className="relative">
-                  <span className="absolute top-0 right-0 text-[9px] uppercase tracking-[0.18em] px-2 py-1 bg-white/10 text-white/70 border border-white/15">Demo</span>
-                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.15em] text-white/40 mb-6">
+                  <span className="absolute top-0 right-0 text-[10px] uppercase tracking-[0.18em] px-2 py-1 bg-white/15 text-white border border-white/30">Demo</span>
+                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.15em] text-white/85 mb-6">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                     Live right now
                   </div>
-                  <div className="font-serif text-2xl font-light tracking-tight mb-1">Sauce Mamas</div>
-                  <div className="text-sm text-white/60 mb-6">Make your own hot sauce · 8 spots</div>
+                  <div className="font-serif text-2xl font-light tracking-tight mb-1 text-white drop-shadow-sm">Sauce Mamas</div>
+                  <div className="text-sm text-white/90 mb-6">Make your own hot sauce · 8 spots</div>
                   {mounted && (
                     <div className="grid grid-cols-4 gap-3 mb-6">
                       {[['02','hrs'],['47','min'],['33','sec'],['8','seats']].map(([n, l]) => (
                         <div key={l} className="text-center">
-                          <div className="font-serif text-3xl font-light tracking-tighter">{n}</div>
-                          <div className="text-[9px] uppercase tracking-[0.12em] text-white/40 mt-1">{l}</div>
+                          <div className="font-serif text-3xl font-light tracking-tighter text-white drop-shadow-sm">{n}</div>
+                          <div className="text-[9px] uppercase tracking-[0.12em] text-white/80 mt-1">{l}</div>
                         </div>
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center justify-between pt-4 border-t border-white/10 text-xs text-white/50">
+                  <div className="flex items-center justify-between pt-4 border-t border-white/25 text-xs text-white/85">
                     <span>6 on waitlist</span>
-                    <span className="border border-white/30 px-3 py-1 text-white/80 font-mono tracking-wide text-[10px]">Join Waitlist</span>
+                    <span className="border border-white/50 px-3 py-1 text-white font-mono tracking-wide text-[10px] bg-white/5">Join Waitlist</span>
                   </div>
                 </div>
               </Link>
@@ -307,14 +309,14 @@ export default function LandingPage() {
                   backgroundColor: '#411900',
                 }}
               >
-                <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/55 to-black/40" />
+                <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/70 to-black/55" />
                 <div className="relative">
-                  <div className="text-sm font-medium text-white/95">Wildflour Cookies</div>
-                  <div className="text-[11px] text-white/55 uppercase tracking-wider mt-0.5">Fresh cookies · pick up Wednesday</div>
+                  <div className="text-sm font-medium text-white drop-shadow-sm">Wildflour Cookies</div>
+                  <div className="text-[11px] text-white/85 uppercase tracking-wider mt-0.5">Fresh cookies · pick up Wednesday</div>
                 </div>
                 <div className="relative flex items-center gap-2">
-                  <span className="text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 bg-white/10 text-white/70 border border-white/15">Demo</span>
-                  <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-yellow-900/60 text-yellow-200">Opens in 3d</span>
+                  <span className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 bg-white/15 text-white border border-white/30">Demo</span>
+                  <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-yellow-900/70 text-yellow-100 border border-yellow-700/50">Opens in 3d</span>
                 </div>
               </Link>
 
@@ -327,14 +329,14 @@ export default function LandingPage() {
                   backgroundColor: '#3a4e30',
                 }}
               >
-                <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/55 to-black/40" />
+                <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/70 to-black/55" />
                 <div className="relative">
-                  <div className="text-sm font-medium text-white/95">Baxter Farmstand</div>
-                  <div className="text-[11px] text-white/55 uppercase tracking-wider mt-0.5">Farm-fresh weekly box · West Linn</div>
+                  <div className="text-sm font-medium text-white drop-shadow-sm">Baxter Farmstand</div>
+                  <div className="text-[11px] text-white/85 uppercase tracking-wider mt-0.5">Farm-fresh weekly box · West Linn</div>
                 </div>
                 <div className="relative flex items-center gap-2">
-                  <span className="text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 bg-white/10 text-white/70 border border-white/15">Demo</span>
-                  <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-green-900/60 text-green-200">Reserve Now</span>
+                  <span className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 bg-white/15 text-white border border-white/30">Demo</span>
+                  <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-green-900/70 text-green-100 border border-green-700/50">Reserve Now</span>
                 </div>
               </Link>
             </div>
