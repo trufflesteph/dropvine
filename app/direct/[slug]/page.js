@@ -168,11 +168,16 @@ export default function VendorProfilePage() {
               Drops
             </div>
             <h2 className="font-serif font-light text-3xl md:text-4xl leading-[0.96] tracking-tightest">
-              {state.drops.length === 0
-                ? 'No live drops yet.'
-                : state.drops.length === 1
-                  ? 'One drop, live now.'
-                  : `${state.drops.length} drops.`}
+              {(() => {
+                // A drop is "current" if its closes_at is in the future OR not
+                // set at all (open-ended). Past drops still render below but the
+                // headline reflects what's actually live right now.
+                const now = Date.now()
+                const current = state.drops.filter((d) => !d.closes_at || Date.parse(d.closes_at) > now)
+                if (current.length === 0) return 'No Current Drops'
+                if (current.length === 1) return 'One drop, live now.'
+                return `${current.length} drops.`
+              })()}
             </h2>
           </div>
         </div>

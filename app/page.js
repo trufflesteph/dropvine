@@ -20,9 +20,9 @@ const DEFAULTS = {
   // Hero — fully DB-driven. The headline is split across two lines so the
   // second line can render in italic (matches the original visual). Set
   // `hero_headline_line2` to empty string to suppress the italic line entirely.
-  hero_headline_line1:       'Orders, handled.',
+  hero_headline_line1:       'You Want Orders.',
   hero_headline_line2:       '',
-  hero_subtext:              'Set your products and pricing, pick a deadline - and let Dropvine do the rest. Every drop builds your list Every list makes the next one bigger.',
+  hero_subtext:              "You don't want the DMs, texts, and calls to get them. Let Dropvine handle that.",
   hero_microcopy:            '',
   hero_primary_cta:          'Try it free',
   hero_primary_cta_href:     '/signup',
@@ -254,66 +254,87 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Demo drop cards */}
+            {/* Demo drop cards
+                TODO: Replace hardcoded demo cards with a live query from `launches`
+                when vendor density is sufficient. Query: published launches ordered by
+                created_at desc, filtered to is_demo = false, limit 3.
+                Card background: launches.hero_image_url, fallback: direct_vendors.logo_url */}
             <div className="flex flex-col gap-3">
               {/* Sauce Mamas — featured live card */}
               <Link
                 href="/l/sauce-mamas-workshop-june"
-                className="relative overflow-hidden p-8 text-white block hover:opacity-95 transition-opacity"
-                style={{ background: '#792318' }}
+                className="relative overflow-hidden p-8 text-white block hover:opacity-95 transition-opacity bg-cover bg-center"
+                style={{
+                  // hero_image_url from launches table — Unsplash placeholder until vendor uploads via dashboard.
+                  backgroundImage: 'url(https://images.unsplash.com/photo-1506368249639-73a05d6f6488?w=1200&q=80)',
+                  // Solid colour kept as backup if the image fails to load (browsers paint bg-color first).
+                  backgroundColor: '#792318',
+                }}
               >
-                <span className="absolute top-3 right-3 text-[9px] uppercase tracking-[0.18em] px-2 py-1 bg-white/10 text-white/70 border border-white/15">Demo</span>
-                <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.15em] text-white/40 mb-6">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                  Live right now
-                </div>
-                <div className="font-serif text-2xl font-light tracking-tight mb-1">Sauce Mamas</div>
-                <div className="text-sm text-white/50 mb-6">Workshop</div>
-                {mounted && (
-                  <div className="grid grid-cols-4 gap-3 mb-6">
-                    {[['02','hrs'],['47','min'],['33','sec'],['8','seats']].map(([n, l]) => (
-                      <div key={l} className="text-center">
-                        <div className="font-serif text-3xl font-light tracking-tighter">{n}</div>
-                        <div className="text-[9px] uppercase tracking-[0.12em] text-white/30 mt-1">{l}</div>
-                      </div>
-                    ))}
+                {/* Dark gradient overlay — opaque at the bottom so the CTA + name read cleanly, transparent up top so the image shows through. */}
+                <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/50 to-black/15" />
+                <div className="relative">
+                  <span className="absolute top-0 right-0 text-[9px] uppercase tracking-[0.18em] px-2 py-1 bg-white/10 text-white/70 border border-white/15">Demo</span>
+                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.15em] text-white/40 mb-6">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                    Live right now
                   </div>
-                )}
-                <div className="flex items-center justify-between pt-4 border-t border-white/10 text-xs text-white/40">
-                  <span>6 on waitlist</span>
-                  <span className="border border-white/20 px-3 py-1 text-white/60 font-mono tracking-wide text-[10px]">Join Waitlist</span>
+                  <div className="font-serif text-2xl font-light tracking-tight mb-1">Sauce Mamas</div>
+                  <div className="text-sm text-white/60 mb-6">Make your own hot sauce · 8 spots</div>
+                  {mounted && (
+                    <div className="grid grid-cols-4 gap-3 mb-6">
+                      {[['02','hrs'],['47','min'],['33','sec'],['8','seats']].map(([n, l]) => (
+                        <div key={l} className="text-center">
+                          <div className="font-serif text-3xl font-light tracking-tighter">{n}</div>
+                          <div className="text-[9px] uppercase tracking-[0.12em] text-white/40 mt-1">{l}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-4 border-t border-white/10 text-xs text-white/50">
+                    <span>6 on waitlist</span>
+                    <span className="border border-white/30 px-3 py-1 text-white/80 font-mono tracking-wide text-[10px]">Join Waitlist</span>
+                  </div>
                 </div>
               </Link>
 
               {/* Wildflour Cookies */}
               <Link
                 href="/l/wildflour-may-21"
-                className="relative flex items-center justify-between px-5 py-4 text-white hover:opacity-95 transition-opacity"
-                style={{ background: '#411900' }}
+                className="relative flex items-center justify-between px-5 py-4 text-white hover:opacity-95 transition-opacity bg-cover bg-center"
+                style={{
+                  backgroundImage: 'url(https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=1200&q=80)',
+                  backgroundColor: '#411900',
+                }}
               >
-                <div>
-                  <div className="text-sm font-medium text-white/90">Wildflour Cookies</div>
-                  <div className="text-[11px] text-white/40 uppercase tracking-wider mt-0.5">This Week - Market Pre-Order</div>
+                <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/55 to-black/40" />
+                <div className="relative">
+                  <div className="text-sm font-medium text-white/95">Wildflour Cookies</div>
+                  <div className="text-[11px] text-white/55 uppercase tracking-wider mt-0.5">Fresh cookies · pick up Wednesday</div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 bg-white/10 text-white/60 border border-white/15">Demo</span>
-                  <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-yellow-900/40 text-yellow-300">Opens in 3d</span>
+                <div className="relative flex items-center gap-2">
+                  <span className="text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 bg-white/10 text-white/70 border border-white/15">Demo</span>
+                  <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-yellow-900/60 text-yellow-200">Opens in 3d</span>
                 </div>
               </Link>
 
               {/* Baxter Farmstand */}
               <Link
                 href="/l/baxter-produce-may-21"
-                className="relative flex items-center justify-between px-5 py-4 text-white hover:opacity-95 transition-opacity"
-                style={{ background: '#3a4e30' }}
+                className="relative flex items-center justify-between px-5 py-4 text-white hover:opacity-95 transition-opacity bg-cover bg-center"
+                style={{
+                  backgroundImage: 'url(https://images.unsplash.com/photo-1540420773420-3366772f4999?w=1200&q=80)',
+                  backgroundColor: '#3a4e30',
+                }}
               >
-                <div>
-                  <div className="text-sm font-medium text-white/90">Baxter Farmstand</div>
-                  <div className="text-[11px] text-white/40 uppercase tracking-wider mt-0.5">Produce boxes</div>
+                <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/55 to-black/40" />
+                <div className="relative">
+                  <div className="text-sm font-medium text-white/95">Baxter Farmstand</div>
+                  <div className="text-[11px] text-white/55 uppercase tracking-wider mt-0.5">Farm-fresh weekly box · West Linn</div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 bg-white/10 text-white/60 border border-white/15">Demo</span>
-                  <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-green-900/40 text-green-300">Reserve Now</span>
+                <div className="relative flex items-center gap-2">
+                  <span className="text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 bg-white/10 text-white/70 border border-white/15">Demo</span>
+                  <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-green-900/60 text-green-200">Reserve Now</span>
                 </div>
               </Link>
             </div>
@@ -436,12 +457,18 @@ export default function LandingPage() {
             fill
             className="object-cover"
           />
-          <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 px-8 py-8 text-white">
-            <div className="text-[11px] uppercase tracking-[0.25em] mb-3 text-white/70">Opens in</div>
-            <div className="[&_*]:!text-white">
-              {mounted && <Countdown target={target} size="sm" />}
-            </div>
+          {/* Demo / example watermark — top-right, sits above the image but below the gradient overlay's text. */}
+          <span className="absolute top-4 right-4 z-10 text-[10px] uppercase tracking-[0.2em] px-2.5 py-1 bg-white/85 text-foreground border border-white/40 font-medium">
+            Demo · Example
+          </span>
+          <div className="absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-black/85 via-black/45 to-transparent" />
+          {/* Vendor quote replaces the live countdown — better story for a case study. */}
+          <div className="absolute inset-x-0 bottom-0 px-8 py-10 text-white">
+            <div className="text-[11px] uppercase tracking-[0.25em] mb-4 text-white/70">In their words</div>
+            <blockquote className="font-serif text-xl md:text-2xl leading-snug tracking-tight text-balance">
+              “I used to spend hours answering DMs and texts. Now I just bake.”
+            </blockquote>
+            <div className="mt-4 text-[11px] uppercase tracking-[0.22em] text-white/70">— Sarah</div>
           </div>
         </div>
       </div>

@@ -65,7 +65,7 @@ export function Nav({ variant = 'light' }) {
         </Link>
         <nav className="hidden md:flex items-center gap-10 text-sm">
           <Link href="/#how" className="text-muted-foreground hover:text-foreground transition-colors">How it works</Link>
-          <Link href="/#example" className="text-muted-foreground hover:text-foreground transition-colors">Creators</Link>
+          <Link href="/creators" className="text-muted-foreground hover:text-foreground transition-colors">Creators</Link>
           <Link href="/#example" className="text-muted-foreground hover:text-foreground transition-colors">Example</Link>
           <Link href="/#pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
         </nav>

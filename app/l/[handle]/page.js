@@ -226,16 +226,14 @@ function PublicLaunchPageInner() {
         // success/error UI. Pushes the floating header down by ~36px (see
         // `top-9` override on the header below).
         <div className="relative z-40 bg-amber-100/80 text-amber-900 border-b border-amber-200/60 text-[12px] leading-snug text-center py-2 px-4">
-          This is a demo page — Dropvine is currently in beta. No real orders will be processed.
-          {' '}
-          <Link href="/" className="underline underline-offset-2 hover:text-amber-950 font-medium">
-            Learn more or join the waitlist
-          </Link>
+          This is a demo page — no real orders will be processed.
         </div>
       )}
       <header className={`absolute inset-x-0 z-30 ${launch.is_demo ? 'top-9' : 'top-0'}`}>
         <div className="container flex items-center justify-between py-6">
-          <Link href="/" className="inline-flex items-center" aria-label="Dropvine home"><DropvineLogo height={44} /></Link>
+          <Link href="/" className="inline-flex items-center" aria-label="Dropvine home">
+            <DropvineLogo height={launch.is_demo ? 60 : 44} />
+          </Link>
           <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Launch — {launch.handle}</div>
         </div>
       </header>
@@ -252,10 +250,25 @@ function PublicLaunchPageInner() {
           {launch.tagline && (
             <p className="mt-8 font-serif italic text-2xl md:text-3xl text-muted-foreground max-w-3xl tracking-tight">{launch.tagline}</p>
           )}
+          {/* Vendor-supplied hero photo. Renders when launches.cover_url is set
+              (any drop, demo or real). Aspect ratio is wide-cinematic to keep
+              the page balanced with the headline above. */}
+          {launch.cover_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={launch.cover_url}
+              alt={launch.title}
+              className="mt-12 md:mt-16 w-full aspect-[16/9] object-cover border border-border"
+              onError={(e) => { e.currentTarget.style.display = 'none' }}
+            />
+          )}
         </div>
       </section>
 
-      {/* Countdown / live */}
+      {/* Countdown / live — hidden on demo pages: an "Enter the drop" CTA on
+          fake data is more confusing than useful. Real (non-demo) drops still
+          show the live banner / countdown as before. */}
+      {!launch.is_demo && (
       <section className="border-y border-border bg-stone-100/60">
         <div className="container py-16 md:py-24">
           <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-6">{isLive ? 'The doors are open' : 'Opens in'}</div>
@@ -271,6 +284,7 @@ function PublicLaunchPageInner() {
           )}
         </div>
       </section>
+      )}
 
       {/* Body */}
       <section className="container py-24 md:py-32 grid md:grid-cols-12 gap-12">

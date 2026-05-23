@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { getSupabaseBrowser } from '@/lib/supabase/client'
 import { DROPVINE_LOGO_URL } from '@/components/dropvine/logo'
 
-const FOOTER_TAGLINE_FALLBACK = 'The anticipation engine for considered drops. Built for makers who release in moments, not catalogs.'
+const FOOTER_TAGLINE_FALLBACK = 'Built for the gap between making and selling.'
 
 export function Footer() {
   // Pull the tagline from site_config so the operator can edit it from
@@ -56,7 +56,7 @@ export function Footer() {
       </div>
       <div className="container pb-10 flex items-center justify-between text-xs text-muted-foreground">
         <span>© {new Date().getFullYear()} Dropvine</span>
-        <span className="font-serif italic">The anticipation engine.</span>
+        <span className="font-serif italic">Built for the gap between making and selling.</span>
       </div>
     </footer>
   )
