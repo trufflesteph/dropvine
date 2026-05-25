@@ -371,22 +371,23 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* COLLECTION MODES */}
-      <section id="collect" className="container py-24 md:py-40">
-        <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Four ways to collect</div>
-        <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest text-balance mb-4">
-          {config.modes_headline}
-        </h2>
-        <p className="text-muted-foreground leading-relaxed max-w-xl mb-16">
-          {config.modes_subtext}
-        </p>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 border border-border">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className={`p-8 border-border ${i < 4 ? 'border-r' : ''} ${i % 2 === 0 ? 'bg-secondary/40' : ''}`}>
-              <div className="font-serif text-2xl tracking-tight mb-3">{config[`mode_${i}_name`]}</div>
-              <p className="text-sm text-muted-foreground leading-relaxed">{config[`mode_${i}_body`]}</p>
-            </div>
-          ))}
+      {/* HOW IT WORKS */}
+      <section id="how" className="container py-24 md:py-40">
+        <div className="grid md:grid-cols-12 gap-12 md:gap-16">
+          <div className="md:col-span-4">
+            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">The method</div>
+            <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest text-balance">
+              {config.how_it_works_headline}
+            </h2>
+          </div>
+          <div className="md:col-span-8 grid sm:grid-cols-3 gap-10 md:gap-14">
+            {[1, 2, 3].map((i) => (
+              <div key={i}>
+                <div className="font-serif text-xl md:text-2xl mb-3 tracking-tight">{config[`how_it_works_step${i}_title`]}</div>
+                <p className="text-muted-foreground leading-relaxed text-[15px]">{config[`how_it_works_step${i}_body`]}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -403,26 +404,6 @@ export default function LandingPage() {
                 <div className="text-4xl mb-6 leading-none">{config[`use_case_${i}_emoji`]}</div>
                 <div className="font-serif text-2xl tracking-tight mb-3">{config[`use_case_${i}_title`]}</div>
                 <p className="text-sm text-muted-foreground leading-relaxed">{config[`use_case_${i}_body`]}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section id="how" className="container py-24 md:py-40">
-        <div className="grid md:grid-cols-12 gap-12 md:gap-16">
-          <div className="md:col-span-4">
-            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">The method</div>
-            <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest text-balance">
-              {config.how_it_works_headline}
-            </h2>
-          </div>
-          <div className="md:col-span-8 grid sm:grid-cols-3 gap-10 md:gap-14">
-            {[1, 2, 3].map((i) => (
-              <div key={i}>
-                <div className="font-serif text-xl md:text-2xl mb-3 tracking-tight">{config[`how_it_works_step${i}_title`]}</div>
-                <p className="text-muted-foreground leading-relaxed text-[15px]">{config[`how_it_works_step${i}_body`]}</p>
               </div>
             ))}
           </div>
@@ -477,6 +458,25 @@ export default function LandingPage() {
     </div>
   </div>
 </section>
+
+      {/* COLLECTION MODES */}
+      <section id="collect" className="container py-24 md:py-40">
+        <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Four ways to collect</div>
+        <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest text-balance mb-4">
+          {config.modes_headline}
+        </h2>
+        <p className="text-muted-foreground leading-relaxed max-w-xl mb-16">
+          {config.modes_subtext}
+        </p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 border border-border">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className={`p-8 border-border ${i < 4 ? 'border-r' : ''} ${i % 2 === 0 ? 'bg-secondary/40' : ''}`}>
+              <div className="font-serif text-2xl tracking-tight mb-3">{config[`mode_${i}_name`]}</div>
+              <p className="text-sm text-muted-foreground leading-relaxed">{config[`mode_${i}_body`]}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* PRICING — heading stacked above a full-width 3-column grid so the
           Studio card never gets clipped at standard desktop widths.
