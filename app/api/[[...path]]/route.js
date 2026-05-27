@@ -105,14 +105,19 @@ export async function GET(request, { params }) {
   // Hides drafts from the public — only published / live-bound launches are returned.
   // Also resolves the multi-product catalogue (launch_products) when present.
   // Falls back gracefully if the table hasn't been migrated yet.
+  //
+  // `?preview=true` lets a draft through AND attaches the active publish_token
+  // (the vendor's email link includes ?preview=true → they can review the page
+  // before clicking Publish/Schedule).
   if (path.startsWith('launches/by-handle/')) {
     const handle = path.replace('launches/by-handle/', '')
+    const preview = url.searchParams.get('preview') === 'true'
     const sb = getSupabaseServer()
     if (sb) {
       const { data, error } = await sb.from('launches').select('*').eq('handle', handle).maybeSingle()
       if (error) return err(error.message, 500)
       if (!data) return err('not found', 404)
-      if (data.status === 'draft') return err('not found', 404)
+      if (data.status === 'draft' && !preview) return err('not found', 404)
       // Resolve products (best-effort — empty list ⇒ legacy single-price UI).
       let products = []
       try {
@@ -123,12 +128,29 @@ export async function GET(request, { params }) {
           .order('sort_order', { ascending: true })
         if (!pErr && Array.isArray(prods)) products = prods
       } catch {}
-      return json({ launch: data, products })
+      // Attach the active publish_token (only relevant for drafts in preview).
+      // Skipped silently if the table doesn't exist yet.
+      let publishToken = null
+      if (data.status === 'draft' && preview) {
+        try {
+          const { data: tok } = await sb
+            .from('publish_tokens')
+            .select('token, publish_action, expires_at, used_at')
+            .eq('launch_id', data.id)
+            .is('used_at', null)
+            .gt('expires_at', new Date().toISOString())
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          if (tok) publishToken = tok
+        } catch {}
+      }
+      return json({ launch: data, products, publish_token: publishToken })
     }
     const found = Array.from(store.launches.values()).find(l => l.handle === handle)
     if (!found) return err('not found', 404)
-    if (found.status === 'draft') return err('not found', 404)
-    return json({ launch: found, products: [] })
+    if (found.status === 'draft' && !preview) return err('not found', 404)
+    return json({ launch: found, products: [], publish_token: null })
   }
 
   // GET /api/launches/[id]/reservations  (creator-scoped via RLS)

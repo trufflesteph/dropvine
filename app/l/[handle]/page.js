@@ -65,8 +65,10 @@ function PublicLaunchPageInner() {
   const { handle } = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const isPreview = searchParams.get('preview') === 'true'
   const [launch, setLaunch] = useState(null)
   const [products, setProducts] = useState([])
+  const [publishToken, setPublishToken] = useState(null) // { token, publish_action } when draft + preview
   const [loading, setLoading] = useState(true)
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
@@ -78,15 +80,18 @@ function PublicLaunchPageInner() {
   useEffect(() => {
     const load = async () => {
       try {
-        const r = await fetch(`/api/launches/by-handle/${handle}`)
+        // Pass through ?preview=true so the API can return drafts + token.
+        const qs = isPreview ? '?preview=true' : ''
+        const r = await fetch(`/api/launches/by-handle/${handle}${qs}`)
         if (!r.ok) { setLaunch(null); return }
         const d = await r.json()
         setLaunch(d.launch)
         setProducts(Array.isArray(d.products) ? d.products : [])
+        setPublishToken(d.publish_token || null)
       } finally { setLoading(false) }
     }
     if (handle) load()
-  }, [handle])
+  }, [handle, isPreview])
 
   // Handle return from Stripe
   useEffect(() => {
@@ -218,8 +223,73 @@ function PublicLaunchPageInner() {
     )
   }
 
+  // Draft / preview gating.
+  // The API hides drafts from anyone without ?preview=true, but defense in
+  // depth: also render NotFound here if the launch came back as a draft and
+  // the URL is missing the preview gate. (This branch typically only fires
+  // for stale fetches or someone editing the response client-side.)
+  const isDraft = launch.status === 'draft'
+  if (isDraft && !isPreview) {
+    return (
+      <NotFound
+        handle={handle}
+        title={launch.title}
+        joined={joined}
+        email={email}
+        setEmail={setEmail}
+        name={name}
+        setName={setName}
+        submitting={submitting}
+        onJoin={join}
+      />
+    )
+  }
+
+  // Banner copy + button derive from publish_action. We default the action to
+  // 'publish' so the banner still works on databases that haven't applied the
+  // publish_tokens migration yet (token will be null in that case).
+  const publishAction = publishToken?.publish_action || 'publish'
+  const isScheduleFlow = publishAction === 'schedule'
+  const launchAtLabel = launch.launch_at
+    ? new Date(launch.launch_at).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
+    : null
+  // Stack the banners: draft banner above demo banner if both apply. Header
+  // top offset is computed below.
+  const bannerCount = (isDraft ? 1 : 0) + (launch.is_demo ? 1 : 0)
+  const headerTopClass = bannerCount === 2 ? 'top-[72px]' : bannerCount === 1 ? 'top-9' : 'top-0'
+
   return (
     <main className="min-h-screen bg-background text-foreground">
+      {isDraft && (
+        // Draft preview banner — sits at the very top so it's the first thing
+        // the vendor sees when they click "Preview your drop" in their
+        // confirmation email. Slate / neutral palette so it doesn't compete
+        // visually with the demo banner (warm amber) when both render.
+        <div className="relative z-50 bg-slate-900 text-white border-b border-slate-800 text-[13px] leading-snug py-3 px-4">
+          <div className="container flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex-1">
+              {isScheduleFlow ? (
+                <>
+                  This is a preview of your drop — it’s not live yet. Review everything carefully, then schedule it to go live on
+                  {' '}<strong className="text-white">{launchAtLabel || 'your launch time'}</strong>.
+                </>
+              ) : (
+                <>This is a preview of your drop — it’s not live yet. Review everything carefully, then publish to make it live immediately.</>
+              )}
+            </div>
+            {publishToken?.token ? (
+              <a
+                href={`/api/launches/publish/${publishToken.token}`}
+                className="inline-flex items-center gap-2 bg-white text-slate-900 hover:bg-stone-100 transition-colors px-4 py-2 text-sm font-medium whitespace-nowrap"
+              >
+                {isScheduleFlow ? 'Schedule my drop' : 'Publish my drop'} <ArrowRight className="h-4 w-4" />
+              </a>
+            ) : (
+              <span className="text-[11px] text-white/60">Token expired — resubmit the Tally form for a fresh link.</span>
+            )}
+          </div>
+        </div>
+      )}
       {launch.is_demo && (
         // Non-dismissible "demo page" banner. Renders only when launches.is_demo
         // is true. Warm amber / muted — intentionally distinct from real
@@ -229,7 +299,7 @@ function PublicLaunchPageInner() {
           This is a demo page — no real orders will be processed.
         </div>
       )}
-      <header className={`absolute inset-x-0 z-30 ${launch.is_demo ? 'top-9' : 'top-0'}`}>
+      <header className={`absolute inset-x-0 z-30 ${headerTopClass}`}>
         <div className="container flex items-center justify-between py-6">
           <Link href="/" className="inline-flex items-center" aria-label="Dropvine home">
             <DropvineLogo height={launch.is_demo ? 60 : 44} />
@@ -311,7 +381,21 @@ function PublicLaunchPageInner() {
         </div>
 
         <aside className="md:col-span-5 md:sticky md:top-12 self-start">
-          <div className="border border-border p-8 md:p-10 bg-background" data-testid={`mode-panel-${mode}`}>
+          {isDraft && (
+            // Sticky disabled-state notice on the order panel. The panel below
+            // is rendered for visual review but with pointer-events disabled
+            // and reduced opacity so the vendor sees what shoppers will see
+            // without being able to submit fake test orders.
+            <div className="mb-4 border border-border bg-stone-100/80 px-5 py-4 text-sm leading-snug">
+              <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-1">Preview only</div>
+              Available when this drop goes live.
+            </div>
+          )}
+          <div
+            className={`border border-border p-8 md:p-10 bg-background ${isDraft ? 'pointer-events-none opacity-60 select-none' : ''}`}
+            data-testid={`mode-panel-${mode}`}
+            aria-disabled={isDraft || undefined}
+          >
             {rightRail}
           </div>
           <p className="mt-4 text-[11px] uppercase tracking-[0.25em] text-muted-foreground text-center">Powered by Dropvine</p>

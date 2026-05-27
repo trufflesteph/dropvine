@@ -19,7 +19,7 @@ import { getTallyField, getTallyEmail, getTallyText, getTallyNumber, getTallyFil
 import { extractLaunchProducts } from '@/lib/markets/tally-products'
 import { extractLaunchSubscribers, ingestLaunchSubscribers } from '@/lib/drop-lifecycle/contacts'
 import { scheduleDropLifecycle } from '@/lib/drop-lifecycle/cadence'
-import { sendDraftDropReview } from '@/lib/email/notifications'
+import { sendDraftDropReview, sendDropSubmissionConfirmation } from '@/lib/email/notifications'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -133,6 +133,31 @@ export async function POST(request) {
       const d = new Date(closeRaw)
       if (!Number.isNaN(d.getTime())) closesAt = d.toISOString()
     }
+
+    // publish_action — driven by the Tally "When should orders open?" field.
+    //
+    //   • "Immediately when published" → publish_action = 'publish'
+    //     The vendor still has to click Publish in the email; the launch is
+    //     created as a draft and goes live the moment they confirm.
+    //
+    //   • "At a specific date and time"  → publish_action = 'schedule'
+    //     Launch is created as a draft; vendor confirms → status='scheduled';
+    //     lifecycle cron auto-publishes when launch_at <= now.
+    //
+    // Decision rule: any signal of a future-dated open (explicit 'specific'
+    // text OR a parsed countdownAt in the future OR openMode starting with
+    // 'countdown') means schedule. Everything else falls back to publish.
+    const publishAction = (() => {
+      const t = (openMode || '').toLowerCase()
+      if (t.includes('specific') || t.includes('date')) return 'schedule'
+      if (t.startsWith('countdown') && countdownAt && !Number.isNaN(countdownAt.getTime()) && countdownAt > now) {
+        return 'schedule'
+      }
+      if (t.includes('immediately')) return 'publish'
+      // Default: a Tally form that omits the field entirely or sets openMode
+      // to "now" / "" → publish.
+      return 'publish'
+    })()
 
     const supa = getSupabaseAdmin()
     if (!supa) return NextResponse.json({ error: 'supabase not configured' }, { status: 500 })
@@ -280,16 +305,41 @@ export async function POST(request) {
 
     // === Phase A: lifecycle email cadence ===============================
     // Pre-compute open / +5d / pre-close / close-summary rows in email_schedules.
-    // The cron at /api/cron/drop-lifecycle picks them up when due.
+    // Rows are inserted with hold=true so the lifecycle cron skips them until
+    // the vendor confirms publish/schedule via /api/launches/publish/[token].
     let cadenceScheduled = null
     try {
-      const schedule = await scheduleDropLifecycle({ supa, launch: inserted })
+      const schedule = await scheduleDropLifecycle({ supa, launch: inserted, hold: true })
       if (schedule.ok) cadenceScheduled = schedule.plan || {}
       else if (schedule.error === 'migration_pending') {
         console.warn('[tally-direct-drop] email_schedules migration pending — cadence not scheduled')
       }
     } catch (e) {
       console.warn('[tally-direct-drop] cadence schedule failed (non-fatal):', e?.message || e)
+    }
+
+    // === Draft → Preview → Publish flow =================================
+    // Mint a one-shot publish_tokens row. The vendor receives the token URL
+    // in the DropSubmissionConfirmation email and clicks it to flip the
+    // launch from `draft` to `published` (or `scheduled`).
+    let publishToken = null
+    try {
+      const { data: tok, error: tokErr } = await supa
+        .from('publish_tokens')
+        .insert({ launch_id: inserted.id, publish_action: publishAction })
+        .select('token')
+        .single()
+      if (tokErr) {
+        if (/could not find the table|relation .* does not exist|schema cache/i.test(tokErr.message)) {
+          console.warn('[tally-direct-drop] publish_tokens table missing — run supabase/migrations/2026-06-publish-tokens-and-holds.sql')
+        } else {
+          console.warn('[tally-direct-drop] publish_tokens insert failed (non-fatal):', tokErr.message)
+        }
+      } else {
+        publishToken = tok?.token || null
+      }
+    } catch (e) {
+      console.warn('[tally-direct-drop] publish_tokens insert crashed (non-fatal):', e?.message || e)
     }
 
     // Notify the platform owner (fire-and-forget — never blocks)
@@ -312,15 +362,35 @@ export async function POST(request) {
       console.warn('[tally-direct-drop] PLATFORM_OWNER_EMAIL not set; skipping notification')
     }
 
+    // Vendor-facing confirmation with preview + publish/schedule links.
+    // Skipped silently if we couldn't mint a token (migration pending) or if
+    // there's no vendor email to send to.
+    if (publishToken && vendorEmail) {
+      try {
+        await sendDropSubmissionConfirmation({
+          launch: inserted,
+          vendorEmail,
+          publishAction,
+          token: publishToken,
+          baseUrl,
+        })
+      } catch (e) {
+        console.warn('[tally-direct-drop] vendor confirmation failed (non-fatal):', e?.message || e)
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       launch: { id: inserted.id, handle: inserted.handle, status: inserted.status },
       preview_url: previewUrl,
+      // Public vendor-facing preview URL (?preview=true gate).
+      vendor_preview_url: `${baseUrl}/l/${inserted.handle}?preview=true`,
       placeholder: !!verify.placeholder || !isSecretConfigured(),
       creator_matched: !!creatorId,
       products: { source: productsSource, inserted: productsInserted },
       subscribers: { source: subscribersSource, inserted: subscribersIngested },
       lifecycle: cadenceScheduled,
+      publish: { action: publishAction, token_issued: !!publishToken },
     })
   } catch (e) {
     console.error('[tally-direct-drop] unexpected:', e?.message || e)
