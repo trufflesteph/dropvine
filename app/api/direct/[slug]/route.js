@@ -44,13 +44,15 @@ export async function GET(request, { params }) {
   let upcoming = []
   let past = []
   if (vendor.creator_id) {
-    const { data: drops } = await supa
+    // Inner alias `rows` avoids shadowing the outer accumulator `drops` —
+    // line 58 below reassigns the outer one with [...upcoming, ...past].
+    const { data: rows } = await supa
       .from('drops').select('*')
       .eq('creator_id', vendor.creator_id)
       .in('status', ['published'])
       .order('launch_at', { ascending: true })
     const now = Date.now()
-    for (const l of (drops || [])) {
+    for (const l of (rows || [])) {
       const t = l.launch_at ? Date.parse(l.launch_at) : 0
       if (t && t >= now) upcoming.push(l); else past.push(l)
     }
