@@ -1,7 +1,7 @@
 // GET /api/direct/[slug]
 //
 // Public endpoint that resolves the vendor by slug and returns the vendor row
-// (active-only) plus every published launch they've created, oldest-pending
+// (active-only) plus every published drop they've created, oldest-pending
 // first then most-recent.
 //
 // Anonymous read — relies on the "Public can view active direct vendors" RLS
@@ -44,13 +44,13 @@ export async function GET(request, { params }) {
   let upcoming = []
   let past = []
   if (vendor.creator_id) {
-    const { data: launches } = await supa
-      .from('launches').select('*')
+    const { data: drops } = await supa
+      .from('drops').select('*')
       .eq('creator_id', vendor.creator_id)
       .in('status', ['published'])
       .order('launch_at', { ascending: true })
     const now = Date.now()
-    for (const l of (launches || [])) {
+    for (const l of (drops || [])) {
       const t = l.launch_at ? Date.parse(l.launch_at) : 0
       if (t && t >= now) upcoming.push(l); else past.push(l)
     }

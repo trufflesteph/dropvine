@@ -10,7 +10,7 @@ import { DropvineLogo } from '@/components/dropvine/logo'
 export default function DashboardPage() {
   const router = useRouter()
   const { user, loading, signOut } = useAuth() || {}
-  const [launches, setLaunches] = useState([])
+  const [drops, setDrops] = useState([])
   const [fetching, setFetching] = useState(true)
   const [publishingId, setPublishingId] = useState(null)
 
@@ -21,19 +21,19 @@ export default function DashboardPage() {
   const reload = async () => {
     if (!user) return
     setFetching(true)
-    const r = await fetch('/api/launches?creator=me', { headers: { 'x-user-id': user.id } })
+    const r = await fetch('/api/drops?creator=me', { headers: { 'x-user-id': user.id } })
     const d = await r.json()
-    setLaunches(d.launches || [])
+    setDrops(d.drops || [])
     setFetching(false)
   }
 
   useEffect(() => { if (user) reload() }, [user])
 
-  const publish = async (launch) => {
+  const publish = async (drop) => {
     if (!user) return
-    setPublishingId(launch.id)
+    setPublishingId(drop.id)
     try {
-      const r = await fetch(`/api/market/admin/drops/${launch.id}/publish`, {
+      const r = await fetch(`/api/market/admin/drops/${drop.id}/publish`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
         body: JSON.stringify({}),
@@ -42,7 +42,7 @@ export default function DashboardPage() {
       if (!r.ok || d?.error) { toast.error(d?.error || 'Publish failed'); return }
       toast.success(d.already ? 'Already published.' : 'Published — your drop is now live.')
       // Optimistic local update
-      setLaunches((prev) => prev.map((l) => l.id === launch.id ? { ...l, status: 'published' } : l))
+      setDrops((prev) => prev.map((l) => l.id === drop.id ? { ...l, status: 'published' } : l))
     } catch (e) {
       toast.error(e?.message || 'Publish failed')
     } finally {
@@ -54,8 +54,8 @@ export default function DashboardPage() {
     return <div className="min-h-screen flex items-center justify-center text-muted-foreground text-sm">Loading…</div>
   }
 
-  const upcoming = launches.filter(l => new Date(l.launch_at) > new Date())
-  const totalWaitlist = 0 // placeholder; could fetch counts per launch
+  const upcoming = drops.filter(l => new Date(l.launch_at) > new Date())
+  const totalWaitlist = 0 // placeholder; could fetch counts per drop
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -82,30 +82,30 @@ export default function DashboardPage() {
           <div className="px-6 md:px-12 py-8 flex items-end justify-between gap-4 flex-wrap">
             <div>
               <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Studio</div>
-              <h1 className="font-serif font-light text-4xl md:text-5xl tracking-tighter">Your launches</h1>
+              <h1 className="font-serif font-light text-4xl md:text-5xl tracking-tighter">Your drops</h1>
             </div>
-            <Link href="/dashboard/launches/new" className="inline-flex items-center gap-2 bg-foreground text-background px-5 py-3 text-sm hover:opacity-90">
-              <Plus className="h-4 w-4" /> New launch
+            <Link href="/dashboard/drops/new" className="inline-flex items-center gap-2 bg-foreground text-background px-5 py-3 text-sm hover:opacity-90">
+              <Plus className="h-4 w-4" /> New drop
             </Link>
           </div>
         </header>
 
         {/* Stats */}
         <section className="px-6 md:px-12 py-10 grid grid-cols-1 sm:grid-cols-3 gap-6 border-b border-border">
-          <Stat icon={<Sparkles className="h-4 w-4" />} label="Total launches" value={launches.length} />
+          <Stat icon={<Sparkles className="h-4 w-4" />} label="Total drops" value={drops.length} />
           <Stat icon={<Calendar className="h-4 w-4" />} label="Upcoming" value={upcoming.length} />
-          <Stat icon={<Users className="h-4 w-4" />} label="Waitlist (all)" value={totalWaitlist} hint="View per launch →" />
+          <Stat icon={<Users className="h-4 w-4" />} label="Waitlist (all)" value={totalWaitlist} hint="View per drop →" />
         </section>
 
         {/* Launches list */}
         <section className="px-6 md:px-12 py-12">
           {fetching ? (
             <div className="text-sm text-muted-foreground">Loading…</div>
-          ) : launches.length === 0 ? (
+          ) : drops.length === 0 ? (
             <EmptyState />
           ) : (
             <ul className="divide-y divide-border border-y border-border">
-              {launches.map(l => {
+              {drops.map(l => {
                 const isDraft = l.status === 'draft'
                 return (
                   <li key={l.id} className="py-7 grid grid-cols-12 gap-4 items-center group">
@@ -175,10 +175,10 @@ function EmptyState() {
   return (
     <div className="border border-dashed border-border p-12 md:p-20 text-center">
       <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Your studio is quiet</div>
-      <h2 className="font-serif font-light text-3xl md:text-4xl tracking-tighter">Begin your first launch.</h2>
-      <p className="mt-3 text-muted-foreground max-w-md mx-auto text-sm">A launch is a single page with a story, a moment, and an audience waiting.</p>
-      <Link href="/dashboard/launches/new" className="mt-8 inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 text-sm">
-        <Plus className="h-4 w-4" /> Compose a launch
+      <h2 className="font-serif font-light text-3xl md:text-4xl tracking-tighter">Begin your first drop.</h2>
+      <p className="mt-3 text-muted-foreground max-w-md mx-auto text-sm">A drop is a single page with a story, a moment, and an audience waiting.</p>
+      <Link href="/dashboard/drops/new" className="mt-8 inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 text-sm">
+        <Plus className="h-4 w-4" /> Compose a drop
       </Link>
     </div>
   )

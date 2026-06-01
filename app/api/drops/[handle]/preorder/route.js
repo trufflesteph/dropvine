@@ -12,10 +12,10 @@
 //     venmo_note: string (required, the unique <handle>-XXXX note the shopper
 //                        sent the payment with),
 //
-//     // Multi-product mode (preferred when the launch has launch_products):
+//     // Multi-product mode (preferred when the drop has drop_products):
 //     items?:     [{ launch_product_id: uuid, quantity: int }],
 //
-//     // Single-product mode (legacy fallback when no launch_products exist):
+//     // Single-product mode (legacy fallback when no drop_products exist):
 //     quantity?:  integer (default 1),
 //   }
 //
@@ -43,19 +43,19 @@ export async function POST(request, { params }) {
   if (!isValidEmail(email)) return NextResponse.json({ error: 'invalid email' }, { status: 400 })
   if (!venmoNote) return NextResponse.json({ error: 'missing venmo_note' }, { status: 400 })
 
-  // Look up the launch.
-  const { data: launch, error: gErr } = await supa
-    .from('launches').select('*').eq('handle', params.handle).maybeSingle()
+  // Look up the drop.
+  const { data: drop, error: gErr } = await supa
+    .from('drops').select('*').eq('handle', params.handle).maybeSingle()
   if (gErr) return NextResponse.json({ error: gErr.message }, { status: 500 })
-  if (!launch) return NextResponse.json({ error: 'not found' }, { status: 404 })
-  if (launch.status !== 'published') {
+  if (!drop) return NextResponse.json({ error: 'not found' }, { status: 404 })
+  if (drop.status !== 'published') {
     return NextResponse.json({ error: 'drop is not accepting orders yet' }, { status: 422 })
   }
-  const mode = (launch.collection_mode || '').toLowerCase()
+  const mode = (drop.collection_mode || '').toLowerCase()
   if (mode !== 'pre-order' && mode !== 'deposit') {
     return NextResponse.json({ error: 'this drop does not accept Venmo orders' }, { status: 422 })
   }
-  if (!launch.venmo_handle) {
+  if (!drop.venmo_handle) {
     return NextResponse.json({ error: 'this drop has no Venmo handle configured' }, { status: 422 })
   }
 
@@ -63,17 +63,17 @@ export async function POST(request, { params }) {
   let products = []
   try {
     const { data: prods, error: pErr } = await supa
-      .from('launch_products').select('*')
-      .eq('launch_id', launch.id).order('sort_order', { ascending: true })
+      .from('drop_products').select('*')
+      .eq('drop_id', drop.id).order('sort_order', { ascending: true })
     if (!pErr && Array.isArray(prods)) products = prods
   } catch {}
 
   // --- Resolve the line items + totals --------------------------------------
-  // If the launch has products AND the client sent an items[] array, validate
-  // each line, enforce per-product hard caps from launch_products.quantity,
+  // If the drop has products AND the client sent an items[] array, validate
+  // each line, enforce per-product hard caps from drop_products.quantity,
   // and snapshot price into order_items.
   // Else (no products OR items[] empty/missing), fall back to single-SKU mode
-  // using launches.price_cents + a top-level quantity.
+  // using drops.price_cents + a top-level quantity.
 
   let totalCents = 0
   let totalQty = 0
@@ -108,26 +108,26 @@ export async function POST(request, { params }) {
     }
     if (mode === 'deposit') {
       // Per-unit deposit applies to the whole basket count.
-      depositCents = parseInt(launch.reservation_hold_cents || 0, 10) * totalQty
+      depositCents = parseInt(drop.reservation_hold_cents || 0, 10) * totalQty
       balanceCents = Math.max(0, totalCents - depositCents)
     }
   } else {
     // Legacy single-product mode.
     let quantity = parseInt(body.quantity ?? '1', 10)
     if (Number.isNaN(quantity) || quantity < 1) quantity = 1
-    if (launch.capacity && launch.capacity > 0) quantity = Math.min(quantity, launch.capacity)
-    const unit = parseInt(launch.price_cents || 0, 10)
+    if (drop.capacity && drop.capacity > 0) quantity = Math.min(quantity, drop.capacity)
+    const unit = parseInt(drop.price_cents || 0, 10)
     totalQty = quantity
     totalCents = unit * quantity
     if (mode === 'deposit') {
-      depositCents = parseInt(launch.reservation_hold_cents || 0, 10) * quantity
+      depositCents = parseInt(drop.reservation_hold_cents || 0, 10) * quantity
       balanceCents = Math.max(0, totalCents - depositCents)
     }
-    // Snapshot a single synthetic line item using the launch title — so the
+    // Snapshot a single synthetic line item using the drop title — so the
     // email + admin UI can still itemise consistently even in legacy mode.
     orderItemRows.push({
       launch_product_id: null,
-      product_name: launch.title || 'Drop',
+      product_name: drop.title || 'Drop',
       price_cents: unit,
       quantity,
     })
@@ -139,7 +139,7 @@ export async function POST(request, { params }) {
   const unitPrice = totalQty > 0 ? Math.round(totalCents / totalQty) : 0
 
   const insertPayload = {
-    launch_id: launch.id,
+    drop_id: drop.id,
     shopper_email: email,
     shopper_name: typeof body.name === 'string' ? body.name.trim().slice(0, 120) : null,
     shopper_phone: typeof body.phone === 'string' ? body.phone.trim().slice(0, 32) : null,
@@ -148,7 +148,7 @@ export async function POST(request, { params }) {
     total_cents: totalCents,
     deposit_cents: depositCents,
     balance_cents: balanceCents,
-    venmo_handle: launch.venmo_handle,
+    venmo_handle: drop.venmo_handle,
     venmo_note: venmoNote,
     collection_mode: mode,
     status: 'pending_payment',
@@ -161,7 +161,7 @@ export async function POST(request, { params }) {
     if (/duplicate key value|unique constraint/i.test(iErr.message)) {
       const { data: existing } = await supa
         .from('drop_orders').select('*')
-        .eq('launch_id', launch.id).eq('venmo_note', venmoNote).maybeSingle()
+        .eq('drop_id', drop.id).eq('venmo_note', venmoNote).maybeSingle()
       if (existing) {
         // Best-effort: return existing line items too.
         const { data: existItems } = await supa
@@ -200,7 +200,7 @@ export async function POST(request, { params }) {
   // Fire confirmation email — non-blocking failure.
   try {
     await sendDropOrderConfirmation({
-      order, launch, items: insertedItems, to: email,
+      order, drop, items: insertedItems, to: email,
       baseUrl: process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin,
     })
   } catch (e) {

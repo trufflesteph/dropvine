@@ -17,20 +17,20 @@ export async function GET(request, { params }) {
   if (!a.ok) return NextResponse.json({ error: a.error }, { status: a.status })
 
   const supa = getSupabaseAdmin()
-  const { data: launch, error } = await supa
-    .from('launches').select('*').eq('id', params.id).maybeSingle()
+  const { data: drop, error } = await supa
+    .from('drops').select('*').eq('id', params.id).maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!launch) return NextResponse.json({ error: 'not found' }, { status: 404 })
+  if (!drop) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
   // Resolve creator profile so the admin can see who submitted
   let creator = null
-  if (launch.creator_id) {
+  if (drop.creator_id) {
     const { data } = await supa.from('profiles')
-      .select('id, email, display_name, full_name').eq('id', launch.creator_id).maybeSingle()
+      .select('id, email, display_name, full_name').eq('id', drop.creator_id).maybeSingle()
     creator = data || null
   }
 
-  return NextResponse.json({ launch, creator })
+  return NextResponse.json({ drop, creator })
 }
 
 export async function DELETE(request, { params }) {
@@ -40,13 +40,13 @@ export async function DELETE(request, { params }) {
   const supa = getSupabaseAdmin()
   // Safety: only allow hard-delete of DRAFTS. Published rows must use the
   // existing soft-archive flow (out of scope here).
-  const { data: existing } = await supa.from('launches').select('id, status').eq('id', params.id).maybeSingle()
+  const { data: existing } = await supa.from('drops').select('id, status').eq('id', params.id).maybeSingle()
   if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 })
   if (existing.status !== 'draft') {
-    return NextResponse.json({ error: 'only draft launches can be deleted here' }, { status: 400 })
+    return NextResponse.json({ error: 'only draft drops can be deleted here' }, { status: 400 })
   }
 
-  const { error } = await supa.from('launches').delete().eq('id', params.id)
+  const { error } = await supa.from('drops').delete().eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

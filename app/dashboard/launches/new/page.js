@@ -50,7 +50,7 @@ export default function NewLaunchPage() {
 
   const validateStep = () => {
     if (step === 0 && (!form.title || !form.handle)) return 'Title and handle are required.'
-    if (step === 2 && !form.launch_at) return 'Pick a launch date.'
+    if (step === 2 && !form.launch_at) return 'Pick a drop date.'
     return null
   }
 
@@ -77,7 +77,7 @@ export default function NewLaunchPage() {
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || 'Failed to publish')
       toast.success('Launch published.')
-      router.push(`/l/${d.launch.handle}`)
+      router.push(`/l/${d.drop.handle}`)
     } catch (e) {
       toast.error(e.message)
     } finally { setSubmitting(false) }
@@ -185,7 +185,7 @@ export default function NewLaunchPage() {
             </button>
           ) : (
             <button onClick={submit} disabled={submitting} className="inline-flex items-center gap-2 bg-foreground text-background px-7 py-3 text-sm hover:opacity-90 disabled:opacity-50">
-              {submitting ? 'Publishing…' : <>Publish launch <Check className="h-4 w-4" /></>}
+              {submitting ? 'Publishing…' : <>Publish drop <Check className="h-4 w-4" /></>}
             </button>
           )}
         </div>

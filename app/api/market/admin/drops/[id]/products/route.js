@@ -1,4 +1,4 @@
-// GET + PUT for a launch's product catalogue.
+// GET + PUT for a drop's product catalogue.
 //
 //   GET  /api/market/admin/drops/[id]/products      → { products: [...] }
 //   PUT  /api/market/admin/drops/[id]/products      → replace the entire list
@@ -56,8 +56,8 @@ export async function GET(request, { params }) {
   if (!supa) return NextResponse.json({ error: 'supabase not configured' }, { status: 500 })
 
   const { data, error } = await supa
-    .from('launch_products').select('*')
-    .eq('launch_id', params.id).order('sort_order', { ascending: true })
+    .from('drop_products').select('*')
+    .eq('drop_id', params.id).order('sort_order', { ascending: true })
   if (error) {
     if (/could not find the table|relation .* does not exist|schema cache/i.test(error.message)) {
       return NextResponse.json({ products: [], migration_pending: true })
@@ -78,22 +78,22 @@ export async function PUT(request, { params }) {
   const incoming = Array.isArray(body?.products) ? body.products : null
   if (!incoming) return NextResponse.json({ error: 'products array required' }, { status: 400 })
 
-  // Confirm the parent launch exists (also catches typo IDs early).
-  const { data: launch, error: lErr } = await supa
-    .from('launches').select('id').eq('id', params.id).maybeSingle()
+  // Confirm the parent drop exists (also catches typo IDs early).
+  const { data: drop, error: lErr } = await supa
+    .from('drops').select('id').eq('id', params.id).maybeSingle()
   if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 })
-  if (!launch) return NextResponse.json({ error: 'launch not found' }, { status: 404 })
+  if (!drop) return NextResponse.json({ error: 'drop not found' }, { status: 404 })
 
   // Existing rows. Note: pull the full row + an order clause to sidestep a
   // supabase-js query-builder quirk we hit when chaining `.select('id').eq(...)`
   // inside a PUT context (it returned [] even though the data was present).
   const { data: existing, error: gErr } = await supa
-    .from('launch_products').select('*')
-    .eq('launch_id', params.id).order('sort_order', { ascending: true })
+    .from('drop_products').select('*')
+    .eq('drop_id', params.id).order('sort_order', { ascending: true })
   if (gErr) {
     if (/could not find the table|relation .* does not exist|schema cache/i.test(gErr.message)) {
       return NextResponse.json({
-        error: 'launch_products table not provisioned yet',
+        error: 'drop_products table not provisioned yet',
         hint: 'Run supabase/migrations/2026-06-multi-product.sql',
       }, { status: 503 })
     }
@@ -111,28 +111,28 @@ export async function PUT(request, { params }) {
       incomingIds.add(p.id)
       toUpdate.push({ id: p.id, ...clean })
     } else {
-      toInsert.push({ launch_id: params.id, ...clean })
+      toInsert.push({ drop_id: params.id, ...clean })
     }
   })
   const toDelete = [...existingIds].filter((id) => !incomingIds.has(id))
 
   // Run mutations sequentially — small N, no need for a transaction.
   if (toDelete.length) {
-    const { error } = await supa.from('launch_products').delete().in('id', toDelete)
+    const { error } = await supa.from('drop_products').delete().in('id', toDelete)
     if (error) return NextResponse.json({ error: error.message, phase: 'delete' }, { status: 500 })
   }
   const updatedRows = []
   for (const row of toUpdate) {
     const { id, ...rest } = row
     const { data: u, error } = await supa
-      .from('launch_products').update(rest).eq('id', id).select('*').maybeSingle()
+      .from('drop_products').update(rest).eq('id', id).select('*').maybeSingle()
     if (error) return NextResponse.json({ error: error.message, phase: 'update', id }, { status: 500 })
     if (u) updatedRows.push(u)
   }
   let insertedRows = []
   if (toInsert.length) {
     const { data: ins, error } = await supa
-      .from('launch_products').insert(toInsert).select('*')
+      .from('drop_products').insert(toInsert).select('*')
     if (error) return NextResponse.json({ error: error.message, phase: 'insert' }, { status: 500 })
     insertedRows = ins || []
   }

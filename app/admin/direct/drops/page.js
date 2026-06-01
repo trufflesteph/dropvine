@@ -108,7 +108,7 @@ export default function DirectDropsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-serif text-3xl text-stone-900">Direct · Drops</h1>
-          <p className="text-sm text-stone-500">Every launch across all vendors and statuses. {total} total.</p>
+          <p className="text-sm text-stone-500">Every drop across all vendors and statuses. {total} total.</p>
         </div>
       </div>
 

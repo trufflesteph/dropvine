@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 const stripe = new Stripe(process.env.STRIPE_API_KEY || 'sk_test_emergent', { apiVersion: '2024-06-20' })
 
-// Returns the updated reservation row (or null) AND the launch + creator info needed for emails.
+// Returns the updated reservation row (or null) AND the drop + creator info needed for emails.
 async function markReservationStatus(stripeSessionId, status) {
   const sb = getSupabaseAdmin()
   if (sb) {
@@ -17,35 +17,35 @@ async function markReservationStatus(stripeSessionId, status) {
     if (!existing) return { reservation: null }
     if (existing.status !== 'pending') return { reservation: existing, alreadyProcessed: true }
     const { data: updated } = await sb.from('reservations').update({ status }).eq('stripe_session_id', stripeSessionId).select().maybeSingle()
-    // Pull launch + creator email for downstream emails
-    const { data: launch } = await sb.from('launches').select('*').eq('id', existing.launch_id).maybeSingle()
+    // Pull drop + creator email for downstream emails
+    const { data: drop } = await sb.from('drops').select('*').eq('id', existing.drop_id).maybeSingle()
     let creatorEmail = null
-    if (launch) {
-      const { data: profile } = await sb.from('profiles').select('email').eq('id', launch.creator_id).maybeSingle()
+    if (drop) {
+      const { data: profile } = await sb.from('profiles').select('email').eq('id', drop.creator_id).maybeSingle()
       creatorEmail = profile?.email || null
     }
-    return { reservation: updated, launch, creatorEmail }
+    return { reservation: updated, drop, creatorEmail }
   }
   const r = store.reservations.find(x => x.stripe_session_id === stripeSessionId)
   if (!r) return { reservation: null }
   if (r.status !== 'pending') return { reservation: r, alreadyProcessed: true }
   r.status = status
-  const launch = store.launches.get(r.launch_id) || null
-  return { reservation: r, launch, creatorEmail: null }
+  const drop = store.drops.get(r.drop_id) || null
+  return { reservation: r, drop, creatorEmail: null }
 }
 
-async function maybeSendSoldOut({ launch, baseUrl, creatorEmail }) {
-  if (!launch?.capacity || !creatorEmail) return
+async function maybeSendSoldOut({ drop, baseUrl, creatorEmail }) {
+  if (!drop?.capacity || !creatorEmail) return
   const sb = getSupabaseAdmin()
   if (!sb) return
-  // Count held reservations for this launch
+  // Count held reservations for this drop
   const { count } = await sb
     .from('reservations')
     .select('id', { count: 'exact', head: true })
-    .eq('launch_id', launch.id)
+    .eq('drop_id', drop.id)
     .in('status', ['held', 'captured'])
-  if (count === launch.capacity) {
-    notifySoldOut({ launch, capacity: launch.capacity, creatorEmail, baseUrl }).catch(() => {})
+  if (count === drop.capacity) {
+    notifySoldOut({ drop, capacity: drop.capacity, creatorEmail, baseUrl }).catch(() => {})
   }
 }
 
@@ -79,9 +79,9 @@ export async function POST(request) {
       if (session.payment_status === 'paid') {
         const result = await markReservationStatus(session.id, 'held')
         // Fire-and-forget emails — only on first processing (idempotency)
-        if (result.reservation && !result.alreadyProcessed && result.launch) {
-          notifyReservationConfirmed({ launch: result.launch, reservation: result.reservation, baseUrl }).catch(() => {})
-          maybeSendSoldOut({ launch: result.launch, baseUrl, creatorEmail: result.creatorEmail }).catch(() => {})
+        if (result.reservation && !result.alreadyProcessed && result.drop) {
+          notifyReservationConfirmed({ drop: result.drop, reservation: result.reservation, baseUrl }).catch(() => {})
+          maybeSendSoldOut({ drop: result.drop, baseUrl, creatorEmail: result.creatorEmail }).catch(() => {})
         }
       }
     } else if (event.type === 'checkout.session.expired') {

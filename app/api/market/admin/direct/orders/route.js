@@ -1,6 +1,6 @@
 // GET /api/market/admin/direct/orders
 //
-// Paginated list of drop_orders with their parent launch.title joined in.
+// Paginated list of drop_orders with their parent drop.title joined in.
 // Used by the /admin/direct/orders page.
 //
 // Query params (all optional):
@@ -35,11 +35,11 @@ export async function GET(request) {
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
-  // Base query. Selecting the launch via FK join — PostgREST will follow
-  // drop_orders.launch_id → launches.id automatically.
+  // Base query. Selecting the drop via FK join — PostgREST will follow
+  // drop_orders.drop_id → drops.id automatically.
   let query = supa
     .from('drop_orders')
-    .select('*, launches:launch_id(id, handle, title, pickup_details)', { count: 'exact' })
+    .select('*, drops:drop_id(id, handle, title, pickup_details)', { count: 'exact' })
     .order('created_at', { ascending: false })
 
   if (ALLOWED_STATUSES.has(status)) query = query.eq('status', status)
@@ -67,13 +67,13 @@ export async function GET(request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Flatten launches join + compute counts per status for the filter bar.
+  // Flatten drops join + compute counts per status for the filter bar.
   const baseOrders = (data || []).map((r) => ({
     ...r,
-    launch_title: r.launches?.title || null,
-    launch_handle: r.launches?.handle || null,
-    launch_pickup_details: r.launches?.pickup_details || null,
-    launches: undefined,
+    launch_title: r.drops?.title || null,
+    launch_handle: r.drops?.handle || null,
+    launch_pickup_details: r.drops?.pickup_details || null,
+    drops: undefined,
   }))
 
   // Bulk-fetch drop_order_items for ALL orders on this page in a single query.

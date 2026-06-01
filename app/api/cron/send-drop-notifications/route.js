@@ -1,6 +1,6 @@
 // GET /api/cron/send-drop-notifications
 //
-// Vercel cron — runs every 10 minutes. Picks up every published launch whose
+// Vercel cron — runs every 10 minutes. Picks up every published drop whose
 // scheduled `notify_at` has elapsed but whose `notified_at` is still null, and
 // fans out the fan-out (email + tier-gated SMS) to its waitlist.
 //
@@ -28,10 +28,10 @@ async function run({ dryRun = false } = {}) {
   if (!supa) return { ok: false, error: 'supabase admin not configured' }
   const nowIso = new Date().toISOString()
 
-  // Pull every due launch. We tolerate the migration not yet being applied —
+  // Pull every due drop. We tolerate the migration not yet being applied —
   // if the columns don’t exist the query errors and we degrade to no-op.
   const { data: due, error } = await supa
-    .from('launches')
+    .from('drops')
     .select('id, handle, title, creator_id, launch_at, notify_at, notified_at, status')
     .eq('status', 'published')
     .lte('notify_at', nowIso)
@@ -44,7 +44,7 @@ async function run({ dryRun = false } = {}) {
       ok: false,
       error: error.message,
       hint: /column .* does not exist|schema cache/i.test(error.message)
-        ? 'Run supabase/migrations/2026-06-launches-notify-schedule.sql'
+        ? 'Run supabase/migrations/2026-06-drops-notify-schedule.sql'
         : undefined,
     }
   }
@@ -53,17 +53,17 @@ async function run({ dryRun = false } = {}) {
   const processed = []
   const failed = []
 
-  for (const launch of due || []) {
+  for (const drop of due || []) {
     if (dryRun) {
-      processed.push({ id: launch.id, handle: launch.handle, dryRun: true })
+      processed.push({ id: drop.id, handle: drop.handle, dryRun: true })
       continue
     }
     try {
-      const r = await fanoutDropNotifications({ supa, launch, baseUrl })
+      const r = await fanoutDropNotifications({ supa, drop, baseUrl })
       if (r.ok) {
         processed.push({
-          id: launch.id,
-          handle: launch.handle,
+          id: drop.id,
+          handle: drop.handle,
           plan_tier: r.plan_tier,
           sms_allowed: r.sms_allowed,
           sent: r.sent,
@@ -71,10 +71,10 @@ async function run({ dryRun = false } = {}) {
           skipped: r.skipped,
         })
       } else {
-        failed.push({ id: launch.id, handle: launch.handle, error: r.error })
+        failed.push({ id: drop.id, handle: drop.handle, error: r.error })
       }
     } catch (e) {
-      failed.push({ id: launch.id, handle: launch.handle, error: e?.message || 'fanout threw' })
+      failed.push({ id: drop.id, handle: drop.handle, error: e?.message || 'fanout threw' })
     }
   }
 

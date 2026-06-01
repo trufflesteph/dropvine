@@ -14,7 +14,7 @@ import { ArrowRight, ExternalLink, Instagram, Globe, Loader2 } from 'lucide-reac
 // match an active vendor.
 //
 // Data source: GET /api/direct/[slug] (server endpoint backed by direct_vendors
-// + launches via the service-role client).
+// + drops via the service-role client).
 
 function fmtCountdown(targetMs) {
   const ms = targetMs - Date.now()

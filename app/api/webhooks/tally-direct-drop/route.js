@@ -2,7 +2,7 @@
 //
 // A vendor fills out a Tally form, Tally POSTs the response here, we extract
 // the product fields, look up the creator via vendor_email, generate a unique
-// handle, insert a DRAFT row into `launches`, and email the platform owner a
+// handle, insert a DRAFT row into `drops`, and email the platform owner a
 // link to the admin preview page.
 //
 // Header: `tally-signature` = HMAC-SHA256(rawBody, TALLY_DIRECT_DROP_SECRET) base64.
@@ -56,7 +56,7 @@ async function makeUniqueHandle(supa, base) {
   // Try plain root first, then root-xxxx until we find a free slot
   for (let attempt = 0; attempt < 6; attempt++) {
     const candidate = attempt === 0 ? root : `${root}-${randomSuffix(4)}`
-    const { data } = await supa.from('launches').select('id').eq('handle', candidate).maybeSingle()
+    const { data } = await supa.from('drops').select('id').eq('handle', candidate).maybeSingle()
     if (!data) return candidate
   }
   return `${root}-${randomSuffix(8)}`
@@ -137,7 +137,7 @@ export async function POST(request) {
     // publish_action — driven by the Tally "When should orders open?" field.
     //
     //   • "Immediately when published" → publish_action = 'publish'
-    //     The vendor still has to click Publish in the email; the launch is
+    //     The vendor still has to click Publish in the email; the drop is
     //     created as a draft and goes live the moment they confirm.
     //
     //   • "At a specific date and time"  → publish_action = 'schedule'
@@ -147,6 +147,7 @@ export async function POST(request) {
     // Decision rule: any signal of a future-dated open (explicit 'specific'
     // text OR a parsed countdownAt in the future OR openMode starting with
     // 'countdown') means schedule. Everything else falls back to publish.
+    const now = new Date()
     const publishAction = (() => {
       const t = (openMode || '').toLowerCase()
       if (t.includes('specific') || t.includes('date')) return 'schedule'
@@ -193,7 +194,6 @@ export async function POST(request) {
     }
 
     // Decide launch_at
-    const now = new Date()
     let launchAt = now.toISOString()
     if (openMode.startsWith('countdown') && countdownAt && !isNaN(countdownAt.getTime())) {
       launchAt = countdownAt.toISOString()
@@ -218,13 +218,13 @@ export async function POST(request) {
       photo_urls: photoUrls.length ? photoUrls : null,
       collection_mode: collectionMode,
       venmo_handle: venmoHandle,
-      // Scheduled notifications (2026-06-launches-notify-schedule.sql)
+      // Scheduled notifications (2026-06-drops-notify-schedule.sql)
       notify_at: notifyAt,
       // Phase A lifecycle (2026-06-drop-lifecycle.sql)
       closes_at: closesAt,
     }
 
-    let { data: inserted, error: insErr } = await supa.from('launches').insert(insertPayload).select('*').single()
+    let { data: inserted, error: insErr } = await supa.from('drops').insert(insertPayload).select('*').single()
     if (insErr) {
       // If Step 1 SQL hasn't been run yet, some columns will be missing. Retry
       // with just the core legacy columns so the submission still lands somewhere.
@@ -236,7 +236,7 @@ export async function POST(request) {
           handle, title: productName, description, price_cents: priceCents, capacity,
           launch_at: launchAt, status: 'draft', creator_id: creatorId, cover_url: coverUrl,
         }
-        const retry = await supa.from('launches').insert(minimal).select('*').single()
+        const retry = await supa.from('drops').insert(minimal).select('*').single()
         inserted = retry.data; insErr = retry.error
       }
     }
@@ -247,10 +247,10 @@ export async function POST(request) {
 
     // === Multi-product seeding ===========================================
     // Two parsing modes (priority order):
-    //   1. CSV/spreadsheet upload → parse rows into launch_products.
+    //   1. CSV/spreadsheet upload → parse rows into drop_products.
     //   2. Manual repeating fields (`product_1_name`, `product_1_price`, …).
     // If neither produced rows, the public /l/[handle] page falls back to the
-    // existing single-product behaviour driven by launches.price_cents.
+    // existing single-product behaviour driven by drops.price_cents.
     let productsSource = 'none'
     let productsInserted = 0
     try {
@@ -258,7 +258,7 @@ export async function POST(request) {
       productsSource = source
       if (products.length) {
         const payload = products.map((p, i) => ({
-          launch_id: inserted.id,
+          drop_id: inserted.id,
           name: p.name,
           description: p.description,
           price_cents: p.price_cents,
@@ -266,14 +266,14 @@ export async function POST(request) {
           photo_url: p.photo_url,
           sort_order: typeof p.sort_order === 'number' ? p.sort_order : i,
         }))
-        const { data: ins, error: pErr } = await supa.from('launch_products').insert(payload).select('id')
+        const { data: ins, error: pErr } = await supa.from('drop_products').insert(payload).select('id')
         if (pErr) {
           // Migration not run yet — log + continue. Admin can re-seed manually
           // from the Preview page once the table exists.
           if (/could not find the table|relation .* does not exist|schema cache/i.test(pErr.message)) {
-            console.warn('[tally-direct-drop] launch_products table missing — run supabase/migrations/2026-06-multi-product.sql')
+            console.warn('[tally-direct-drop] drop_products table missing — run supabase/migrations/2026-06-multi-product.sql')
           } else {
-            console.warn('[tally-direct-drop] launch_products insert failed (non-fatal):', pErr.message)
+            console.warn('[tally-direct-drop] drop_products insert failed (non-fatal):', pErr.message)
           }
         } else {
           productsInserted = ins?.length || 0
@@ -285,7 +285,7 @@ export async function POST(request) {
 
     // === Phase A: contact list ingestion ================================
     // If a Tally CSV (label: contacts / audience / subscribers / mailing list)
-    // OR a pasted email block is present, insert rows into launch_subscribers
+    // OR a pasted email block is present, insert rows into drop_subscribers
     // for downstream fan-out by the lifecycle cron.
     let subscribersIngested = 0
     let subscribersSource = 'none'
@@ -293,10 +293,10 @@ export async function POST(request) {
       const { rows: subRows, source: subSource } = await extractLaunchSubscribers(fields)
       subscribersSource = subSource
       if (subRows.length) {
-        const ingest = await ingestLaunchSubscribers({ supa, launch_id: inserted.id, rows: subRows })
+        const ingest = await ingestLaunchSubscribers({ supa, drop_id: inserted.id, rows: subRows })
         if (ingest.ok) subscribersIngested = ingest.inserted
         else if (ingest.error === 'migration_pending') {
-          console.warn('[tally-direct-drop] launch_subscribers migration pending — contacts not persisted')
+          console.warn('[tally-direct-drop] drop_subscribers migration pending — contacts not persisted')
         }
       }
     } catch (e) {
@@ -309,7 +309,7 @@ export async function POST(request) {
     // the vendor confirms publish/schedule via /api/launches/publish/[token].
     let cadenceScheduled = null
     try {
-      const schedule = await scheduleDropLifecycle({ supa, launch: inserted, hold: true })
+      const schedule = await scheduleDropLifecycle({ supa, drop: inserted, hold: true })
       if (schedule.ok) cadenceScheduled = schedule.plan || {}
       else if (schedule.error === 'migration_pending') {
         console.warn('[tally-direct-drop] email_schedules migration pending — cadence not scheduled')
@@ -321,12 +321,12 @@ export async function POST(request) {
     // === Draft → Preview → Publish flow =================================
     // Mint a one-shot publish_tokens row. The vendor receives the token URL
     // in the DropSubmissionConfirmation email and clicks it to flip the
-    // launch from `draft` to `published` (or `scheduled`).
+    // drop from `draft` to `published` (or `scheduled`).
     let publishToken = null
     try {
       const { data: tok, error: tokErr } = await supa
         .from('publish_tokens')
-        .insert({ launch_id: inserted.id, publish_action: publishAction })
+        .insert({ drop_id: inserted.id, publish_action: publishAction })
         .select('token')
         .single()
       if (tokErr) {
@@ -349,7 +349,7 @@ export async function POST(request) {
     if (ownerEmail) {
       try {
         await sendDraftDropReview({
-          launch: inserted,
+          drop: inserted,
           vendorName: vendorName || vendorEmail,
           vendorEmail: vendorEmail || '—',
           previewUrl,
@@ -368,7 +368,7 @@ export async function POST(request) {
     if (publishToken && vendorEmail) {
       try {
         await sendDropSubmissionConfirmation({
-          launch: inserted,
+          drop: inserted,
           vendorEmail,
           publishAction,
           token: publishToken,
@@ -381,7 +381,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       ok: true,
-      launch: { id: inserted.id, handle: inserted.handle, status: inserted.status },
+      drop: { id: inserted.id, handle: inserted.handle, status: inserted.status },
       preview_url: previewUrl,
       // Public vendor-facing preview URL (?preview=true gate).
       vendor_preview_url: `${baseUrl}/l/${inserted.handle}?preview=true`,

@@ -3,7 +3,7 @@
 // Phase A vendor lifecycle cron. Runs every 10 minutes (vercel.json).
 // Scans email_schedules for any rows where `sent_at IS NULL` and
 // `scheduled_for <= now()`, fires the matching email batch, then stamps
-// `sent_at`. Idempotent via UNIQUE (launch_id, kind) + sent_at NULL guard.
+// `sent_at`. Idempotent via UNIQUE (drop_id, kind) + sent_at NULL guard.
 //
 // Auth: Authorization: Bearer ${CRON_SECRET}.
 // GET + POST both supported.  Query flags:
@@ -50,56 +50,56 @@ function asLabel(iso) {
 }
 
 async function loadLaunchAndSubscribers(supa, launchId) {
-  const [{ data: launch }, { data: subscribers }] = await Promise.all([
-    supa.from('launches').select('*').eq('id', launchId).maybeSingle(),
-    supa.from('launch_subscribers').select('email, name, phone').eq('launch_id', launchId),
+  const [{ data: drop }, { data: subscribers }] = await Promise.all([
+    supa.from('drops').select('*').eq('id', launchId).maybeSingle(),
+    supa.from('drop_subscribers').select('email, name, phone').eq('drop_id', launchId),
   ])
-  return { launch, subscribers: subscribers || [] }
+  return { drop, subscribers: subscribers || [] }
 }
 
 async function handleOpen(supa, row) {
-  const { launch, subscribers } = await loadLaunchAndSubscribers(supa, row.launch_id)
-  if (!launch) return { skipped: 'launch missing' }
-  // Don't fan-out for drafts/archived launches.
-  if (!['published', 'live'].includes(launch.status)) return { skipped: `status=${launch.status}` }
-  const result = await sendDropOpenedFanout({ launch, subscribers })
+  const { drop, subscribers } = await loadLaunchAndSubscribers(supa, row.drop_id)
+  if (!drop) return { skipped: 'drop missing' }
+  // Don't fan-out for drafts/archived drops.
+  if (!['published', 'live'].includes(drop.status)) return { skipped: `status=${drop.status}` }
+  const result = await sendDropOpenedFanout({ drop, subscribers })
   return { ...result, recipients: subscribers.length }
 }
 
 async function handleReminder5d(supa, row) {
-  const { launch, subscribers } = await loadLaunchAndSubscribers(supa, row.launch_id)
-  if (!launch) return { skipped: 'launch missing' }
-  if (!['published', 'live'].includes(launch.status)) return { skipped: `status=${launch.status}` }
+  const { drop, subscribers } = await loadLaunchAndSubscribers(supa, row.drop_id)
+  if (!drop) return { skipped: 'drop missing' }
+  if (!['published', 'live'].includes(drop.status)) return { skipped: `status=${drop.status}` }
   // Don't bother if the drop has already closed.
-  if (launch.closes_at && new Date(launch.closes_at) < new Date()) return { skipped: 'already closed' }
+  if (drop.closes_at && new Date(drop.closes_at) < new Date()) return { skipped: 'already closed' }
   const result = await sendDropStillOpenFanout({
-    launch,
+    drop,
     subscribers,
-    closesAtLabel: asLabel(launch.closes_at),
+    closesAtLabel: asLabel(drop.closes_at),
   })
   return { ...result, recipients: subscribers.length }
 }
 
 async function handleClosingSoon(supa, row) {
-  const { launch, subscribers } = await loadLaunchAndSubscribers(supa, row.launch_id)
-  if (!launch) return { skipped: 'launch missing' }
-  if (!['published', 'live'].includes(launch.status)) return { skipped: `status=${launch.status}` }
-  if (launch.closes_at && new Date(launch.closes_at) < new Date()) return { skipped: 'already closed' }
+  const { drop, subscribers } = await loadLaunchAndSubscribers(supa, row.drop_id)
+  if (!drop) return { skipped: 'drop missing' }
+  if (!['published', 'live'].includes(drop.status)) return { skipped: `status=${drop.status}` }
+  if (drop.closes_at && new Date(drop.closes_at) < new Date()) return { skipped: 'already closed' }
   const result = await sendDropClosingSoonFanout({
-    launch,
+    drop,
     subscribers,
-    closesAtLabel: asLabel(launch.closes_at),
+    closesAtLabel: asLabel(drop.closes_at),
   })
   return { ...result, recipients: subscribers.length }
 }
 
 async function handleCloseSummary(supa, row) {
-  const { data: launch } = await supa.from('launches').select('*').eq('id', row.launch_id).maybeSingle()
-  if (!launch) return { skipped: 'launch missing' }
+  const { data: drop } = await supa.from('drops').select('*').eq('id', row.drop_id).maybeSingle()
+  if (!drop) return { skipped: 'drop missing' }
   // Resolve vendor email — prefer profiles.email by creator_id.
   let vendorEmail = null
-  if (launch.creator_id) {
-    const { data: profile } = await supa.from('profiles').select('email').eq('id', launch.creator_id).maybeSingle()
+  if (drop.creator_id) {
+    const { data: profile } = await supa.from('profiles').select('email').eq('id', drop.creator_id).maybeSingle()
     vendorEmail = profile?.email || null
   }
   if (!vendorEmail) return { skipped: 'no vendor email' }
@@ -107,14 +107,14 @@ async function handleCloseSummary(supa, row) {
   const { data: orders } = await supa
     .from('drop_orders')
     .select('id, status, total_cents')
-    .eq('launch_id', launch.id)
+    .eq('drop_id', drop.id)
   const totals = (orders || []).reduce((acc, o) => {
     acc.total_orders += 1
     if (['paid', 'fulfilled', 'payment_received'].includes(o.status)) acc.paid_orders += 1
     acc.total_cents += Number(o.total_cents || 0)
     return acc
   }, { total_orders: 0, paid_orders: 0, total_cents: 0 })
-  const result = await sendDropCloseSummary({ launch, vendorEmail, totals })
+  const result = await sendDropCloseSummary({ drop, vendorEmail, totals })
   return { ...result, recipients: 1 }
 }
 
@@ -130,17 +130,62 @@ async function runCron(request) {
   const supa = getSupabaseAdmin()
   if (!supa) return NextResponse.json({ error: 'supabase not configured' }, { status: 500 })
 
-  // Scan due rows.
+  // === Step 0: auto-publish any scheduled drops whose launch_at has arrived.
+  // `scheduled` is set by /api/launches/publish/[token] when the vendor picks
+  // "Schedule" instead of immediate publish. Cron flips them to `published`
+  // and the next pass (below) picks up their `open` email_schedules row.
+  // Tolerates the schema being out of date by swallowing column-missing errors.
+  let autoPublished = 0
+  try {
+    const { data: ready } = await supa
+      .from('drops')
+      .select('id, handle')
+      .eq('status', 'scheduled')
+      .lte('launch_at', new Date().toISOString())
+      .limit(50)
+    for (const l of ready || []) {
+      const { error: uErr } = await supa
+        .from('drops')
+        .update({ status: 'published' })
+        .eq('id', l.id)
+        .eq('status', 'scheduled') // guard against races
+      if (!uErr) autoPublished += 1
+    }
+  } catch (e) {
+    console.warn('[drop-lifecycle] auto-publish step failed (non-fatal):', e?.message || e)
+  }
+
+  // === Step 1: scan due rows.
+  // `hold = true` rows belong to drafts that haven't been published yet —
+  // skip them entirely. Use .or() to also keep older rows where the column
+  // doesn't exist or was inserted before the hold migration ran.
   let q = supa
     .from('email_schedules')
-    .select('id, launch_id, kind, scheduled_for')
+    .select('id, drop_id, kind, scheduled_for, hold')
     .is('sent_at', null)
     .lte('scheduled_for', new Date().toISOString())
     .order('scheduled_for', { ascending: true })
     .limit(limit)
+  // hold filter — if the column is missing the supabase client just returns
+  // a normal error which we catch below and retry without the filter.
+  q = q.not('hold', 'is', true)
   if (kindsFilter) q = q.in('kind', kindsFilter)
 
-  const { data: due, error } = await q
+  let { data: due, error } = await q
+  if (error && /could not find the .*column.*hold|hold.*does not exist/i.test(error.message)) {
+    // Old DB without the publish-tokens-and-holds migration applied — drop
+    // the hold filter and try again.
+    let q2 = supa
+      .from('email_schedules')
+      .select('id, drop_id, kind, scheduled_for')
+      .is('sent_at', null)
+      .lte('scheduled_for', new Date().toISOString())
+      .order('scheduled_for', { ascending: true })
+      .limit(limit)
+    if (kindsFilter) q2 = q2.in('kind', kindsFilter)
+    const retry = await q2
+    due = retry.data; error = retry.error
+  }
   if (error) {
     if (/could not find the table|relation .* does not exist|schema cache/i.test(error.message)) {
       return NextResponse.json({
@@ -156,7 +201,7 @@ async function runCron(request) {
   const failed = []
   for (const row of due || []) {
     if (dryRun) {
-      items.push({ id: row.id, launch_id: row.launch_id, kind: row.kind, dryRun: true })
+      items.push({ id: row.id, drop_id: row.drop_id, kind: row.kind, dryRun: true })
       continue
     }
     const handler = KIND_HANDLERS[row.kind]
@@ -167,13 +212,13 @@ async function runCron(request) {
     try {
       const result = await handler(supa, row)
       // Stamp sent_at regardless of skipped/sent — we don't want to keep
-      // retrying a launch whose status moved out from under us. The recipients
+      // retrying a drop whose status moved out from under us. The recipients
       // count is logged so an operator can see what happened.
       await supa
         .from('email_schedules')
         .update({ sent_at: new Date().toISOString(), recipients: result.recipients ?? result.sent ?? 0 })
         .eq('id', row.id)
-      items.push({ id: row.id, launch_id: row.launch_id, kind: row.kind, ...result })
+      items.push({ id: row.id, drop_id: row.drop_id, kind: row.kind, ...result })
     } catch (e) {
       console.error('[drop-lifecycle] handler crashed:', row.kind, e?.message || e)
       await supa
@@ -189,6 +234,7 @@ async function runCron(request) {
     dryRun,
     scanned: due?.length || 0,
     processed: items.length,
+    auto_published: autoPublished,
     items,
     failed,
   })

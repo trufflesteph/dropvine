@@ -9,7 +9,7 @@
 //
 // Phase 2 (future): replace the hard-coded list with a live query against
 // `direct_vendors` where `is_demo = false` and the vendor has at least one
-// published launch. This page intentionally mirrors that future card layout
+// published drop. This page intentionally mirrors that future card layout
 // so the swap is just changing the data source.
 
 import Link from 'next/link'

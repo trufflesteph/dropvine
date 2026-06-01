@@ -44,11 +44,11 @@ function randomCode4() {
 // Decide which collection mode the page will actually render. Falls back to
 // 'waitlist' for venmo-based modes when venmo_handle is missing, and emits a
 // console warning so creators / support can spot misconfigured drops.
-function resolveMode(launch) {
-  const raw = (launch?.collection_mode || 'waitlist').toLowerCase().trim()
+function resolveMode(drop) {
+  const raw = (drop?.collection_mode || 'waitlist').toLowerCase().trim()
   if (raw === 'pre-order' || raw === 'deposit') {
-    if (!launch?.venmo_handle) {
-      console.warn(`[dropvine] launch "${launch?.handle}" is collection_mode="${raw}" but has no venmo_handle — falling back to waitlist.`)
+    if (!drop?.venmo_handle) {
+      console.warn(`[dropvine] drop "${drop?.handle}" is collection_mode="${raw}" but has no venmo_handle — falling back to waitlist.`)
       return 'waitlist'
     }
     return raw
@@ -66,7 +66,7 @@ function PublicLaunchPageInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const isPreview = searchParams.get('preview') === 'true'
-  const [launch, setLaunch] = useState(null)
+  const [drop, setDrop] = useState(null)
   const [products, setProducts] = useState([])
   const [publishToken, setPublishToken] = useState(null) // { token, publish_action } when draft + preview
   const [loading, setLoading] = useState(true)
@@ -83,9 +83,9 @@ function PublicLaunchPageInner() {
         // Pass through ?preview=true so the API can return drafts + token.
         const qs = isPreview ? '?preview=true' : ''
         const r = await fetch(`/api/launches/by-handle/${handle}${qs}`)
-        if (!r.ok) { setLaunch(null); return }
+        if (!r.ok) { setDrop(null); return }
         const d = await r.json()
-        setLaunch(d.launch)
+        setDrop(d.drop)
         setProducts(Array.isArray(d.products) ? d.products : [])
         setPublishToken(d.publish_token || null)
       } finally { setLoading(false) }
@@ -128,15 +128,15 @@ function PublicLaunchPageInner() {
     tick()
   }, [searchParams, handle, router])
 
-  const isLive = useMemo(() => launch ? new Date(launch.launch_at) <= new Date() : false, [launch])
-  const mode = useMemo(() => resolveMode(launch), [launch])
+  const isLive = useMemo(() => drop ? new Date(drop.launch_at) <= new Date() : false, [drop])
+  const mode = useMemo(() => resolveMode(drop), [drop])
 
   const join = async (e) => {
     e.preventDefault()
-    if (!launch) return
+    if (!drop) return
     setSubmitting(true)
     try {
-      const r = await fetch(`/api/launches/${launch.id}/waitlist`, {
+      const r = await fetch(`/api/launches/${drop.id}/waitlist`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, name, note: mode === 'reservation' ? 'reservation' : undefined }),
       })
@@ -149,10 +149,10 @@ function PublicLaunchPageInner() {
   }
 
   const reserve = async () => {
-    if (!launch || !email) return toast.error('Enter your email first.')
+    if (!drop || !email) return toast.error('Enter your email first.')
     setReserving(true)
     try {
-      const r = await fetch(`/api/launches/${launch.id}/reserve`, {
+      const r = await fetch(`/api/launches/${drop.id}/reserve`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, origin_url: window.location.origin }),
       })
@@ -166,10 +166,10 @@ function PublicLaunchPageInner() {
   }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground text-sm">Loading…</div>
-  if (!launch) return (
+  if (!drop) return (
     <div className="min-h-screen flex flex-col items-center justify-center text-center px-6">
       <div className="font-serif text-3xl tracking-tighter mb-2">Not found</div>
-      <p className="text-muted-foreground text-sm">This launch page does not exist or is unpublished.</p>
+      <p className="text-muted-foreground text-sm">This drop page does not exist or is unpublished.</p>
       <Link href="/" className="mt-8 underline underline-offset-4 text-sm">Back to Dropvine</Link>
     </div>
   )
@@ -177,7 +177,7 @@ function PublicLaunchPageInner() {
   // Decide which right-rail panel to render. Reservation mode prefers the
   // Stripe card when reservation_enabled + hold are set; otherwise falls back
   // to a "reserve my spot" form that creates a waitlist entry.
-  const reservationStripeAvailable = launch.reservation_enabled && launch.reservation_hold_cents > 0
+  const reservationStripeAvailable = drop.reservation_enabled && drop.reservation_hold_cents > 0
   let rightRail
   if (joined) {
     rightRail = (
@@ -192,7 +192,7 @@ function PublicLaunchPageInner() {
   } else if (mode === 'pre-order' || mode === 'deposit') {
     rightRail = (
       <PreorderPanel
-        launch={launch}
+        drop={drop}
         products={products}
         isDeposit={mode === 'deposit'}
       />
@@ -200,7 +200,7 @@ function PublicLaunchPageInner() {
   } else if (mode === 'reservation' && reservationStripeAvailable) {
     rightRail = (
       <ReservationStripePanel
-        launch={launch}
+        drop={drop}
         email={email}
         setEmail={setEmail}
         reservationStatus={reservationStatus}
@@ -225,15 +225,15 @@ function PublicLaunchPageInner() {
 
   // Draft / preview gating.
   // The API hides drafts from anyone without ?preview=true, but defense in
-  // depth: also render NotFound here if the launch came back as a draft and
+  // depth: also render NotFound here if the drop came back as a draft and
   // the URL is missing the preview gate. (This branch typically only fires
   // for stale fetches or someone editing the response client-side.)
-  const isDraft = launch.status === 'draft'
+  const isDraft = drop.status === 'draft'
   if (isDraft && !isPreview) {
     return (
       <NotFound
         handle={handle}
-        title={launch.title}
+        title={drop.title}
         joined={joined}
         email={email}
         setEmail={setEmail}
@@ -250,12 +250,12 @@ function PublicLaunchPageInner() {
   // publish_tokens migration yet (token will be null in that case).
   const publishAction = publishToken?.publish_action || 'publish'
   const isScheduleFlow = publishAction === 'schedule'
-  const launchAtLabel = launch.launch_at
-    ? new Date(launch.launch_at).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
+  const launchAtLabel = drop.launch_at
+    ? new Date(drop.launch_at).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
     : null
   // Stack the banners: draft banner above demo banner if both apply. Header
   // top offset is computed below.
-  const bannerCount = (isDraft ? 1 : 0) + (launch.is_demo ? 1 : 0)
+  const bannerCount = (isDraft ? 1 : 0) + (drop.is_demo ? 1 : 0)
   const headerTopClass = bannerCount === 2 ? 'top-[72px]' : bannerCount === 1 ? 'top-9' : 'top-0'
 
   return (
@@ -271,7 +271,7 @@ function PublicLaunchPageInner() {
               {isScheduleFlow ? (
                 <>
                   This is a preview of your drop — it’s not live yet. Review everything carefully, then schedule it to go live on
-                  {' '}<strong className="text-white">{launchAtLabel || 'your launch time'}</strong>.
+                  {' '}<strong className="text-white">{launchAtLabel || 'your drop time'}</strong>.
                 </>
               ) : (
                 <>This is a preview of your drop — it’s not live yet. Review everything carefully, then publish to make it live immediately.</>
@@ -290,8 +290,8 @@ function PublicLaunchPageInner() {
           </div>
         </div>
       )}
-      {launch.is_demo && (
-        // Non-dismissible "demo page" banner. Renders only when launches.is_demo
+      {drop.is_demo && (
+        // Non-dismissible "demo page" banner. Renders only when drops.is_demo
         // is true. Warm amber / muted — intentionally distinct from real
         // success/error UI. Pushes the floating header down by ~36px (see
         // `top-9` override on the header below).
@@ -302,9 +302,9 @@ function PublicLaunchPageInner() {
       <header className={`absolute inset-x-0 z-30 ${headerTopClass}`}>
         <div className="container flex items-center justify-between py-6">
           <Link href="/" className="inline-flex items-center" aria-label="Dropvine home">
-            <DropvineLogo height={launch.is_demo ? 60 : 44} />
+            <DropvineLogo height={drop.is_demo ? 60 : 44} />
           </Link>
-          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Launch — {launch.handle}</div>
+          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Launch — {drop.handle}</div>
         </div>
       </header>
 
@@ -312,22 +312,22 @@ function PublicLaunchPageInner() {
       <section className="pt-36 pb-20 md:pt-48 md:pb-28">
         <div className="container max-w-5xl">
           <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-8" data-testid="mode-eyebrow">
-            {isLive ? 'Now open' : 'Upcoming launch'} {mode !== 'waitlist' ? `· ${mode}` : ''}
+            {isLive ? 'Now open' : 'Upcoming drop'} {mode !== 'waitlist' ? `· ${mode}` : ''}
           </div>
           <h1 className="font-serif font-light text-5xl sm:text-6xl md:text-8xl leading-[0.96] tracking-tightest text-balance">
-            {launch.title}
+            {drop.title}
           </h1>
-          {launch.tagline && (
-            <p className="mt-8 font-serif italic text-2xl md:text-3xl text-muted-foreground max-w-3xl tracking-tight">{launch.tagline}</p>
+          {drop.tagline && (
+            <p className="mt-8 font-serif italic text-2xl md:text-3xl text-muted-foreground max-w-3xl tracking-tight">{drop.tagline}</p>
           )}
-          {/* Vendor-supplied hero photo. Renders when launches.cover_url is set
+          {/* Vendor-supplied hero photo. Renders when drops.cover_url is set
               (any drop, demo or real). Aspect ratio is wide-cinematic to keep
               the page balanced with the headline above. */}
-          {launch.cover_url && (
+          {drop.cover_url && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={launch.cover_url}
-              alt={launch.title}
+              src={drop.cover_url}
+              alt={drop.title}
               className="mt-12 md:mt-16 w-full aspect-[16/9] object-cover border border-border"
               onError={(e) => { e.currentTarget.style.display = 'none' }}
             />
@@ -338,7 +338,7 @@ function PublicLaunchPageInner() {
       {/* Countdown / live — hidden on demo pages: an "Enter the drop" CTA on
           fake data is more confusing than useful. Real (non-demo) drops still
           show the live banner / countdown as before. */}
-      {!launch.is_demo && (
+      {!drop.is_demo && (
       <section className="border-y border-border bg-stone-100/60">
         <div className="container py-16 md:py-24">
           <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-6">{isLive ? 'The doors are open' : 'Opens in'}</div>
@@ -350,7 +350,7 @@ function PublicLaunchPageInner() {
               </button>
             </div>
           ) : (
-            <Countdown target={launch.launch_at} size="lg" />
+            <Countdown target={drop.launch_at} size="lg" />
           )}
         </div>
       </section>
@@ -360,22 +360,22 @@ function PublicLaunchPageInner() {
       <section className="container py-24 md:py-32 grid md:grid-cols-12 gap-12">
         <div className="md:col-span-7">
           <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">The piece</div>
-          <p className="text-lg leading-relaxed text-foreground/90 whitespace-pre-line text-pretty">{launch.description || 'No description provided.'}</p>
-          {launch.price_cents > 0 && (
+          <p className="text-lg leading-relaxed text-foreground/90 whitespace-pre-line text-pretty">{drop.description || 'No description provided.'}</p>
+          {drop.price_cents > 0 && (
             <div className="mt-12 pt-8 border-t border-border">
               <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Price at release</div>
-              <div className="font-serif text-4xl tracking-tighter">{money(launch.price_cents)}</div>
-              {launch.capacity ? (
+              <div className="font-serif text-4xl tracking-tighter">{money(drop.price_cents)}</div>
+              {drop.capacity ? (
                 <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mt-3">
-                  Limited to {launch.capacity}
+                  Limited to {drop.capacity}
                 </div>
               ) : null}
             </div>
           )}
-          {launch.pickup_details ? (
+          {drop.pickup_details ? (
             <div className="mt-10 pt-8 border-t border-border">
               <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Pickup</div>
-              <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{launch.pickup_details}</p>
+              <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{drop.pickup_details}</p>
             </div>
           ) : null}
         </div>
@@ -434,7 +434,7 @@ function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoi
   )
 }
 
-function ReservationStripePanel({ launch, email, setEmail, reservationStatus, reserving, onReserve }) {
+function ReservationStripePanel({ drop, email, setEmail, reservationStatus, reserving, onReserve }) {
   if (reservationStatus === 'held') {
     return (
       <div className="flex items-start gap-3 border border-foreground p-4 bg-foreground text-background" data-testid="reservation-held">
@@ -453,7 +453,7 @@ function ReservationStripePanel({ launch, email, setEmail, reservationStatus, re
       <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Reserve a slot</div>
       <div className="font-serif text-2xl md:text-3xl tracking-tighter">Hold your place with Stripe.</div>
       <p className="text-sm text-muted-foreground mt-4">
-        Place a refundable hold of <strong className="text-foreground">{money(launch.reservation_hold_cents)}</strong>{' '}
+        Place a refundable hold of <strong className="text-foreground">{money(drop.reservation_hold_cents)}</strong>{' '}
         via Stripe to secure your spot for this drop.
       </p>
       <div className="mt-6 space-y-2">
@@ -472,9 +472,9 @@ function ReservationStripePanel({ launch, email, setEmail, reservationStatus, re
 // amount is the Venmo subject + adds the balance-at-pickup copy.
 //
 // When `products` is non-empty, renders a catalogue grid with per-product
-// quantity steppers (hard-capped by `launch_products.quantity`). When empty,
-// falls back to the legacy single-SKU flow driven by `launch.price_cents`.
-function PreorderPanel({ launch, products, isDeposit }) {
+// quantity steppers (hard-capped by `drop_products.quantity`). When empty,
+// falls back to the legacy single-SKU flow driven by `drop.price_cents`.
+function PreorderPanel({ drop, products, isDeposit }) {
   const hasProducts = Array.isArray(products) && products.length > 0
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -493,9 +493,9 @@ function PreorderPanel({ launch, products, isDeposit }) {
 
   // -- Single-SKU helpers (legacy fallback) ---------------------------------
   const maxQty = useMemo(() => {
-    const cap = parseInt(launch?.capacity || '0', 10)
+    const cap = parseInt(drop?.capacity || '0', 10)
     return cap > 0 ? cap : 99
-  }, [launch?.capacity])
+  }, [drop?.capacity])
   const inc = () => setQty((q) => Math.min(q + 1, maxQty))
   const dec = () => setQty((q) => Math.max(1, q - 1))
 
@@ -523,22 +523,22 @@ function PreorderPanel({ launch, products, isDeposit }) {
         totalCents += parseInt(p.price_cents || 0, 10) * q
         totalQty += q
       }
-      const depositPerUnit = parseInt(launch?.reservation_hold_cents || 0, 10)
+      const depositPerUnit = parseInt(drop?.reservation_hold_cents || 0, 10)
       const depositCents = isDeposit ? depositPerUnit * totalQty : 0
       const balanceCents = isDeposit ? Math.max(0, totalCents - depositCents) : 0
       const venmoAmount = isDeposit ? depositCents : totalCents
       return { totalCents, totalQty, depositCents, balanceCents, venmoAmount }
     }
     // Legacy path
-    const unit = parseInt(launch?.price_cents || 0, 10)
+    const unit = parseInt(drop?.price_cents || 0, 10)
     const totalCents = unit * qty
-    const depositCents = isDeposit ? parseInt(launch?.reservation_hold_cents || 0, 10) * qty : 0
+    const depositCents = isDeposit ? parseInt(drop?.reservation_hold_cents || 0, 10) * qty : 0
     const balanceCents = isDeposit ? Math.max(0, totalCents - depositCents) : 0
     const venmoAmount = isDeposit ? depositCents : totalCents
     return { totalCents, totalQty: qty, depositCents, balanceCents, venmoAmount }
-  }, [hasProducts, products, productQty, qty, isDeposit, launch?.price_cents, launch?.reservation_hold_cents])
+  }, [hasProducts, products, productQty, qty, isDeposit, drop?.price_cents, drop?.reservation_hold_cents])
 
-  const venmoUrl = venmoDeepLink({ handle: launch?.venmo_handle, amountCents: totals.venmoAmount, note })
+  const venmoUrl = venmoDeepLink({ handle: drop?.venmo_handle, amountCents: totals.venmoAmount, note })
 
   const proceedToVenmo = (e) => {
     e?.preventDefault?.()
@@ -555,7 +555,7 @@ function PreorderPanel({ launch, products, isDeposit }) {
       toast.error('This drop has no price configured.')
       return
     }
-    setNote(`${launch.handle}-${randomCode4()}`)
+    setNote(`${drop.handle}-${randomCode4()}`)
     setStep('venmo')
   }
 
@@ -572,7 +572,7 @@ function PreorderPanel({ launch, products, isDeposit }) {
       } else {
         payload.quantity = qty
       }
-      const r = await fetch(`/api/drops/${launch.handle}/preorder`, {
+      const r = await fetch(`/api/drops/${drop.handle}/preorder`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
@@ -632,7 +632,7 @@ function PreorderPanel({ launch, products, isDeposit }) {
           {isDeposit ? `Send the deposit of ${money(totals.venmoAmount)}.` : `Send ${money(totals.venmoAmount)} via Venmo.`}
         </div>
         <p className="text-sm text-muted-foreground">
-          Pay <strong className="text-foreground">@{String(launch.venmo_handle).replace(/^@/, '')}</strong> the exact amount and include the note below in the Venmo memo.
+          Pay <strong className="text-foreground">@{String(drop.venmo_handle).replace(/^@/, '')}</strong> the exact amount and include the note below in the Venmo memo.
           {isDeposit ? <> Balance of <strong className="text-foreground">{money(totals.balanceCents)}</strong> due at pickup.</> : null}
         </p>
         <div className="mt-6 border border-border p-4 bg-stone-50">
@@ -675,11 +675,11 @@ function PreorderPanel({ launch, products, isDeposit }) {
       </div>
       <div className="font-serif text-2xl md:text-3xl tracking-tighter">
         {isDeposit
-          ? <>Secure your order with a <strong>{money(parseInt(launch?.reservation_hold_cents || 0, 10))} deposit</strong> via Venmo.</>
+          ? <>Secure your order with a <strong>{money(parseInt(drop?.reservation_hold_cents || 0, 10))} deposit</strong> via Venmo.</>
           : <>Pre-order via Venmo.</>}
       </div>
       {isDeposit && !hasProducts ? (
-        <p className="mt-2 text-xs text-muted-foreground">Balance of <strong className="text-foreground">{money(parseInt(launch?.price_cents || 0, 10) - parseInt(launch?.reservation_hold_cents || 0, 10))}</strong> due at pickup.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Balance of <strong className="text-foreground">{money(parseInt(drop?.price_cents || 0, 10) - parseInt(drop?.reservation_hold_cents || 0, 10))}</strong> due at pickup.</p>
       ) : null}
 
       {/* Catalogue grid (multi-product mode) */}
@@ -752,7 +752,7 @@ function PreorderPanel({ launch, products, isDeposit }) {
           <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@studio.com" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
         </div>
         {/* Legacy single-SKU quantity stepper — only when there's no product catalogue. */}
-        {!hasProducts && launch?.capacity ? (
+        {!hasProducts && drop?.capacity ? (
           <div className="space-y-2">
             <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Quantity (max {maxQty})</Label>
             <div className="inline-flex items-center border border-border">

@@ -15,10 +15,10 @@ const err = (msg, status = 400) => NextResponse.json({ error: msg }, { status })
 async function getLaunch(id) {
   const sb = getSupabaseAdmin() || getSupabaseServer()
   if (sb) {
-    const { data } = await sb.from('launches').select('*').eq('id', id).maybeSingle()
+    const { data } = await sb.from('drops').select('*').eq('id', id).maybeSingle()
     return data
   }
-  return store.launches.get(id) || null
+  return store.drops.get(id) || null
 }
 
 async function insertReservation(row) {
@@ -84,37 +84,38 @@ export async function GET(request, { params }) {
   const path = (params?.path || []).join('/')
   const url = new URL(request.url)
 
-  // GET /api/launches?creator=me  -> list current user's launches
-  if (path === 'launches') {
+  // GET /api/drops?creator=me  -> list current user's drops
+  if (path === 'drops') {
     const creatorMe = url.searchParams.get('creator') === 'me'
     const userId = await getCurrentUserId(request)
     const sb = getSupabaseServer()
     if (sb) {
-      let q = sb.from('launches').select('*').order('created_at', { ascending: false })
+      let q = sb.from('drops').select('*').order('created_at', { ascending: false })
       if (creatorMe && userId) q = q.eq('creator_id', userId)
       const { data, error } = await q
       if (error) return err(error.message, 500)
-      return json({ launches: data || [] })
+      return json({ drops: data || [] })
     }
-    const all = Array.from(store.launches.values()).sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
+    const all = Array.from(store.drops.values()).sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
     const filtered = creatorMe && userId ? all.filter(l => l.creator_id === userId) : all
-    return json({ launches: filtered })
+    return json({ drops: filtered })
   }
 
   // GET /api/launches/by-handle/[handle]
-  // Hides drafts from the public — only published / live-bound launches are returned.
-  // Also resolves the multi-product catalogue (launch_products) when present.
+  // Hides drafts from the public — only published / live-bound drops are returned.
+  // Also resolves the multi-product catalogue (drop_products) when present.
   // Falls back gracefully if the table hasn't been migrated yet.
   //
   // `?preview=true` lets a draft through AND attaches the active publish_token
   // (the vendor's email link includes ?preview=true → they can review the page
   // before clicking Publish/Schedule).
-  if (path.startsWith('launches/by-handle/')) {
-    const handle = path.replace('launches/by-handle/', '')
+  if (path.startsWith('drops/by-handle/')) {
+    const handle = path.replace('drops/by-handle/', '')
     const preview = url.searchParams.get('preview') === 'true'
-    const sb = getSupabaseServer()
+    // Use admin client for preview mode to bypass RLS (drafts are not public)
+    const sb = preview ? getSupabaseAdmin() : getSupabaseServer()
     if (sb) {
-      const { data, error } = await sb.from('launches').select('*').eq('handle', handle).maybeSingle()
+      const { data, error } = await sb.from('drops').select('*').eq('handle', handle).maybeSingle()
       if (error) return err(error.message, 500)
       if (!data) return err('not found', 404)
       if (data.status === 'draft' && !preview) return err('not found', 404)
@@ -122,9 +123,9 @@ export async function GET(request, { params }) {
       let products = []
       try {
         const { data: prods, error: pErr } = await sb
-          .from('launch_products')
+          .from('drop_products')
           .select('id, name, description, price_cents, quantity, photo_url, sort_order')
-          .eq('launch_id', data.id)
+          .eq('drop_id', data.id)
           .order('sort_order', { ascending: true })
         if (!pErr && Array.isArray(prods)) products = prods
       } catch {}
@@ -136,7 +137,7 @@ export async function GET(request, { params }) {
           const { data: tok } = await sb
             .from('publish_tokens')
             .select('token, publish_action, expires_at, used_at')
-            .eq('launch_id', data.id)
+            .eq('drop_id', data.id)
             .is('used_at', null)
             .gt('expires_at', new Date().toISOString())
             .order('created_at', { ascending: false })
@@ -145,46 +146,46 @@ export async function GET(request, { params }) {
           if (tok) publishToken = tok
         } catch {}
       }
-      return json({ launch: data, products, publish_token: publishToken })
+      return json({ drop: data, products, publish_token: publishToken })
     }
-    const found = Array.from(store.launches.values()).find(l => l.handle === handle)
+    const found = Array.from(store.drops.values()).find(l => l.handle === handle)
     if (!found) return err('not found', 404)
     if (found.status === 'draft' && !preview) return err('not found', 404)
-    return json({ launch: found, products: [], publish_token: null })
+    return json({ drop: found, products: [], publish_token: null })
   }
 
   // GET /api/launches/[id]/reservations  (creator-scoped via RLS)
-  if (path.match(/^launches\/[^/]+\/reservations$/)) {
+  if (path.match(/^drops\/[^/]+\/reservations$/)) {
     const id = path.split('/')[1]
     const sb = getSupabaseServer()
     if (sb) {
-      // RLS ensures only the launch's creator can read these rows
+      // RLS ensures only the drop's creator can read these rows
       const { data, error } = await sb
         .from('reservations')
-        .select('id,email,amount_cents,status,stripe_session_id,created_at,launch_id')
-        .eq('launch_id', id)
+        .select('id,email,amount_cents,status,stripe_session_id,created_at,drop_id')
+        .eq('drop_id', id)
         .order('created_at', { ascending: false })
       if (error) return err(error.message, 500)
       return json({ reservations: data || [] })
     }
     // Mock-mode fallback
     const userId = await getCurrentUserId(request)
-    const launch = store.launches.get(id)
-    if (!launch || launch.creator_id !== userId) return err('forbidden', 403)
-    const reservations = store.reservations.filter(r => r.launch_id === id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
+    const drop = store.drops.get(id)
+    if (!drop || drop.creator_id !== userId) return err('forbidden', 403)
+    const reservations = store.reservations.filter(r => r.drop_id === id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
     return json({ reservations })
   }
 
   // GET /api/launches/[id]/waitlist
-  if (path.match(/^launches\/[^/]+\/waitlist$/)) {
+  if (path.match(/^drops\/[^/]+\/waitlist$/)) {
     const id = path.split('/')[1]
     const sb = getSupabaseServer()
     if (sb) {
-      const { data, error } = await sb.from('waitlist_entries').select('*').eq('launch_id', id).order('created_at', { ascending: false })
+      const { data, error } = await sb.from('waitlist_entries').select('*').eq('drop_id', id).order('created_at', { ascending: false })
       if (error) return err(error.message, 500)
       return json({ entries: data || [], count: (data || []).length })
     }
-    const entries = store.waitlist.filter(w => w.launch_id === id)
+    const entries = store.waitlist.filter(w => w.drop_id === id)
     return json({ entries, count: entries.length })
   }
 
@@ -237,14 +238,14 @@ export async function POST(request, { params }) {
     return json({ id: u.id, email: u.email, display_name: u.display_name })
   }
 
-  // POST /api/launches  -> create launch
-  if (path === 'launches') {
+  // POST /api/drops  -> create drop
+  if (path === 'drops') {
     const userId = await getCurrentUserId(request)
     if (!userId) return err('not authenticated', 401)
     const required = ['handle', 'title', 'launch_at']
     for (const f of required) if (!body[f]) return err(`${f} required`)
     const sb = getSupabaseServer()
-    const launch = {
+    const drop = {
       creator_id: userId,
       handle: String(body.handle).toLowerCase().replace(/[^a-z0-9-]/g, '-'),
       title: body.title,
@@ -259,65 +260,65 @@ export async function POST(request, { params }) {
     }
     // capacity is optional and may not exist as a column yet (graceful migration)
     if (body.capacity != null && body.capacity !== '' && !isNaN(Number(body.capacity))) {
-      launch.capacity = Number(body.capacity)
+      drop.capacity = Number(body.capacity)
     }
     if (sb) {
-      const { data, error } = await sb.from('launches').insert(launch).select().single()
+      const { data, error } = await sb.from('drops').insert(drop).select().single()
       if (error) return err(error.message, 500)
-      return json({ launch: data })
+      return json({ drop: data })
     }
     const id = uuidv4()
     const created_at = new Date().toISOString()
-    const full = { id, created_at, ...launch }
-    if (Array.from(store.launches.values()).some(l => l.handle === launch.handle)) return err('handle taken', 409)
-    store.launches.set(id, full)
-    return json({ launch: full })
+    const full = { id, created_at, ...drop }
+    if (Array.from(store.drops.values()).some(l => l.handle === drop.handle)) return err('handle taken', 409)
+    store.drops.set(id, full)
+    return json({ drop: full })
   }
 
   // POST /api/launches/[id]/waitlist  -> join waitlist
-  if (path.match(/^launches\/[^/]+\/waitlist$/)) {
+  if (path.match(/^drops\/[^/]+\/waitlist$/)) {
     const id = path.split('/')[1]
     const { email, name } = body
     if (!email) return err('email required')
-    const launch = await getLaunch(id)
-    if (!launch) return err('launch not found', 404)
+    const drop = await getLaunch(id)
+    if (!drop) return err('drop not found', 404)
     const sb = getSupabaseServer()
     const baseUrl = new URL(request.url).origin
     if (sb) {
       // No .select() — anon visitors can't read back their own row (RLS), but the insert still commits.
-      const { error: insertError } = await sb.from('waitlist_entries').insert({ launch_id: id, email, name })
+      const { error: insertError } = await sb.from('waitlist_entries').insert({ drop_id: id, email, name })
       if (insertError) {
         if (String(insertError.code) === '23505') return json({ ok: true, dedup: true })
         return err(insertError.message, 500)
       }
       // Fire-and-forget email
-      notifyWaitlistConfirmed({ launch, entry: { email, name }, baseUrl }).catch(() => {})
+      notifyWaitlistConfirmed({ drop, entry: { email, name }, baseUrl }).catch(() => {})
       return json({ ok: true })
     }
-    if (store.waitlist.find(w => w.launch_id === id && w.email === email)) return json({ ok: true, dedup: true })
-    const entry = { id: uuidv4(), launch_id: id, email, name: name || '', created_at: new Date().toISOString() }
+    if (store.waitlist.find(w => w.drop_id === id && w.email === email)) return json({ ok: true, dedup: true })
+    const entry = { id: uuidv4(), drop_id: id, email, name: name || '', created_at: new Date().toISOString() }
     store.waitlist.push(entry)
-    notifyWaitlistConfirmed({ launch, entry, baseUrl }).catch(() => {})
+    notifyWaitlistConfirmed({ drop, entry, baseUrl }).catch(() => {})
     return json({ entry })
   }
 
   // POST /api/launches/[id]/reserve  -> Real Stripe Checkout Session
   // body: { email, origin_url }
-  if (path.match(/^launches\/[^/]+\/reserve$/)) {
+  if (path.match(/^drops\/[^/]+\/reserve$/)) {
     const id = path.split('/')[1]
     const { email, origin_url } = body
     if (!email) return err('email required')
     if (!origin_url) return err('origin_url required')
 
-    const launch = await getLaunch(id)
-    if (!launch) return err('launch not found', 404)
-    if (!launch.reservation_enabled) return err('reservations not enabled for this launch', 400)
-    const amountCents = Number(launch.reservation_hold_cents) || 0
+    const drop = await getLaunch(id)
+    if (!drop) return err('drop not found', 404)
+    if (!drop.reservation_enabled) return err('reservations not enabled for this drop', 400)
+    const amountCents = Number(drop.reservation_hold_cents) || 0
     if (amountCents < 50) return err('reservation amount too low', 400)
 
     // Build URLs from frontend's origin (never hardcode)
-    const success_url = `${origin_url}/l/${launch.handle}?session_id={CHECKOUT_SESSION_ID}`
-    const cancel_url = `${origin_url}/l/${launch.handle}?cancelled=1`
+    const success_url = `${origin_url}/l/${drop.handle}?session_id={CHECKOUT_SESSION_ID}`
+    const cancel_url = `${origin_url}/l/${drop.handle}?cancelled=1`
 
     let session
     try {
@@ -328,8 +329,8 @@ export async function POST(request, { params }) {
           price_data: {
             currency: 'usd',
             product_data: {
-              name: `Reservation hold — ${launch.title}`,
-              description: `Refundable hold to reserve your slot for ${launch.title}.`,
+              name: `Reservation hold — ${drop.title}`,
+              description: `Refundable hold to reserve your slot for ${drop.title}.`,
             },
             unit_amount: amountCents, // server-defined, never trust client
           },
@@ -339,8 +340,8 @@ export async function POST(request, { params }) {
         success_url,
         cancel_url,
         metadata: {
-          launch_id: String(launch.id),
-          launch_handle: launch.handle,
+          drop_id: String(drop.id),
+          launch_handle: drop.handle,
           email,
           source: 'dropvine_reservation',
         },
@@ -352,7 +353,7 @@ export async function POST(request, { params }) {
 
     // Persist reservation BEFORE redirecting (mandatory per playbook)
     const reservation = await insertReservation({
-      launch_id: launch.id,
+      drop_id: drop.id,
       email,
       amount_cents: amountCents,
       stripe_session_id: session.id,

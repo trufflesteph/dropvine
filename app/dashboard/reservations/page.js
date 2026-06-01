@@ -9,7 +9,7 @@ import { DropvineLogo } from '@/components/dropvine/logo'
 export default function ReservationsPage() {
   const router = useRouter()
   const { user, loading, signOut } = useAuth() || {}
-  const [launches, setLaunches] = useState([])
+  const [drops, setDrops] = useState([])
   const [reservations, setReservations] = useState([])
   const [fetchingLaunches, setFetchingLaunches] = useState(true)
   const [fetchingReservations, setFetchingReservations] = useState(false)
@@ -19,23 +19,23 @@ export default function ReservationsPage() {
     if (!loading && !user) router.replace('/login')
   }, [loading, user, router])
 
-  // Load launches once
+  // Load drops once
   useEffect(() => {
     if (!user) return
     const load = async () => {
       setFetchingLaunches(true)
-      const r = await fetch('/api/launches?creator=me', { headers: { 'x-user-id': user.id } })
+      const r = await fetch('/api/drops?creator=me', { headers: { 'x-user-id': user.id } })
       const d = await r.json()
-      const all = d.launches || []
+      const all = d.drops || []
       const eligible = all.filter(l => l.reservation_enabled)
-      setLaunches(eligible)
+      setDrops(eligible)
       setSelectedId(eligible[0]?.id || null)
       setFetchingLaunches(false)
     }
     load()
   }, [user]) // eslint-disable-line
 
-  // Load reservations whenever selected launch changes
+  // Load reservations whenever selected drop changes
   useEffect(() => {
     if (!selectedId || !user) { setReservations([]); return }
     const load = async () => {
@@ -48,7 +48,7 @@ export default function ReservationsPage() {
     load()
   }, [selectedId, user])
 
-  const selected = useMemo(() => launches.find(l => l.id === selectedId) || null, [launches, selectedId])
+  const selected = useMemo(() => drops.find(l => l.id === selectedId) || null, [drops, selectedId])
 
   const stats = useMemo(() => {
     const held = reservations.filter(r => r.status === 'held' || r.status === 'captured').length
@@ -91,7 +91,7 @@ export default function ReservationsPage() {
           <div className="px-6 md:px-12 py-8">
             <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Studio</div>
             <h1 className="font-serif font-light text-4xl md:text-5xl tracking-tighter">Reservations</h1>
-            <p className="mt-3 text-muted-foreground max-w-xl text-[15px]">Held slots, pending checkouts, and spots remaining — only your launches.</p>
+            <p className="mt-3 text-muted-foreground max-w-xl text-[15px]">Held slots, pending checkouts, and spots remaining — only your drops.</p>
           </div>
         </header>
 
@@ -100,11 +100,11 @@ export default function ReservationsPage() {
           <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Launch</div>
           {fetchingLaunches ? (
             <div className="text-sm text-muted-foreground">Loading…</div>
-          ) : launches.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No launches with reservations enabled. <Link href="/dashboard/launches/new" className="underline underline-offset-4 text-foreground">Create one →</Link></div>
+          ) : drops.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No drops with reservations enabled. <Link href="/dashboard/drops/new" className="underline underline-offset-4 text-foreground">Create one →</Link></div>
           ) : (
             <div className="flex gap-2 flex-wrap">
-              {launches.map(l => (
+              {drops.map(l => (
                 <button
                   key={l.id}
                   onClick={() => setSelectedId(l.id)}

@@ -54,10 +54,10 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'invalid action / status' }, { status: 400 })
   }
 
-  // Read current row (with the launch joined) so we can guard side-effects.
+  // Read current row (with the drop joined) so we can guard side-effects.
   const { data: order, error: gErr } = await supa
     .from('drop_orders')
-    .select('*, launches:launch_id(id, handle, title, pickup_details)')
+    .select('*, drops:drop_id(id, handle, title, pickup_details)')
     .eq('id', params.id)
     .maybeSingle()
   if (gErr) {
@@ -78,7 +78,7 @@ export async function PATCH(request, { params }) {
   if (!alreadyAtTarget || updates[timestampField]) {
     const { data, error: uErr } = await supa
       .from('drop_orders').update(updates).eq('id', params.id)
-      .select('*, launches:launch_id(id, handle, title, pickup_details)').single()
+      .select('*, drops:drop_id(id, handle, title, pickup_details)').single()
     if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 })
     updated = data
   }
@@ -98,8 +98,8 @@ export async function PATCH(request, { params }) {
         if (!iErr && Array.isArray(iRows)) items = iRows
       } catch {}
       emailResult = await sendDropOrderPaidConfirmation({
-        order: { ...updated, launches: undefined },
-        launch: updated.launches || null,
+        order: { ...updated, drops: undefined },
+        drop: updated.drops || null,
         items,
         to: updated.shopper_email,
       })
@@ -112,9 +112,9 @@ export async function PATCH(request, { params }) {
   // Flatten join before returning.
   const flat = {
     ...updated,
-    launch_title: updated.launches?.title || null,
-    launch_handle: updated.launches?.handle || null,
-    launches: undefined,
+    launch_title: updated.drops?.title || null,
+    launch_handle: updated.drops?.handle || null,
+    drops: undefined,
   }
   return NextResponse.json({ ok: true, order: flat, via: auth.role, alreadyAtTarget, email: emailResult })
 }

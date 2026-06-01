@@ -19,7 +19,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const SAMPLE = {
-  launch: {
+  drop: {
     id: 'sample',
     handle: 'edition-three-vessels',
     title: 'Edition Three — Vessels',
@@ -50,14 +50,14 @@ export async function POST(request) {
   if (!template || !to) return NextResponse.json({ error: 'template and to are required' }, { status: 400 })
 
   const baseUrl = new URL(request.url).origin
-  const viewUrl = `${baseUrl}/l/${SAMPLE.launch.handle}`
+  const viewUrl = `${baseUrl}/l/${SAMPLE.drop.handle}`
 
   const map = {
-    waitlist: { subject: `You’re on the list — ${SAMPLE.launch.title}`, react: WaitlistConfirmation({ launch: SAMPLE.launch, name: 'Studio', viewUrl }) },
-    reservation: { subject: `Reservation held — ${SAMPLE.launch.title}`, react: ReservationConfirmation({ launch: SAMPLE.launch, reservation: { ...SAMPLE.reservation, email: to }, viewUrl }) },
-    reminder: { subject: `Reminder — ${SAMPLE.launch.title} opens soon`, react: LaunchReminder({ launch: SAMPLE.launch, hoursUntil: 24, viewUrl }) },
-    live: { subject: `It’s open — ${SAMPLE.launch.title}`, react: LaunchLive({ launch: SAMPLE.launch, viewUrl }) },
-    soldout: { subject: `Sold out — ${SAMPLE.launch.title}`, react: SoldOut({ launch: SAMPLE.launch, capacity: SAMPLE.launch.capacity, dashboardUrl: `${baseUrl}/dashboard/reservations` }) },
+    waitlist: { subject: `You’re on the list — ${SAMPLE.drop.title}`, react: WaitlistConfirmation({ drop: SAMPLE.drop, name: 'Studio', viewUrl }) },
+    reservation: { subject: `Reservation held — ${SAMPLE.drop.title}`, react: ReservationConfirmation({ drop: SAMPLE.drop, reservation: { ...SAMPLE.reservation, email: to }, viewUrl }) },
+    reminder: { subject: `Reminder — ${SAMPLE.drop.title} opens soon`, react: LaunchReminder({ drop: SAMPLE.drop, hoursUntil: 24, viewUrl }) },
+    live: { subject: `It’s open — ${SAMPLE.drop.title}`, react: LaunchLive({ drop: SAMPLE.drop, viewUrl }) },
+    soldout: { subject: `Sold out — ${SAMPLE.drop.title}`, react: SoldOut({ drop: SAMPLE.drop, capacity: SAMPLE.drop.capacity, dashboardUrl: `${baseUrl}/dashboard/reservations` }) },
   }
   const choice = map[template]
   if (!choice) return NextResponse.json({ error: 'unknown template' }, { status: 400 })

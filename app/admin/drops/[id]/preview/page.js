@@ -8,7 +8,7 @@ import { Countdown } from '@/components/dropvine/countdown'
 import { toast } from 'sonner'
 import { Loader2, ArrowRight, Trash2, CheckCircle2, AlertTriangle, Clock, BellRing, BellOff, Send, Plus, X, GripVertical, Image as ImageIcon, Save } from 'lucide-react'
 
-// Admin draft-drop preview — renders the launch identical to /l/[handle],
+// Admin draft-drop preview — renders the drop identical to /l/[handle],
 // with a fixed banner on top for review actions (publish / delete).
 // All admin-only chrome lives in the banner; the preview body is a faithful
 // reproduction of the public page so the reviewer sees exactly what shoppers will.
@@ -36,7 +36,7 @@ function fmtPretty(iso) {
 export default function AdminDropPreviewPage() {
   const { id } = useParams()
   const router = useRouter()
-  const [launch, setLaunch] = useState(null)
+  const [drop, setDrop] = useState(null)
   const [creator, setCreator] = useState(null)
   const [loading, setLoading] = useState(true)
   const [publishing, setPublishing] = useState(false)
@@ -54,7 +54,7 @@ export default function AdminDropPreviewPage() {
         const r = await adminFetch(`/api/market/admin/drops/${id}`)
         if (r.status === 404) { if (!cancelled) setNotFound(true); return }
         const d = await r.json()
-        if (!cancelled) { setLaunch(d.launch); setCreator(d.creator) }
+        if (!cancelled) { setDrop(d.drop); setCreator(d.creator) }
       } catch (e) {
         if (!cancelled) toast.error(e?.message || 'Failed to load')
       } finally {
@@ -65,21 +65,21 @@ export default function AdminDropPreviewPage() {
     return () => { cancelled = true }
   }, [id])
 
-  // Keep the datetime-local field in sync when launch loads / changes.
+  // Keep the datetime-local field in sync when drop loads / changes.
   useEffect(() => {
-    if (launch?.notify_at) setNotifyAtInput(toLocalInput(launch.notify_at))
+    if (drop?.notify_at) setNotifyAtInput(toLocalInput(drop.notify_at))
     else setNotifyAtInput('')
-  }, [launch?.notify_at])
+  }, [drop?.notify_at])
 
   const publish = async () => {
-    if (!launch) return
+    if (!drop) return
     setPublishing(true)
     try {
       const body = {}
       const iso = fromLocalInput(notifyAtInput)
       // Always send the key so the server applies our intent (null = send immediately).
       body.notify_at = iso
-      const r = await adminFetch(`/api/market/admin/drops/${launch.id}/publish`, {
+      const r = await adminFetch(`/api/market/admin/drops/${drop.id}/publish`, {
         method: 'PATCH', body: JSON.stringify(body),
       })
       const d = await r.json()
@@ -87,7 +87,7 @@ export default function AdminDropPreviewPage() {
       if (d.already) toast.success('Already published.')
       else if (d.scheduled) toast.success(`Published. Notification scheduled for ${fmtPretty(d.scheduled_for)}.`)
       else toast.success('Published — notification sent.')
-      setLaunch(d.launch)
+      setDrop(d.drop)
     } catch (e) {
       toast.error(e?.message || 'Publish failed')
     } finally {
@@ -96,20 +96,20 @@ export default function AdminDropPreviewPage() {
   }
 
   const sendNow = async () => {
-    if (!launch) return
+    if (!drop) return
     if (!confirm('Send the notification to the waitlist right now?')) return
     setSendingNow(true)
     try {
-      const r = await adminFetch(`/api/market/admin/drops/${launch.id}/notify-now`, { method: 'POST', body: '{}' })
+      const r = await adminFetch(`/api/market/admin/drops/${drop.id}/notify-now`, { method: 'POST', body: '{}' })
       const d = await r.json()
       if (!r.ok || d?.error) { toast.error(d?.error || 'Send failed'); return }
       if (d.alreadyNotified) toast('Already notified.')
       else if (d.skipped) toast(`Skipped: ${d.skipped}`)
       else toast.success(`Sent. Email: ${d?.sent?.email ?? 0}, SMS: ${d?.sent?.sms ?? 0}`)
-      // Refresh launch row so banner reflects the new notified_at.
-      const lr = await adminFetch(`/api/market/admin/drops/${launch.id}`)
+      // Refresh drop row so banner reflects the new notified_at.
+      const lr = await adminFetch(`/api/market/admin/drops/${drop.id}`)
       const ld = await lr.json()
-      if (ld?.launch) setLaunch(ld.launch)
+      if (ld?.drop) setDrop(ld.drop)
     } catch (e) {
       toast.error(e?.message || 'Send failed')
     } finally {
@@ -118,11 +118,11 @@ export default function AdminDropPreviewPage() {
   }
 
   const remove = async () => {
-    if (!launch) return
-    if (!confirm(`Delete this draft permanently? “${launch.title}” will be removed.`)) return
+    if (!drop) return
+    if (!confirm(`Delete this draft permanently? “${drop.title}” will be removed.`)) return
     setDeleting(true)
     try {
-      const r = await adminFetch(`/api/market/admin/drops/${launch.id}`, { method: 'DELETE' })
+      const r = await adminFetch(`/api/market/admin/drops/${drop.id}`, { method: 'DELETE' })
       const d = await r.json().catch(() => ({}))
       if (!r.ok || d?.error) { toast.error(d?.error || 'Delete failed'); return }
       toast.success('Draft deleted.')
@@ -148,11 +148,11 @@ export default function AdminDropPreviewPage() {
       </AdminShell>
     )
   }
-  if (!launch) return null
+  if (!drop) return null
 
-  const isDraft = launch.status === 'draft'
-  const isLive = new Date(launch.launch_at) <= new Date()
-  const submittedAt = launch.created_at ? new Date(launch.created_at).toLocaleString() : '—'
+  const isDraft = drop.status === 'draft'
+  const isLive = new Date(drop.launch_at) <= new Date()
+  const submittedAt = drop.created_at ? new Date(drop.created_at).toLocaleString() : '—'
 
   return (
     <div>
@@ -201,7 +201,7 @@ export default function AdminDropPreviewPage() {
               </>
             ) : (
               <Link
-                href={`/l/${launch.handle}`}
+                href={`/l/${drop.handle}`}
                 className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-stone-900 text-stone-50"
               >
                 View public page <ArrowRight className="w-3 h-3" />
@@ -212,7 +212,7 @@ export default function AdminDropPreviewPage() {
 
         {/* Notification scheduling row — visible for draft + published */}
         <NotifyRow
-          launch={launch}
+          drop={drop}
           isDraft={isDraft}
           notifyAtInput={notifyAtInput}
           setNotifyAtInput={setNotifyAtInput}
@@ -226,7 +226,7 @@ export default function AdminDropPreviewPage() {
         <header className="absolute top-12 inset-x-0 z-20">
           <div className="container flex items-center justify-between py-6">
             <Link href="/" className="font-serif text-lg tracking-tighter">Dropvine</Link>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Launch — {launch.handle}</div>
+            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Launch — {drop.handle}</div>
           </div>
         </header>
 
@@ -234,22 +234,22 @@ export default function AdminDropPreviewPage() {
         <section className="pt-44 pb-20 md:pt-56 md:pb-28">
           <div className="container max-w-5xl">
             <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-8">
-              {isLive ? 'Now open' : 'Upcoming launch'}
+              {isLive ? 'Now open' : 'Upcoming drop'}
             </div>
             <h1 className="font-serif font-light text-5xl sm:text-6xl md:text-8xl leading-[0.96] tracking-tight text-balance">
-              {launch.title}
+              {drop.title}
             </h1>
-            {launch.tagline ? (
-              <p className="mt-8 font-serif italic text-2xl md:text-3xl text-muted-foreground max-w-3xl tracking-tight">{launch.tagline}</p>
+            {drop.tagline ? (
+              <p className="mt-8 font-serif italic text-2xl md:text-3xl text-muted-foreground max-w-3xl tracking-tight">{drop.tagline}</p>
             ) : null}
           </div>
         </section>
 
         {/* Cover image */}
-        {launch.cover_url ? (
+        {drop.cover_url ? (
           <section className="container max-w-5xl pb-12">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={launch.cover_url} alt="" className="w-full h-auto border border-border" />
+            <img src={drop.cover_url} alt="" className="w-full h-auto border border-border" />
           </section>
         ) : null}
 
@@ -262,7 +262,7 @@ export default function AdminDropPreviewPage() {
             {isLive ? (
               <div className="font-serif text-5xl md:text-7xl tracking-tight">It’s time.</div>
             ) : (
-              <Countdown target={launch.launch_at} size="lg" />
+              <Countdown target={drop.launch_at} size="lg" />
             )}
           </div>
         </section>
@@ -272,18 +272,18 @@ export default function AdminDropPreviewPage() {
           <div className="md:col-span-7">
             <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">The piece</div>
             <p className="text-lg leading-relaxed text-foreground/90 whitespace-pre-line text-pretty">
-              {launch.description || 'No description provided.'}
+              {drop.description || 'No description provided.'}
             </p>
-            {launch.price_cents > 0 ? (
+            {drop.price_cents > 0 ? (
               <div className="mt-12 pt-8 border-t border-border">
                 <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Price at release</div>
-                <div className="font-serif text-4xl tracking-tight">${(launch.price_cents / 100).toFixed(2)}</div>
+                <div className="font-serif text-4xl tracking-tight">${(drop.price_cents / 100).toFixed(2)}</div>
               </div>
             ) : null}
-            {launch.pickup_details ? (
+            {drop.pickup_details ? (
               <div className="mt-8 pt-8 border-t border-border">
                 <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Pickup &amp; collection</div>
-                <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-line">{launch.pickup_details}</p>
+                <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-line">{drop.pickup_details}</p>
               </div>
             ) : null}
           </div>
@@ -292,12 +292,12 @@ export default function AdminDropPreviewPage() {
             <div className="border border-border p-8 md:p-10 bg-background">
               <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Reserve / Order</div>
               <div className="font-serif text-2xl md:text-3xl tracking-tight">
-                {launch.collection_mode === 'pre-order' ? 'Pre-order this drop.' : 'Be present at release.'}
+                {drop.collection_mode === 'pre-order' ? 'Pre-order this drop.' : 'Be present at release.'}
               </div>
               <p className="mt-4 text-sm text-muted-foreground">
-                Capacity: <strong className="text-foreground">{launch.capacity ?? 'unlimited'}</strong><br />
-                Collection mode: <strong className="text-foreground">{launch.collection_mode || 'pre-order'}</strong>
-                {launch.venmo_handle ? <><br />Pay-to: <strong className="text-foreground">@{launch.venmo_handle}</strong></> : null}
+                Capacity: <strong className="text-foreground">{drop.capacity ?? 'unlimited'}</strong><br />
+                Collection mode: <strong className="text-foreground">{drop.collection_mode || 'pre-order'}</strong>
+                {drop.venmo_handle ? <><br />Pay-to: <strong className="text-foreground">@{drop.venmo_handle}</strong></> : null}
               </p>
               <p className="mt-6 text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
                 (Live ordering UI appears once published.)
@@ -306,15 +306,15 @@ export default function AdminDropPreviewPage() {
           </aside>
         </section>
 
-        {/* Product catalogue editor — admins can curate launch_products here. */}
+        {/* Product catalogue editor — admins can curate drop_products here. */}
         <section className="container max-w-5xl pb-24">
-          <ProductsEditor launchId={launch.id} />
+          <ProductsEditor launchId={drop.id} />
         </section>
 
         {/* Gallery */}
-        {Array.isArray(launch.photo_urls) && launch.photo_urls.length ? (
+        {Array.isArray(drop.photo_urls) && drop.photo_urls.length ? (
           <section className="container max-w-5xl pb-24 grid grid-cols-2 md:grid-cols-3 gap-3">
-            {launch.photo_urls.map((u, i) => (
+            {drop.photo_urls.map((u, i) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img key={i} src={u} alt="" className="w-full h-auto border border-border" />
             ))}
@@ -331,7 +331,7 @@ export default function AdminDropPreviewPage() {
 //   2. Published + future notify_at + null notified_at → "Notification scheduled for …" + "Send now".
 //   3. Published + notified_at set → "Notification sent …" (green).
 //   4. Published + both null → "Notification not sent" + "Send now".
-function NotifyRow({ launch, isDraft, notifyAtInput, setNotifyAtInput, sendingNow, sendNow }) {
+function NotifyRow({ drop, isDraft, notifyAtInput, setNotifyAtInput, sendingNow, sendNow }) {
   const tone = (bg, fg, border) => ({ background: bg, color: fg, borderColor: border })
 
   if (isDraft) {
@@ -362,8 +362,8 @@ function NotifyRow({ launch, isDraft, notifyAtInput, setNotifyAtInput, sendingNo
 
   // Published states
   const now = new Date()
-  const notifyAt = launch.notify_at ? new Date(launch.notify_at) : null
-  const notifiedAt = launch.notified_at ? new Date(launch.notified_at) : null
+  const notifyAt = drop.notify_at ? new Date(drop.notify_at) : null
+  const notifiedAt = drop.notified_at ? new Date(drop.notified_at) : null
   const fmt = (d) => d ? d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : ''
 
   if (notifiedAt) {
@@ -414,7 +414,7 @@ function NotifyRow({ launch, isDraft, notifyAtInput, setNotifyAtInput, sendingNo
 
 
 // ---------------------------------------------------------------------------
-// Products editor — manage launch_products for this launch. Renders below the
+// Products editor — manage drop_products for this drop. Renders below the
 // preview body. When at least one row is saved, the public /l/[handle] page
 // switches from single-SKU mode to the catalogue grid.
 // ---------------------------------------------------------------------------
@@ -689,7 +689,7 @@ function ProductsEditor({ launchId }) {
 
       {migrationPending ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 text-amber-900 px-3 py-2 text-xs mb-4">
-          The <code>launch_products</code> table has not been provisioned yet.
+          The <code>drop_products</code> table has not been provisioned yet.
           Apply <code className="mx-1">supabase/migrations/2026-06-multi-product.sql</code> in your Supabase SQL editor
           to enable multi-product drops.
         </div>
