@@ -2,10 +2,10 @@ import * as React from 'react'
 import { EmailShell, H1, Eyebrow, P, CTA, Italic } from './_shared'
 
 // 24h-pre-close last-call.
-export function DropClosingSoon({ launch, subscriberName, viewUrl, closesAtLabel }) {
+export function DropClosingSoon({ launch, subscriberName, viewUrl, closesAtLabel, planTier }) {
   const title = launch?.title || 'A drop'
   return (
-    <EmailShell preview={`Closes soon — ${title}`}>
+    <EmailShell preview={`Closes soon — ${title}`} planTier={planTier}>
       <Eyebrow>Last call</Eyebrow>
       <H1>Closes in 24 hours.</H1>
       <P>

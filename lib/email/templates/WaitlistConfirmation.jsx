@@ -1,11 +1,11 @@
 import * as React from 'react'
 import { EmailShell, H1, Eyebrow, P, CTA, Divider, Italic } from './_shared'
 
-export function WaitlistConfirmation({ launch, name, viewUrl }) {
+export function WaitlistConfirmation({ launch, name, viewUrl, planTier }) {
   const greeting = name ? `${name},` : 'You’re on the list.'
   const opensAt = launch?.launch_at ? new Date(launch.launch_at).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }) : ''
   return (
-    <EmailShell preview={`You're on the waitlist for ${launch?.title || 'this launch'}.`}>
+    <EmailShell preview={`You're on the waitlist for ${launch?.title || 'this launch'}.`} planTier={planTier}>
       <Eyebrow>Waitlist confirmed</Eyebrow>
       <H1>{greeting}</H1>
       <P>

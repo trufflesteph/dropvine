@@ -206,8 +206,8 @@ function DirectOrdersInner() {
                     </td>
                     <td className="px-4 py-3 font-mono text-xs">{o.short_code}</td>
                     <td className="px-4 py-3">
-                      <div className="font-serif text-stone-900">{o.launch_title || '—'}</div>
-                      {o.launch_handle ? <div className="text-[11px] text-stone-400 font-mono">/l/{o.launch_handle}</div> : null}
+                      <div className="font-serif text-stone-900">{o.drop_title || '—'}</div>
+                      {o.drop_handle ? <div className="text-[11px] text-stone-400 font-mono">/l/{o.drop_handle}</div> : null}
                     </td>
                     <td className="px-4 py-3 text-stone-700">
                       <div>{o.shopper_email}</div>

@@ -1,12 +1,15 @@
 // /api/launches/publish/[token]
 //
 // One-shot link clicked from the DropSubmissionConfirmation email.
+// NOTE: URL path intentionally preserved as `/api/launches/publish/...` so
+// that previously-sent vendor emails don't 404. Internally everything talks
+// to the renamed `drops` table.
 //
 // On a valid token:
-//   • publish_action='publish'  → launches.status = 'published'
-//   • publish_action='schedule' → launches.status = 'scheduled'
+//   • publish_action='publish'  → drops.status = 'published'
+//   • publish_action='schedule' → drops.status = 'scheduled'
 // Either way:
-//   • release every email_schedules.hold for this launch
+//   • release every email_schedules.hold for this drop
 //   • stamp publish_tokens.used_at = now()
 //   • 302 redirect to /l/[handle]
 //
@@ -63,7 +66,7 @@ export async function GET(request, { params }) {
   // 1) Look up the token.
   const { data: tok, error: tokErr } = await supa
     .from('publish_tokens')
-    .select('id, launch_id, publish_action, expires_at, used_at')
+    .select('id, drop_id, publish_action, expires_at, used_at')
     .eq('token', token)
     .maybeSingle()
   if (tokErr) {
@@ -100,24 +103,24 @@ export async function GET(request, { params }) {
   const action = tok.publish_action === 'schedule' ? 'schedule' : 'publish'
   const newStatus = action === 'schedule' ? 'scheduled' : 'published'
 
-  // 3) Flip the launch + grab the handle for the redirect.
-  const { data: launch, error: launchErr } = await supa
-    .from('launches')
+  // 3) Flip the drop + grab the handle for the redirect.
+  const { data: drop, error: dropErr } = await supa
+    .from('drops')
     .update({ status: newStatus })
-    .eq('id', tok.launch_id)
+    .eq('id', tok.drop_id)
     .select('id, handle, status, launch_at')
     .maybeSingle()
-  if (launchErr || !launch) {
-    return htmlError(500, { title: 'Could not update your drop.', message: launchErr?.message || 'launch not found' })
+  if (dropErr || !drop) {
+    return htmlError(500, { title: 'Could not update your drop.', message: dropErr?.message || 'drop not found' })
   }
 
-  // 4) Release every email_schedules hold for this launch. Tolerates the
+  // 4) Release every email_schedules hold for this drop. Tolerates the
   //    column not existing (older DBs without the new migration applied).
   try {
     await supa
       .from('email_schedules')
       .update({ hold: false })
-      .eq('launch_id', launch.id)
+      .eq('drop_id', drop.id)
       .eq('hold', true)
   } catch (e) {
     console.warn('[publish] release-holds non-fatal:', e?.message || e)
@@ -131,7 +134,7 @@ export async function GET(request, { params }) {
     .eq('id', tok.id)
 
   // 6) Send the vendor to their now-live (or now-scheduled) drop.
-  const url = new URL(`/l/${launch.handle}`, request.url)
+  const url = new URL(`/l/${drop.handle}`, request.url)
   url.searchParams.set('just_published', action)
   return NextResponse.redirect(url, { status: 302 })
 }

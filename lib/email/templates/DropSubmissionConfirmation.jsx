@@ -17,7 +17,7 @@ import { EmailShell, H1, Eyebrow, P, CTA, Detail, Divider, Italic } from './_sha
 //   publishAction   — 'publish' | 'schedule'
 //   previewUrl      — absolute https URL to /l/[handle]?preview=true
 //   confirmUrl      — absolute https URL to /api/launches/publish/[token]
-export function DropSubmissionConfirmation({ launch, publishAction, previewUrl, confirmUrl, launchAtLabel, closesAtLabel }) {
+export function DropSubmissionConfirmation({ launch, publishAction, previewUrl, confirmUrl, launchAtLabel, closesAtLabel, planTier }) {
   const isSchedule = publishAction === 'schedule'
   const title = launch?.title || 'Your drop'
   const mode = launch?.collection_mode || null
@@ -28,7 +28,7 @@ export function DropSubmissionConfirmation({ launch, publishAction, previewUrl, 
     : `Your drop is ready to preview — ${title}`
 
   return (
-    <EmailShell preview={previewSubject}>
+    <EmailShell preview={previewSubject} planTier={planTier}>
       <Eyebrow>Submission received</Eyebrow>
       <H1>Your drop is ready to preview.</H1>
       <P>

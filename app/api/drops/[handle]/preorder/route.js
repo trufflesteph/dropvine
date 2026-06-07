@@ -4,6 +4,13 @@
 // and emails the shopper a Venmo-payment receipt. Used by the public
 // /l/[handle] page when collection_mode is 'pre-order' or 'deposit'.
 //
+//
+// NOTE on `launch_product_id`: this is the actual column name on the
+// `drop_order_items` table (created by 2026-06-multi-product.sql). The
+// June 2026 launches→drops rename migration deliberately did NOT rename
+// this column, so the code below uses `launch_product_id` to match the
+// live DB schema. Do not "fix" this without first renaming the column.
+//
 // Body:
 //   {
 //     email:      string (required),

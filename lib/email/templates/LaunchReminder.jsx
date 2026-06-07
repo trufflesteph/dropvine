@@ -1,11 +1,11 @@
 import * as React from 'react'
 import { EmailShell, H1, Eyebrow, P, CTA, Italic, Divider } from './_shared'
 
-export function LaunchReminder({ launch, viewUrl, hoursUntil }) {
+export function LaunchReminder({ launch, viewUrl, hoursUntil, planTier }) {
   const opensAt = launch?.launch_at ? new Date(launch.launch_at).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }) : ''
   const headline = hoursUntil && hoursUntil <= 1 ? 'Opening shortly.' : (hoursUntil && hoursUntil < 24 ? 'Opening today.' : 'Opening soon.')
   return (
-    <EmailShell preview={`${launch?.title || 'A launch'} opens ${opensAt ? `on ${opensAt}` : 'soon'}.`}>
+    <EmailShell preview={`${launch?.title || 'A launch'} opens ${opensAt ? `on ${opensAt}` : 'soon'}.`} planTier={planTier}>
       <Eyebrow>A reminder</Eyebrow>
       <H1>{headline}</H1>
       <P>

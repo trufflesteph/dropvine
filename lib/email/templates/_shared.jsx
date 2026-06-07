@@ -124,7 +124,11 @@ const styles = {
   },
 }
 
-export function EmailShell({ preview, children }) {
+export function EmailShell({ preview, children, planTier }) {
+  // Show "Powered by Dropvine" footer for free + maker tiers; hide for shop.
+  // planTier may be undefined (legacy callers / Markets module emails) — in
+  // that case we DO show the watermark (safe default for unknown tiers).
+  const showWatermark = (planTier || 'free') !== 'shop'
   return (
     <Html>
       <Head />
@@ -140,6 +144,11 @@ export function EmailShell({ preview, children }) {
             <Text style={{ ...styles.detailRow, margin: 0 }}>
               Dropvine — a quieter way to launch.
             </Text>
+            {showWatermark ? (
+              <Text style={{ ...styles.detailRow, margin: '12px 0 0', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+                Powered by <a href="https://dropvine.pro" style={{ color: BRAND.muted, textDecoration: 'underline' }}>Dropvine</a>
+              </Text>
+            ) : null}
           </Section>
         </Container>
       </Body>

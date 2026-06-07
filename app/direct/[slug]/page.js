@@ -5,7 +5,12 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Nav } from '@/components/dropvine/nav'
 import { Footer } from '@/components/dropvine/footer'
-import { ArrowRight, ExternalLink, Instagram, Globe, Loader2 } from 'lucide-react'
+import { ArrowRight, ExternalLink, Instagram, Globe, Loader2, Heart, Check, MapPin } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 
 // Public vendor profile page — /direct/[slug]
 //
@@ -121,6 +126,21 @@ export default function VendorProfilePage() {
             <h1 className="font-serif font-light text-5xl md:text-7xl leading-[0.96] tracking-tightest text-balance">
               {v.business_name}
             </h1>
+            {(v.category || v.location_city) ? (
+              <div className="mt-4 flex items-center flex-wrap gap-3">
+                {v.category ? (
+                  <span className="text-[10px] uppercase tracking-[0.22em] px-2 py-1 bg-stone-100 text-foreground border border-border">
+                    {v.category}
+                  </span>
+                ) : null}
+                {v.location_city ? (
+                  <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {[v.location_city, v.location_state].filter(Boolean).join(', ')}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             {v.bio ? (
               <p className="mt-8 text-base md:text-lg text-muted-foreground leading-relaxed text-pretty max-w-2xl whitespace-pre-line">
                 {v.bio}
@@ -152,6 +172,12 @@ export default function VendorProfilePage() {
                 </a>
               ) : null}
             </div>
+
+            {/* Follow button — Shop-tier only. Modal collects email + optional
+                phone + SMS opt-in. Powers the cron SMS broadcast on drop open. */}
+            {v.tier === 'shop' ? (
+              <FollowSection slug={v.slug} vendorName={v.business_name} />
+            ) : null}
           </div>
         </div>
       </section>
@@ -266,3 +292,169 @@ function DropCard({ drop }) {
     </Link>
   )
 }
+
+// ---------------------------------------------------------------------------
+// FollowSection — Shop-tier exclusive. Renders a "Follow this maker" button
+// and a modal that collects email + optional phone + SMS opt-in. Posts to
+// /api/direct/[slug]/follow which upserts the row in direct_vendor_follows.
+// ---------------------------------------------------------------------------
+
+function FollowSection({ slug, vendorName }) {
+  const [open, setOpen] = useState(false)
+  const [count, setCount] = useState(null)
+  const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [smsOptIn, setSmsOptIn] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [done, setDone] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch(`/api/direct/${encodeURIComponent(slug)}/follow`)
+        const d = await r.json()
+        if (!cancelled && r.ok && typeof d.count === 'number') setCount(d.count)
+      } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [slug])
+
+  async function submit(e) {
+    e?.preventDefault?.()
+    setError(null)
+    setSubmitting(true)
+    try {
+      const r = await fetch(`/api/direct/${encodeURIComponent(slug)}/follow`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name, phone, sms_opt_in: smsOptIn }),
+      })
+      const d = await r.json()
+      if (!r.ok || !d.ok) {
+        setError(d?.error || 'Something went wrong.')
+      } else {
+        setDone(true)
+        setCount((c) => (typeof c === 'number' ? c + 1 : c))
+      }
+    } catch (e) {
+      setError(e?.message || 'Network error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  function reset() {
+    setEmail(''); setName(''); setPhone(''); setSmsOptIn(false); setDone(false); setError(null)
+  }
+
+  return (
+    <>
+      <div className="mt-8 flex flex-wrap items-center gap-4">
+        <Button
+          onClick={() => { reset(); setOpen(true) }}
+          className="rounded-none border border-foreground bg-foreground text-background hover:bg-background hover:text-foreground transition gap-2"
+        >
+          <Heart className="h-4 w-4" />
+          Follow {vendorName?.split(' ')[0] || 'this maker'}
+        </Button>
+        {typeof count === 'number' && count > 0 ? (
+          <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+            {count} {count === 1 ? 'follower' : 'followers'}
+          </div>
+        ) : null}
+      </div>
+
+      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>
+        <DialogContent className="rounded-none border border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif font-light text-3xl tracking-tightest">
+              {done ? 'You’re in.' : `Follow ${vendorName || 'this maker'}.`}
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground leading-relaxed pt-2">
+              {done
+                ? `We’ll let you know the moment ${vendorName || 'they'} drops something next.${smsOptIn ? ' You’ll also get a text.' : ''}`
+                : 'Get notified by email when they open a new drop. Add your number to also get a text (Shop tier perk).'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {done ? (
+            <div className="pt-2">
+              <div className="flex items-center gap-2 text-sm text-foreground">
+                <Check className="h-4 w-4" /> Confirmed for {email}.
+              </div>
+              <Button
+                onClick={() => setOpen(false)}
+                className="mt-6 rounded-none border border-foreground bg-foreground text-background hover:bg-background hover:text-foreground w-full"
+              >
+                Close
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={submit} className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label htmlFor="follow-email" className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Email *</Label>
+                <Input
+                  id="follow-email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="rounded-none border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="follow-name" className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Name (optional)</Label>
+                <Input
+                  id="follow-name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="First name"
+                  className="rounded-none border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="follow-phone" className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Phone (optional)</Label>
+                <Input
+                  id="follow-phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="(555) 123-4567"
+                  className="rounded-none border-border"
+                />
+              </div>
+              <label className={`flex items-start gap-3 cursor-pointer text-sm ${phone ? 'text-foreground' : 'text-muted-foreground opacity-60 cursor-not-allowed'}`}>
+                <Checkbox
+                  checked={smsOptIn}
+                  disabled={!phone}
+                  onCheckedChange={(c) => setSmsOptIn(!!c)}
+                  className="mt-0.5 rounded-none"
+                />
+                <span className="leading-snug">
+                  Also text me when {vendorName?.split(' ')[0] || 'they'} drops something.
+                  <span className="block text-[11px] text-muted-foreground mt-0.5">Reply STOP anytime to opt out.</span>
+                </span>
+              </label>
+              {error ? (
+                <div className="text-sm text-red-700 bg-red-50 border border-red-200 px-3 py-2">{error}</div>
+              ) : null}
+              <Button
+                type="submit"
+                disabled={submitting || !email}
+                className="rounded-none border border-foreground bg-foreground text-background hover:bg-background hover:text-foreground w-full"
+              >
+                {submitting ? (<><Loader2 className="h-4 w-4 animate-spin mr-2" /> Following…</>) : 'Follow'}
+              </Button>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+

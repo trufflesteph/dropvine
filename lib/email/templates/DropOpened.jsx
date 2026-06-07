@@ -2,10 +2,10 @@ import * as React from 'react'
 import { EmailShell, H1, Eyebrow, P, CTA, Italic } from './_shared'
 
 // Fan-out email when a drop opens. Sent once per (launch, subscriber).
-export function DropOpened({ launch, subscriberName, viewUrl }) {
+export function DropOpened({ launch, subscriberName, viewUrl, planTier }) {
   const title = launch?.title || 'A drop'
   return (
-    <EmailShell preview={`${title} is open.`}>
+    <EmailShell preview={`${title} is open.`} planTier={planTier}>
       <Eyebrow>Now open</Eyebrow>
       <H1>The doors are open.</H1>
       <P>

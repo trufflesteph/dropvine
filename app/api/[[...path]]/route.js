@@ -119,6 +119,44 @@ export async function GET(request, { params }) {
       if (error) return err(error.message, 500)
       if (!data) return err('not found', 404)
       if (data.status === 'draft' && !preview) return err('not found', 404)
+      // Phase C: hide auto-archived (free-tier 5-day-after-close) drops from
+      // the public. The vendor's own preview mode still sees them.
+      if (data.status === 'archived' && !preview) return err('not found', 404)
+      // Phase C: resolve the vendor's plan_tier so the UI can hide the
+      // "Powered by Dropvine" watermark for Shop-tier creators.
+      // Also (June 2026 directory update) pull category + location from
+      // direct_vendors so the drop page can surface a category pill +
+      // "City, State" line under the headline.
+      let creatorPlanTier = 'free'
+      let vendorCategory = null
+      let vendorLocationCity = null
+      let vendorLocationState = null
+      let vendorBusinessName = null
+      let vendorSlug = null
+      if (data.creator_id) {
+        try {
+          const { data: prof } = await sb
+            .from('profiles')
+            .select('plan_tier')
+            .eq('id', data.creator_id)
+            .maybeSingle()
+          if (prof?.plan_tier) creatorPlanTier = prof.plan_tier
+        } catch {}
+        try {
+          const { data: dv } = await sb
+            .from('direct_vendors')
+            .select('slug, business_name, category, location_city, location_state')
+            .eq('creator_id', data.creator_id)
+            .maybeSingle()
+          if (dv) {
+            vendorCategory = dv.category || null
+            vendorLocationCity = dv.location_city || null
+            vendorLocationState = dv.location_state || null
+            vendorBusinessName = dv.business_name || null
+            vendorSlug = dv.slug || null
+          }
+        } catch {}
+      }
       // Resolve products (best-effort — empty list ⇒ legacy single-price UI).
       let products = []
       try {
@@ -146,12 +184,21 @@ export async function GET(request, { params }) {
           if (tok) publishToken = tok
         } catch {}
       }
-      return json({ drop: data, products, publish_token: publishToken })
+      return json({ drop: {
+        ...data,
+        creator_plan_tier: creatorPlanTier,
+        vendor_category: vendorCategory,
+        vendor_location_city: vendorLocationCity,
+        vendor_location_state: vendorLocationState,
+        vendor_business_name: vendorBusinessName,
+        vendor_slug: vendorSlug,
+      }, products, publish_token: publishToken })
     }
     const found = Array.from(store.drops.values()).find(l => l.handle === handle)
     if (!found) return err('not found', 404)
     if (found.status === 'draft' && !preview) return err('not found', 404)
-    return json({ drop: found, products: [], publish_token: null })
+    if (found.status === 'archived' && !preview) return err('not found', 404)
+    return json({ drop: { ...found, creator_plan_tier: 'free', vendor_category: null, vendor_location_city: null, vendor_location_state: null, vendor_business_name: null, vendor_slug: null }, products: [], publish_token: null })
   }
 
   // GET /api/launches/[id]/reservations  (creator-scoped via RLS)
@@ -341,7 +388,7 @@ export async function POST(request, { params }) {
         cancel_url,
         metadata: {
           drop_id: String(drop.id),
-          launch_handle: drop.handle,
+          drop_handle: drop.handle,
           email,
           source: 'dropvine_reservation',
         },

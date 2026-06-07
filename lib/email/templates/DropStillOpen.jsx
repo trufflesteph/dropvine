@@ -2,10 +2,10 @@ import * as React from 'react'
 import { EmailShell, H1, Eyebrow, P, CTA, Italic } from './_shared'
 
 // +5 day mid-window reminder. Sent to subscribers who haven't ordered yet.
-export function DropStillOpen({ launch, subscriberName, viewUrl, closesAtLabel }) {
+export function DropStillOpen({ launch, subscriberName, viewUrl, closesAtLabel, planTier }) {
   const title = launch?.title || 'A drop'
   return (
-    <EmailShell preview={`Still time — ${title}`}>
+    <EmailShell preview={`Still time — ${title}`} planTier={planTier}>
       <Eyebrow>Still open</Eyebrow>
       <H1>Still time to order.</H1>
       <P>

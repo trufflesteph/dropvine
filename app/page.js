@@ -144,6 +144,12 @@ function buildPlans(cfg) {
     // a sentence like "Always free" or doesn't already contain a slash/period.
     const isPaidNumeric = slug !== 'free' && /^\$[\d.,]+$/.test(rawPrice)
     const price = isPaidNumeric ? `${rawPrice}/month` : rawPrice
+    // Map the marketing-page slug ('free' | 'maker' | 'studio') to the
+    // signup ?tier= param. 'studio' (the Shop tier marketing label) is
+    // emitted as `tier=shop` so the signup redirect logic can treat
+    // 'shop' as the canonical tier code everywhere downstream
+    // (direct_vendors.tier_intent + tier columns).
+    const tierParam = slug === 'free' ? null : (slug === 'studio' ? 'shop' : slug)
     return {
       slug,
       name: cfg[`${prefix}name`]?.trim() || defaultName,
@@ -151,7 +157,7 @@ function buildPlans(cfg) {
       features: parseFeatures(cfg[`${prefix}features`]),
       // strip operator-pasted trailing arrows so we don't render two arrows.
       cta: stripTrailingArrow(cfg[`${prefix}cta`]) || 'Get started',
-      href: slug === 'free' ? '/signup' : `/signup?plan=${slug}`,
+      href: tierParam ? `/signup?tier=${tierParam}` : '/signup',
       featured: isTruthyFlag(cfg[`${prefix}popular`]),
     }
   })

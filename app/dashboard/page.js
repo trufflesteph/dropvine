@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import { ArrowUpRight, Plus, Calendar, Users, Sparkles, Loader2, Eye } from 'lucide-react'
 import { DropvineLogo } from '@/components/dropvine/logo'
+import { buildNewDropUrl } from '@/lib/dashboard/new-drop-url'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -13,6 +14,11 @@ export default function DashboardPage() {
   const [drops, setDrops] = useState([])
   const [fetching, setFetching] = useState(true)
   const [publishingId, setPublishingId] = useState(null)
+  // Vendor tier (from direct_vendors.tier) drives which Tally form the
+  // "New drop" CTA opens. Falls back to 'free' if the vendor row hasn't
+  // been provisioned yet (rare — happens immediately after signup).
+  const [vendorTier, setVendorTier] = useState('free')
+  const [vendorEmail, setVendorEmail] = useState(null)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
@@ -28,6 +34,26 @@ export default function DashboardPage() {
   }
 
   useEffect(() => { if (user) reload() }, [user])
+
+  // Fetch the current vendor's tier so the "New drop" CTA routes to the
+  // right Tally form. Fire-and-forget — falls back to 'free' on any error
+  // so the dashboard never blocks loading on this side request.
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch('/api/direct/me', { headers: { 'x-user-id': user.id } })
+        if (!r.ok) return
+        const d = await r.json()
+        if (cancelled) return
+        if (d?.vendor?.tier) setVendorTier(d.vendor.tier)
+        if (d?.email) setVendorEmail(d.email)
+        else if (user?.email) setVendorEmail(user.email)
+      } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [user])
 
   const publish = async (drop) => {
     if (!user) return
@@ -56,15 +82,18 @@ export default function DashboardPage() {
 
   const upcoming = drops.filter(l => new Date(l.launch_at) > new Date())
   const totalWaitlist = 0 // placeholder; could fetch counts per drop
+  // Compute once and pass into both CTAs (header + EmptyState) so they
+  // never drift apart.
+  const newDropUrl = buildNewDropUrl(vendorTier, vendorEmail || user?.email)
 
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r border-border p-8 bg-stone-50">
         <Link href="/" className="inline-flex items-center mb-12" aria-label="Dropvine home"><DropvineLogo height={48} /></Link>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-4">Studio</div>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-4">Your vine</div>
         <nav className="space-y-1 text-sm">
-          <Link href="/dashboard" className="block py-2 px-3 -mx-3 bg-foreground text-background">Launches</Link>
+          <Link href="/dashboard" className="block py-2 px-3 -mx-3 text-background" style={{ backgroundColor: '#2D4A2A' }}>Drops</Link>
           <Link href="/dashboard/reservations" className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground">Reservations</Link>
           <a className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground cursor-not-allowed opacity-60">Audience</a>
           <a className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground cursor-not-allowed opacity-60">Settings</a>
@@ -81,12 +110,18 @@ export default function DashboardPage() {
         <header className="border-b border-border">
           <div className="px-6 md:px-12 py-8 flex items-end justify-between gap-4 flex-wrap">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Studio</div>
+              <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Your vine</div>
               <h1 className="font-serif font-light text-4xl md:text-5xl tracking-tighter">Your drops</h1>
             </div>
-            <Link href="/dashboard/drops/new" className="inline-flex items-center gap-2 bg-foreground text-background px-5 py-3 text-sm hover:opacity-90">
+            <a
+              href={newDropUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-background px-5 py-3 text-sm hover:opacity-90"
+              style={{ backgroundColor: '#2D4A2A' }}
+            >
               <Plus className="h-4 w-4" /> New drop
-            </Link>
+            </a>
           </div>
         </header>
 
@@ -97,12 +132,12 @@ export default function DashboardPage() {
           <Stat icon={<Users className="h-4 w-4" />} label="Waitlist (all)" value={totalWaitlist} hint="View per drop →" />
         </section>
 
-        {/* Launches list */}
+        {/* Drops list */}
         <section className="px-6 md:px-12 py-12">
           {fetching ? (
             <div className="text-sm text-muted-foreground">Loading…</div>
           ) : drops.length === 0 ? (
-            <EmptyState />
+            <EmptyState newDropUrl={newDropUrl} />
           ) : (
             <ul className="divide-y divide-border border-y border-border">
               {drops.map(l => {
@@ -171,15 +206,21 @@ function Stat({ icon, label, value, hint }) {
   )
 }
 
-function EmptyState() {
+function EmptyState({ newDropUrl }) {
   return (
     <div className="border border-dashed border-border p-12 md:p-20 text-center">
-      <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Your studio is quiet</div>
-      <h2 className="font-serif font-light text-3xl md:text-4xl tracking-tighter">Begin your first drop.</h2>
-      <p className="mt-3 text-muted-foreground max-w-md mx-auto text-sm">A drop is a single page with a story, a moment, and an audience waiting.</p>
-      <Link href="/dashboard/drops/new" className="mt-8 inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 text-sm">
-        <Plus className="h-4 w-4" /> Compose a drop
-      </Link>
+      <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">On your vine</div>
+      <h2 className="font-serif font-light text-3xl md:text-4xl tracking-tighter">Start your first drop.</h2>
+      <p className="mt-3 text-muted-foreground max-w-md mx-auto text-sm">Set a deadline, share the link, and let your customers order before you make a thing.</p>
+      <a
+        href={newDropUrl || 'https://tally.so/r/VLbkW6'}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-8 inline-flex items-center gap-2 text-background px-6 py-3 text-sm hover:opacity-90"
+        style={{ backgroundColor: '#2D4A2A' }}
+      >
+        <Plus className="h-4 w-4" /> Create a drop
+      </a>
     </div>
   )
 }

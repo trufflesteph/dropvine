@@ -1,9 +1,9 @@
 import * as React from 'react'
 import { EmailShell, H1, Eyebrow, P, CTA, Italic } from './_shared'
 
-export function LaunchLive({ launch, viewUrl }) {
+export function LaunchLive({ launch, viewUrl, planTier }) {
   return (
-    <EmailShell preview={`${launch?.title || 'A launch'} is live.`}>
+    <EmailShell preview={`${launch?.title || 'A launch'} is live.`} planTier={planTier}>
       <Eyebrow>Now open</Eyebrow>
       <H1>The doors are open.</H1>
       <P>

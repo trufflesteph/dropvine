@@ -70,9 +70,9 @@ export async function GET(request) {
   // Flatten drops join + compute counts per status for the filter bar.
   const baseOrders = (data || []).map((r) => ({
     ...r,
-    launch_title: r.drops?.title || null,
-    launch_handle: r.drops?.handle || null,
-    launch_pickup_details: r.drops?.pickup_details || null,
+    drop_title: r.drops?.title || null,
+    drop_handle: r.drops?.handle || null,
+    drop_pickup_details: r.drops?.pickup_details || null,
     drops: undefined,
   }))
 

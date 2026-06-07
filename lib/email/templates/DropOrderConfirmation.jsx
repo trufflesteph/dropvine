@@ -13,7 +13,7 @@ function money(cents) {
 //
 // Itemised when `items[]` is provided (multi-product drops). Falls back to a
 // single quantity line when items is empty (legacy single-SKU drops).
-export function DropOrderConfirmation({ order, launch, items = [], baseUrl }) {
+export function DropOrderConfirmation({ order, launch, items = [], baseUrl, planTier }) {
   const isDeposit = order?.collection_mode === 'deposit'
   const subjectAmount = isDeposit ? order.deposit_cents : order.total_cents
   const headline = isDeposit
@@ -30,7 +30,7 @@ export function DropOrderConfirmation({ order, launch, items = [], baseUrl }) {
     && (items.length > 1 || items[0]?.launch_product_id)
 
   return (
-    <EmailShell preview={`Order #${order.short_code} — ${launch?.title || 'your drop'}`}>
+    <EmailShell preview={`Order #${order.short_code} — ${launch?.title || 'your drop'}`} planTier={planTier}>
       <Eyebrow>{launch?.title || 'Dropvine Direct'} · Order #{order.short_code}</Eyebrow>
       <H1>{headline}</H1>
       <P>

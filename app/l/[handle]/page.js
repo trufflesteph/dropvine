@@ -7,7 +7,7 @@ import { DropvineLogo } from '@/components/dropvine/logo'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { ArrowRight, Lock, Check, Minus, Plus, ExternalLink, Loader2 } from 'lucide-react'
+import { ArrowRight, Lock, Check, Minus, Plus, ExternalLink, Loader2, MapPin } from 'lucide-react'
 
 export default function PublicLaunchPage() {
   return (
@@ -82,7 +82,7 @@ function PublicLaunchPageInner() {
       try {
         // Pass through ?preview=true so the API can return drafts + token.
         const qs = isPreview ? '?preview=true' : ''
-        const r = await fetch(`/api/launches/by-handle/${handle}${qs}`)
+        const r = await fetch(`/api/drops/by-handle/${handle}${qs}`)
         if (!r.ok) { setDrop(null); return }
         const d = await r.json()
         setDrop(d.drop)
@@ -136,7 +136,7 @@ function PublicLaunchPageInner() {
     if (!drop) return
     setSubmitting(true)
     try {
-      const r = await fetch(`/api/launches/${drop.id}/waitlist`, {
+      const r = await fetch(`/api/drops/${drop.id}/waitlist`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, name, note: mode === 'reservation' ? 'reservation' : undefined }),
       })
@@ -152,7 +152,7 @@ function PublicLaunchPageInner() {
     if (!drop || !email) return toast.error('Enter your email first.')
     setReserving(true)
     try {
-      const r = await fetch(`/api/launches/${drop.id}/reserve`, {
+      const r = await fetch(`/api/drops/${drop.id}/reserve`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, origin_url: window.location.origin }),
       })
@@ -317,6 +317,32 @@ function PublicLaunchPageInner() {
           <h1 className="font-serif font-light text-5xl sm:text-6xl md:text-8xl leading-[0.96] tracking-tightest text-balance">
             {drop.title}
           </h1>
+          {/* Vendor identity row — category pill + city/state + link back to
+              the maker's full profile. Surfaces the maker behind the drop
+              without competing with the headline. */}
+          {(drop.vendor_category || drop.vendor_location_city || drop.vendor_slug) ? (
+            <div className="mt-6 flex items-center flex-wrap gap-3">
+              {drop.vendor_category ? (
+                <span className="text-[10px] uppercase tracking-[0.22em] px-2 py-1 bg-stone-100 text-foreground border border-border">
+                  {drop.vendor_category}
+                </span>
+              ) : null}
+              {drop.vendor_location_city ? (
+                <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {[drop.vendor_location_city, drop.vendor_location_state].filter(Boolean).join(', ')}
+                </span>
+              ) : null}
+              {drop.vendor_slug && drop.vendor_business_name ? (
+                <Link
+                  href={`/direct/${drop.vendor_slug}`}
+                  className="text-sm text-muted-foreground hover:text-foreground transition inline-flex items-center gap-1 underline underline-offset-4 decoration-1"
+                >
+                  by {drop.vendor_business_name}
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
           {drop.tagline && (
             <p className="mt-8 font-serif italic text-2xl md:text-3xl text-muted-foreground max-w-3xl tracking-tight">{drop.tagline}</p>
           )}
@@ -398,7 +424,19 @@ function PublicLaunchPageInner() {
           >
             {rightRail}
           </div>
-          <p className="mt-4 text-[11px] uppercase tracking-[0.25em] text-muted-foreground text-center">Powered by Dropvine</p>
+          {drop?.creator_plan_tier !== 'shop' ? (
+            <p className="mt-4 text-[11px] uppercase tracking-[0.25em] text-muted-foreground text-center">
+              Powered by{' '}
+              <a
+                href="https://dropvine.pro"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 hover:text-foreground transition-colors"
+              >
+                Dropvine
+              </a>
+            </p>
+          ) : null}
         </aside>
       </section>
     </main>

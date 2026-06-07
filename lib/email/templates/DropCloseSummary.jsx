@@ -2,11 +2,11 @@ import * as React from 'react'
 import { EmailShell, H1, Eyebrow, P, CTA, Italic } from './_shared'
 
 // Vendor recap email sent after a drop closes. Summarises orders + revenue.
-export function DropCloseSummary({ launch, totalOrders, totalCents, paidOrders, dashboardUrl }) {
+export function DropCloseSummary({ launch, totalOrders, totalCents, paidOrders, dashboardUrl, planTier }) {
   const title = launch?.title || 'Your drop'
   const totalDollars = ((totalCents || 0) / 100).toFixed(2)
   return (
-    <EmailShell preview={`${title} — drop summary`}>
+    <EmailShell preview={`${title} — drop summary`} planTier={planTier}>
       <Eyebrow>Drop closed</Eyebrow>
       <H1>Your drop is wrapped.</H1>
       <P><strong>{title}</strong> just closed. Here’s the recap:</P>

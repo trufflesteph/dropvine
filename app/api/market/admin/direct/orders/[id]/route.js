@@ -112,8 +112,8 @@ export async function PATCH(request, { params }) {
   // Flatten join before returning.
   const flat = {
     ...updated,
-    launch_title: updated.drops?.title || null,
-    launch_handle: updated.drops?.handle || null,
+    drop_title: updated.drops?.title || null,
+    drop_handle: updated.drops?.handle || null,
     drops: undefined,
   }
   return NextResponse.json({ ok: true, order: flat, via: auth.role, alreadyAtTarget, email: emailResult })

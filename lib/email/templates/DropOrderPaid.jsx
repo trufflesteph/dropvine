@@ -13,7 +13,7 @@ function money(cents) {
 //
 // Itemised when `items[]` is provided (multi-product drops). Falls back to a
 // single line when items is empty (legacy single-SKU drops).
-export function DropOrderPaid({ order, launch, items = [] }) {
+export function DropOrderPaid({ order, launch, items = [], planTier }) {
   const isDeposit = order?.collection_mode === 'deposit'
   const balanceLine = isDeposit && order?.balance_cents > 0
     ? `Balance of ${money(order.balance_cents)} is due at pickup.`
@@ -22,7 +22,7 @@ export function DropOrderPaid({ order, launch, items = [] }) {
     && (items.length > 1 || items[0]?.launch_product_id)
 
   return (
-    <EmailShell preview={`Payment confirmed — ${launch?.title || 'your drop'} #${order.short_code}`}>
+    <EmailShell preview={`Payment confirmed — ${launch?.title || 'your drop'} #${order.short_code}`} planTier={planTier}>
       <Eyebrow>{launch?.title || 'Dropvine Direct'} · Order #{order.short_code}</Eyebrow>
       <H1>Payment confirmed.</H1>
       <P>

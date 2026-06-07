@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { ArrowUpRight, Sparkles, Users, CheckCircle2, Clock, Infinity as InfinityIcon, Mail } from 'lucide-react'
 import { DropvineLogo } from '@/components/dropvine/logo'
+import { buildNewDropUrl } from '@/lib/dashboard/new-drop-url'
 
 export default function ReservationsPage() {
   const router = useRouter()
@@ -14,10 +15,32 @@ export default function ReservationsPage() {
   const [fetchingLaunches, setFetchingLaunches] = useState(true)
   const [fetchingReservations, setFetchingReservations] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
+  // Vendor tier drives the "Create one →" Tally URL in the empty state.
+  const [vendorTier, setVendorTier] = useState('free')
+  const [vendorEmail, setVendorEmail] = useState(null)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
   }, [loading, user, router])
+
+  // Resolve the current vendor's tier so the "Create one →" empty-state
+  // link routes to the right Tally form. Falls back to 'free' on error.
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch('/api/direct/me', { headers: { 'x-user-id': user.id } })
+        if (!r.ok) return
+        const d = await r.json()
+        if (cancelled) return
+        if (d?.vendor?.tier) setVendorTier(d.vendor.tier)
+        if (d?.email) setVendorEmail(d.email)
+        else if (user?.email) setVendorEmail(user.email)
+      } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [user])
 
   // Load drops once
   useEffect(() => {
@@ -40,7 +63,7 @@ export default function ReservationsPage() {
     if (!selectedId || !user) { setReservations([]); return }
     const load = async () => {
       setFetchingReservations(true)
-      const r = await fetch(`/api/launches/${selectedId}/reservations`, { headers: { 'x-user-id': user.id } })
+      const r = await fetch(`/api/drops/${selectedId}/reservations`, { headers: { 'x-user-id': user.id } })
       const d = await r.json()
       setReservations(d.reservations || [])
       setFetchingReservations(false)
@@ -66,10 +89,10 @@ export default function ReservationsPage() {
       {/* Sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r border-border p-8 bg-stone-50">
         <Link href="/" className="inline-flex items-center mb-12" aria-label="Dropvine home"><DropvineLogo height={48} /></Link>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-4">Studio</div>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-4">Your vine</div>
         <nav className="space-y-1 text-sm">
-          <Link href="/dashboard" className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground">Launches</Link>
-          <Link href="/dashboard/reservations" className="block py-2 px-3 -mx-3 bg-foreground text-background">Reservations</Link>
+          <Link href="/dashboard" className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground">Drops</Link>
+          <Link href="/dashboard/reservations" className="block py-2 px-3 -mx-3 text-background" style={{ backgroundColor: '#2D4A2A' }}>Reservations</Link>
           <a className="block py-2 px-3 -mx-3 text-muted-foreground cursor-not-allowed opacity-60">Audience</a>
           <a className="block py-2 px-3 -mx-3 text-muted-foreground cursor-not-allowed opacity-60">Settings</a>
         </nav>
@@ -84,12 +107,12 @@ export default function ReservationsPage() {
         {/* Mobile sidebar / top bar */}
         <div className="md:hidden border-b border-border px-6 py-5 flex items-center justify-between">
           <Link href="/" className="inline-flex items-center" aria-label="Dropvine home"><DropvineLogo height={36} /></Link>
-          <Link href="/dashboard" className="text-xs text-muted-foreground">← Launches</Link>
+          <Link href="/dashboard" className="text-xs text-muted-foreground">← Drops</Link>
         </div>
 
         <header className="border-b border-border">
           <div className="px-6 md:px-12 py-8">
-            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Studio</div>
+            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Your vine</div>
             <h1 className="font-serif font-light text-4xl md:text-5xl tracking-tighter">Reservations</h1>
             <p className="mt-3 text-muted-foreground max-w-xl text-[15px]">Held slots, pending checkouts, and spots remaining — only your drops.</p>
           </div>
@@ -97,11 +120,21 @@ export default function ReservationsPage() {
 
         {/* Launch picker — scrollable horizontal pills */}
         <section className="px-6 md:px-12 py-6 border-b border-border">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Launch</div>
+          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Drop</div>
           {fetchingLaunches ? (
             <div className="text-sm text-muted-foreground">Loading…</div>
           ) : drops.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No drops with reservations enabled. <Link href="/dashboard/drops/new" className="underline underline-offset-4 text-foreground">Create one →</Link></div>
+            <div className="text-sm text-muted-foreground">
+              No drops with reservations enabled.{' '}
+              <a
+                href={buildNewDropUrl(vendorTier, vendorEmail || user?.email)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-4 text-foreground"
+              >
+                Create one →
+              </a>
+            </div>
           ) : (
             <div className="flex gap-2 flex-wrap">
               {drops.map(l => (

@@ -1,9 +1,9 @@
 import * as React from 'react'
 import { EmailShell, H1, Eyebrow, P, Detail, Divider, CTA, Italic } from './_shared'
 
-export function SoldOut({ launch, capacity, dashboardUrl }) {
+export function SoldOut({ launch, capacity, dashboardUrl, planTier }) {
   return (
-    <EmailShell preview={`${launch?.title || 'A launch'} is fully reserved.`}>
+    <EmailShell preview={`${launch?.title || 'A launch'} is fully reserved.`} planTier={planTier}>
       <Eyebrow>Studio update</Eyebrow>
       <H1><Italic>Sold out.</Italic></H1>
       <P>

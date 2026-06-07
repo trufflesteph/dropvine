@@ -23,6 +23,7 @@ import {
   sendDropClosingSoonFanout,
   sendDropCloseSummary,
 } from '@/lib/email/notifications'
+import { sendGeneric as sendSms, smsEnabled } from '@/lib/notifications/channels/sms'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -63,7 +64,59 @@ async function handleOpen(supa, row) {
   // Don't fan-out for drafts/archived drops.
   if (!['published', 'live'].includes(drop.status)) return { skipped: `status=${drop.status}` }
   const result = await sendDropOpenedFanout({ drop, subscribers })
-  return { ...result, recipients: subscribers.length }
+  // Phase D: SMS broadcast to followers, Shop-tier vendors only.
+  const smsResult = await maybeBroadcastSmsOnOpen(supa, drop)
+  return { ...result, recipients: subscribers.length, sms: smsResult }
+}
+
+// Phase D — SMS broadcast on drop open for Shop-tier vendors.
+// Looks up the direct_vendors row by drop.creator_id, then if tier='shop'
+// fetches every direct_vendor_follows row with sms_opt_in=true AND a phone,
+// and sends a short Twilio SMS via lib/notifications/channels/sms.
+// Tolerates missing table / SMS not configured by returning { skipped }.
+async function maybeBroadcastSmsOnOpen(supa, drop) {
+  if (!smsEnabled()) return { skipped: 'sms not configured' }
+  if (!drop?.creator_id) return { skipped: 'no creator_id' }
+  try {
+    // Resolve vendor (need tier + business_name + slug).
+    const { data: vendor } = await supa
+      .from('direct_vendors')
+      .select('id, slug, business_name, tier, active')
+      .eq('creator_id', drop.creator_id)
+      .maybeSingle()
+    if (!vendor) return { skipped: 'no direct_vendor row' }
+    if (vendor.tier !== 'shop') return { skipped: `tier=${vendor.tier} (shop only)` }
+    if (vendor.active === false) return { skipped: 'vendor inactive' }
+
+    // Find followers with SMS opt-in and a phone on file.
+    const { data: followers, error: fErr } = await supa
+      .from('direct_vendor_follows')
+      .select('follower_phone, follower_name')
+      .eq('vendor_id', vendor.id)
+      .eq('sms_opt_in', true)
+      .not('follower_phone', 'is', null)
+    if (fErr) {
+      if (/relation .* does not exist|could not find the table|schema cache/i.test(fErr.message)) {
+        return { skipped: 'direct_vendor_follows table not provisioned' }
+      }
+      return { error: fErr.message }
+    }
+    if (!followers?.length) return { sent: 0, total: 0 }
+
+    const base = (process.env.NEXT_PUBLIC_BASE_URL || '').replace(/\/$/, '')
+    const url = base ? `${base}/l/${drop.handle}` : `/l/${drop.handle}`
+    const body = `${vendor.business_name} just opened a drop: ${drop.title}. ${url}`
+
+    let sent = 0
+    for (const f of followers) {
+      const res = await sendSms({ to: f.follower_phone, body })
+      if (res?.sid) sent += 1
+    }
+    return { sent, total: followers.length, vendor: vendor.slug }
+  } catch (e) {
+    console.warn('[drop-lifecycle] sms broadcast failed (non-fatal):', e?.message || e)
+    return { error: e?.message || String(e) }
+  }
 }
 
 async function handleReminder5d(supa, row) {
@@ -143,16 +196,66 @@ async function runCron(request) {
       .eq('status', 'scheduled')
       .lte('launch_at', new Date().toISOString())
       .limit(50)
-    for (const l of ready || []) {
-      const { error: uErr } = await supa
-        .from('drops')
-        .update({ status: 'published' })
-        .eq('id', l.id)
-        .eq('status', 'scheduled') // guard against races
-      if (!uErr) autoPublished += 1
+    if (dryRun) {
+      autoPublished = (ready || []).length
+    } else {
+      for (const l of ready || []) {
+        const { error: uErr } = await supa
+          .from('drops')
+          .update({ status: 'published' })
+          .eq('id', l.id)
+          .eq('status', 'scheduled') // guard against races
+        if (!uErr) autoPublished += 1
+      }
     }
   } catch (e) {
     console.warn('[drop-lifecycle] auto-publish step failed (non-fatal):', e?.message || e)
+  }
+
+  // === Step 0b (Phase C): auto-archive published FREE-tier drops 5 days
+  // after closes_at. Drops on maker/shop tiers stay public indefinitely.
+  // The /api/drops/by-handle/[handle] endpoint returns 404 once status flips
+  // to 'archived' (vendors can still see archived drops via preview).
+  //
+  // Implementation note: we can't filter directly on profiles.plan_tier in
+  // a single Supabase query without a foreign-table join syntax, so we
+  // fetch candidate drops (closes_at < now-5d, status=published) and then
+  // batch-look-up their creator plan tiers.
+  let autoArchived = 0
+  const ARCHIVE_DELAY_MS = 5 * 24 * 60 * 60 * 1000 // 5 days
+  try {
+    const cutoff = new Date(Date.now() - ARCHIVE_DELAY_MS).toISOString()
+    const { data: candidates } = await supa
+      .from('drops')
+      .select('id, creator_id, closes_at')
+      .eq('status', 'published')
+      .not('closes_at', 'is', null)
+      .lt('closes_at', cutoff)
+      .limit(100)
+    if (candidates && candidates.length) {
+      const creatorIds = [...new Set(candidates.map((d) => d.creator_id).filter(Boolean))]
+      const tierByCreator = {}
+      if (creatorIds.length) {
+        const { data: profs } = await supa
+          .from('profiles')
+          .select('id, plan_tier')
+          .in('id', creatorIds)
+        for (const p of profs || []) tierByCreator[p.id] = p.plan_tier || 'free'
+      }
+      for (const d of candidates) {
+        const tier = tierByCreator[d.creator_id] || 'free'
+        if (tier !== 'free') continue
+        if (dryRun) { autoArchived += 1; continue }
+        const { error: aErr } = await supa
+          .from('drops')
+          .update({ status: 'archived' })
+          .eq('id', d.id)
+          .eq('status', 'published') // guard race
+        if (!aErr) autoArchived += 1
+      }
+    }
+  } catch (e) {
+    console.warn('[drop-lifecycle] auto-archive step failed (non-fatal):', e?.message || e)
   }
 
   // === Step 1: scan due rows.
@@ -235,6 +338,7 @@ async function runCron(request) {
     scanned: due?.length || 0,
     processed: items.length,
     auto_published: autoPublished,
+    auto_archived: autoArchived,
     items,
     failed,
   })
