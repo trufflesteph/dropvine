@@ -3,10 +3,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  experimental: {
-    // Remove if not using Server Components
-    serverComponentsExternalPackages: ['mongodb'],
-  },
   webpack(config, { dev }) {
     if (dev) {
       // Reduce CPU/memory from file watching
@@ -17,10 +13,6 @@ const nextConfig = {
       };
     }
     return config;
-  },
-  onDemandEntries: {
-    maxInactiveAge: 10000,
-    pagesBufferLength: 2,
   },
   async headers() {
     return [
@@ -34,6 +26,16 @@ const nextConfig = {
           { key: "Access-Control-Allow-Headers", value: "*" },
         ],
       },
+    ];
+  },
+  async redirects() {
+    return [
+      // Permanent 301: the /creators directory page was renamed to /drops
+      // (June 2026). Keep any existing inbound links + shared URLs working.
+      // Using `statusCode: 301` instead of `permanent: true` so the status
+      // code is exactly 301 (not Next.js's default 308) — matches the SEO
+      // spec the user requested.
+      { source: '/creators', destination: '/drops', statusCode: 301 },
     ];
   },
 };

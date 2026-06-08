@@ -18,7 +18,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdminRole } from '@/lib/markets/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
-import { sendDropOrderPaidConfirmation } from '@/lib/email/notifications'
+import { sendDropOrderPaidConfirmation, sendReviewRequest } from '@/lib/email/notifications'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -109,6 +109,21 @@ export async function PATCH(request, { params }) {
     }
   }
 
+  // Side-effect (June 2026): when an order transitions INTO 'fulfilled',
+  // insert a `vendor_reviews` row (status='pending') and email the shopper
+  // a magic link to /review/[id] so they can leave a star rating + comment.
+  // Best-effort, fully tolerated if the reviews tables aren't provisioned.
+  // Idempotent: skipped if a review already exists for (drop_id, reviewer_email).
+  let reviewResult = null
+  if (nextStatus === 'fulfilled' && !alreadyAtTarget && updated?.shopper_email && updated?.drop_id) {
+    try {
+      reviewResult = await createPendingReview(supa, updated)
+    } catch (e) {
+      console.warn('[admin/orders] review-request hook failed:', e?.message)
+      reviewResult = { error: e?.message || 'review hook failed' }
+    }
+  }
+
   // Flatten join before returning.
   const flat = {
     ...updated,
@@ -116,5 +131,95 @@ export async function PATCH(request, { params }) {
     drop_handle: updated.drops?.handle || null,
     drops: undefined,
   }
-  return NextResponse.json({ ok: true, order: flat, via: auth.role, alreadyAtTarget, email: emailResult })
+  return NextResponse.json({ ok: true, order: flat, via: auth.role, alreadyAtTarget, email: emailResult, review: reviewResult })
+}
+
+// =============================================================================
+// Helper — createPendingReview
+// =============================================================================
+// On order fulfillment we (1) resolve the direct_vendors row for the drop's
+// creator (so vendor_reviews.vendor_id is set), (2) check there isn't
+// already a review row for (drop_id, reviewer_email), and (3) insert a new
+// pending row + fire the shopper-facing magic-link email.
+async function createPendingReview(supa, order) {
+  // 1) Resolve the vendor row.
+  const drop = order.drops || null
+  // We need creator_id; refetch the drop row by id since the existing join
+  // doesn't include it.
+  let dropRow = null
+  try {
+    const { data } = await supa
+      .from('drops')
+      .select('id, title, handle, creator_id')
+      .eq('id', order.drop_id)
+      .maybeSingle()
+    dropRow = data
+  } catch {}
+  if (!dropRow?.creator_id) return { skipped: 'no creator_id on drop' }
+
+  const { data: vendor } = await supa
+    .from('direct_vendors')
+    .select('id, business_name, tier, active')
+    .eq('creator_id', dropRow.creator_id)
+    .maybeSingle()
+  if (!vendor) return { skipped: 'no direct_vendors row for drop creator' }
+
+  // 2) Idempotency check.
+  let alreadyExists = null
+  try {
+    const { data: existing } = await supa
+      .from('vendor_reviews')
+      .select('id, status')
+      .eq('drop_id', order.drop_id)
+      .ilike('reviewer_email', order.shopper_email)
+      .maybeSingle()
+    alreadyExists = existing
+  } catch (e) {
+    if (/relation .* does not exist|could not find the table|schema cache/i.test(e?.message || '')) {
+      return { skipped: 'vendor_reviews table not provisioned' }
+    }
+  }
+  if (alreadyExists) return { skipped: 'review already exists', review_id: alreadyExists.id }
+
+  // 3) Insert the pending review row.
+  const { data: review, error: iErr } = await supa
+    .from('vendor_reviews')
+    .insert({
+      vendor_id: vendor.id,
+      drop_id: order.drop_id,
+      reviewer_email: order.shopper_email,
+      reviewer_name: order.shopper_name || 'Customer',
+      // rating + comment are placeholders until the shopper submits the form.
+      // The CHECK constraint requires rating BETWEEN 1 AND 5 so we have to
+      // start at 5 (we'll overwrite on submit).
+      rating: 5,
+      comment: null,
+      is_verified_purchase: true,
+      status: 'pending',
+    })
+    .select('id')
+    .maybeSingle()
+  if (iErr) {
+    if (/relation .* does not exist|could not find the table|schema cache/i.test(iErr.message)) {
+      return { skipped: 'vendor_reviews table not provisioned' }
+    }
+    return { error: iErr.message }
+  }
+
+  // 4) Send the shopper-facing review-request email.
+  const base = (process.env.NEXT_PUBLIC_BASE_URL || 'https://dropvine.pro').replace(/\/$/, '')
+  const reviewUrl = `${base}/review/${review.id}`
+  const dropForEmail = {
+    ...dropRow,
+    vendor_business_name: vendor.business_name,
+    creator_id: dropRow.creator_id,
+  }
+  const emailResult = await sendReviewRequest({
+    drop: dropForEmail,
+    to: order.shopper_email,
+    reviewerName: order.shopper_name || null,
+    reviewUrl,
+  }).catch((e) => ({ error: e?.message || String(e) }))
+
+  return { ok: true, review_id: review.id, email: emailResult }
 }

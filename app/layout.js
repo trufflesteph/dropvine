@@ -1,5 +1,6 @@
 import './globals.css'
 import { Inter, Fraunces } from 'next/font/google'
+import Script from 'next/script'
 import { AuthProvider } from '@/lib/auth-context'
 import { Toaster } from 'sonner'
 
@@ -58,6 +59,21 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${inter.variable} ${fraunces.variable}`}>
       <body className="font-sans">
+        {/* Google Analytics — afterInteractive so it never blocks first paint.
+            Tag ID is hardcoded since it's public anyway and we want it loading
+            on every page including static-rendered ones. */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-HC1SG3484H"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-HC1SG3484H');
+          `}
+        </Script>
         <AuthProvider>
           {children}
           <Toaster position="bottom-center" toastOptions={{ style: { background: '#0E0E0C', color: '#FAFAF7', border: 'none', borderRadius: 2, fontSize: 13 } }} />
