@@ -74,8 +74,8 @@ const styles = {
   },
   cta: {
     display: 'inline-block',
-    backgroundColor: BRAND.fg,
-    color: BRAND.bg,
+    backgroundColor: '#2D4A2A',
+    color: '#FFFFFF',
     fontSize: '14px',
     letterSpacing: '0.02em',
     padding: '14px 28px',
@@ -83,8 +83,8 @@ const styles = {
   },
   ctaGhost: {
     display: 'inline-block',
-    border: `1px solid ${BRAND.fg}`,
-    color: BRAND.fg,
+    border: `1px solid #2D4A2A`,
+    color: '#2D4A2A',
     fontSize: '14px',
     letterSpacing: '0.02em',
     padding: '13px 28px',
@@ -139,10 +139,10 @@ export function EmailShell({ preview, children, planTier }) {
           {children}
           <Section style={styles.footer}>
             <Text style={{ ...styles.detailRow, margin: 0 }}>
-              You're receiving this because you joined a launch on Dropvine.
+              You&rsquo;re receiving this email because you submitted a drop on Dropvine.
             </Text>
             <Text style={{ ...styles.detailRow, margin: 0 }}>
-              Dropvine — a quieter way to launch.
+              Dropvine — Built for the gap between making and selling.
             </Text>
             {showWatermark ? (
               <Text style={{ ...styles.detailRow, margin: '12px 0 0', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase' }}>

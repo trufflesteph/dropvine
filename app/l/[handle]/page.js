@@ -21,6 +21,13 @@ export default function PublicLaunchPage() {
 // Helpers
 // --------------------------------------------------------------------------
 
+// Dropvine brand green for primary CTAs (Fix 22). Hex value is used via
+// inline `style` because Tailwind has no built-in palette token at this exact
+// shade; using a custom class would require config + restart. Keeping the
+// constant in one place makes future shade tweaks trivial.
+const DROPVINE_GREEN = '#2D4A2A'
+const DROPVINE_GREEN_HOVER = '#243a21'
+
 function money(cents) {
   if (cents == null || cents === '') return '—'
   return `$${(Number(cents) / 100).toFixed(2)}`
@@ -280,7 +287,10 @@ function PublicLaunchPageInner() {
             {publishToken?.token ? (
               <a
                 href={`/api/launches/publish/${publishToken.token}`}
-                className="inline-flex items-center gap-2 bg-white text-slate-900 hover:bg-stone-100 transition-colors px-4 py-2 text-sm font-medium whitespace-nowrap"
+                className="inline-flex items-center gap-2 text-white px-4 py-2 text-sm font-medium whitespace-nowrap"
+                style={{ backgroundColor: DROPVINE_GREEN }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = DROPVINE_GREEN_HOVER)}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = DROPVINE_GREEN)}
               >
                 {isScheduleFlow ? 'Schedule my drop' : 'Publish my drop'} <ArrowRight className="h-4 w-4" />
               </a>
@@ -304,7 +314,7 @@ function PublicLaunchPageInner() {
           <Link href="/" className="inline-flex items-center" aria-label="Dropvine home">
             <DropvineLogo height={drop.is_demo ? 60 : 44} />
           </Link>
-          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Launch — {drop.handle}</div>
+          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Drop — {drop.handle}</div>
         </div>
       </header>
 
@@ -361,23 +371,15 @@ function PublicLaunchPageInner() {
         </div>
       </section>
 
-      {/* Countdown / live — hidden on demo pages: an "Enter the drop" CTA on
-          fake data is more confusing than useful. Real (non-demo) drops still
-          show the live banner / countdown as before. */}
-      {!drop.is_demo && (
+      {/* Countdown — hidden on demo pages and once the drop is live. The
+          live-state CTA ("It's time" / "Enter the drop") was removed in
+          June 2026 as outdated copy (Fix 17). The countdown panel remains
+          for upcoming drops so shoppers can see exactly when the doors open. */}
+      {!drop.is_demo && !isLive && (
       <section className="border-y border-border bg-stone-100/60">
         <div className="container py-16 md:py-24">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-6">{isLive ? 'The doors are open' : 'Opens in'}</div>
-          {isLive ? (
-            <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-8">
-              <div className="font-serif text-5xl md:text-7xl tracking-tightest">It’s time.</div>
-              <button className="inline-flex items-center gap-3 bg-foreground text-background px-8 py-4 text-sm hover:opacity-90">
-                Enter the drop <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-          ) : (
-            <Countdown target={drop.launch_at} size="lg" />
-          )}
+          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-6">Opens in</div>
+          <Countdown target={drop.launch_at} size="lg" />
         </div>
       </section>
       )}
@@ -385,7 +387,8 @@ function PublicLaunchPageInner() {
       {/* Body */}
       <section className="container py-24 md:py-32 grid md:grid-cols-12 gap-12">
         <div className="md:col-span-7">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">The piece</div>
+          {/* Description — heading removed (Fix 18 — "The piece" was
+              outdated copy; description text is self-evident from context). */}
           <p className="text-lg leading-relaxed text-foreground/90 whitespace-pre-line text-pretty">{drop.description || 'No description provided.'}</p>
           {drop.price_cents > 0 && (
             <div className="mt-12 pt-8 border-t border-border">
@@ -407,16 +410,10 @@ function PublicLaunchPageInner() {
         </div>
 
         <aside className="md:col-span-5 md:sticky md:top-12 self-start">
-          {isDraft && (
-            // Sticky disabled-state notice on the order panel. The panel below
-            // is rendered for visual review but with pointer-events disabled
-            // and reduced opacity so the vendor sees what shoppers will see
-            // without being able to submit fake test orders.
-            <div className="mb-4 border border-border bg-stone-100/80 px-5 py-4 text-sm leading-snug">
-              <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-1">Preview only</div>
-              Available when this drop goes live.
-            </div>
-          )}
+          {/* Fix 13 — the "Preview only — available when this drop goes live"
+              placeholder square was removed. The draft banner at the top of
+              the page already communicates the preview state; an extra block
+              above the order panel was redundant. */}
           <div
             className={`border border-border p-8 md:p-10 bg-background ${isDraft ? 'pointer-events-none opacity-60 select-none' : ''}`}
             data-testid={`mode-panel-${mode}`}
@@ -448,7 +445,9 @@ function PublicLaunchPageInner() {
 // --------------------------------------------------------------------------
 
 function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoin }) {
-  const headline = mode === 'reservation' ? 'Reserve your spot.' : 'Be present at release.'
+  // Fix 19 — "Be present at release" copy was removed; headline now mirrors
+  // the action ("Join the waitlist" / "Reserve your spot") cleanly.
+  const headline = mode === 'reservation' ? 'Reserve your spot.' : 'Join the waitlist.'
   const eyebrow = mode === 'reservation' ? 'Reserve your spot' : 'Join the waitlist'
   const cta = mode === 'reservation' ? 'Reserve my spot' : 'Join the list'
   return (
@@ -464,7 +463,7 @@ function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoi
           <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Email</Label>
           <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@studio.com" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
         </div>
-        <button disabled={submitting} className="w-full bg-foreground text-background h-12 text-sm hover:opacity-90 disabled:opacity-50 inline-flex items-center justify-center gap-2" data-testid="waitlist-submit">
+        <button disabled={submitting} className="w-full text-white h-12 text-sm hover:opacity-90 disabled:opacity-50 inline-flex items-center justify-center gap-2" style={{ backgroundColor: DROPVINE_GREEN }} data-testid="waitlist-submit">
           {submitting ? 'Joining…' : <>{cta} <ArrowRight className="h-4 w-4" /></>}
         </button>
       </form>
@@ -498,7 +497,7 @@ function ReservationStripePanel({ drop, email, setEmail, reservationStatus, rese
         <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Email</Label>
         <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@studio.com" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
       </div>
-      <button onClick={onReserve} disabled={reserving} className="mt-6 w-full border border-foreground h-12 text-sm hover:bg-foreground hover:text-background transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50" data-testid="reservation-stripe-submit">
+      <button onClick={onReserve} disabled={reserving} className="mt-6 w-full h-12 text-sm text-white hover:opacity-90 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50" style={{ backgroundColor: DROPVINE_GREEN }} data-testid="reservation-stripe-submit">
         <Lock className="h-3.5 w-3.5" /> {reserving ? 'Redirecting to Stripe…' : 'Reserve via Stripe'}
       </button>
       <p className="text-[11px] text-muted-foreground mt-2">Secure checkout by Stripe.</p>
@@ -689,7 +688,8 @@ function PreorderPanel({ drop, products, isDeposit }) {
         <button
           onClick={confirmPayment}
           disabled={submitting}
-          className="mt-3 w-full bg-foreground text-background h-12 text-sm hover:opacity-90 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          className="mt-3 w-full text-white h-12 text-sm hover:opacity-90 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          style={{ backgroundColor: DROPVINE_GREEN }}
           data-testid="confirm-payment"
         >
           {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : <>I&rsquo;ve sent payment — confirm my order <ArrowRight className="h-4 w-4" /></>}
@@ -812,7 +812,8 @@ function PreorderPanel({ drop, products, isDeposit }) {
         <button
           type="submit"
           disabled={hasProducts && totals.totalQty <= 0}
-          className="w-full bg-foreground text-background h-12 text-sm hover:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-2"
+          className="w-full text-white h-12 text-sm hover:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-2"
+          style={{ backgroundColor: DROPVINE_GREEN }}
           data-testid="preorder-submit"
         >
           {isDeposit ? <>Send {money(totals.depositCents)} deposit via Venmo <ArrowRight className="h-4 w-4" /></>

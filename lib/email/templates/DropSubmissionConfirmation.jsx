@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { EmailShell, H1, Eyebrow, P, CTA, Detail, Divider, Italic } from './_shared'
+import { formatCollectionMode } from '@/lib/markets/tally'
 
 // Vendor-facing email sent immediately after a Tally submission lands. Two
 // variants depending on publish_action:
@@ -20,7 +21,11 @@ import { EmailShell, H1, Eyebrow, P, CTA, Detail, Divider, Italic } from './_sha
 export function DropSubmissionConfirmation({ launch, publishAction, previewUrl, confirmUrl, launchAtLabel, closesAtLabel, planTier }) {
   const isSchedule = publishAction === 'schedule'
   const title = launch?.title || 'Your drop'
-  const mode = launch?.collection_mode || null
+  // Fix 21 — render the collection mode as a human-readable title-case label
+  // ("Pre-order", "Waitlist", "Reservation", "Deposit") instead of the raw
+  // Tally option UUID. Safe even when the value already happens to be a
+  // label thanks to the normalisation done inside formatCollectionMode().
+  const mode = launch?.collection_mode ? formatCollectionMode(launch.collection_mode) : null
   const price = launch?.price_cents != null ? `$${(Number(launch.price_cents) / 100).toFixed(2)}` : null
   const capacity = launch?.capacity || null
   const previewSubject = isSchedule

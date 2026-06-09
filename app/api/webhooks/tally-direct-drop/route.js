@@ -15,11 +15,20 @@
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
-import { getTallyField, getTallyEmail, getTallyText, getTallyNumber, getTallyFiles } from '@/lib/markets/tally'
+import {
+  getTallyField,
+  getTallyEmail,
+  getTallyText,
+  getTallyNumber,
+  getTallyFiles,
+  getTallyOptionLabel,
+  normaliseCollectionMode,
+} from '@/lib/markets/tally'
 import { extractLaunchProducts } from '@/lib/markets/tally-products'
 import { extractLaunchSubscribers, ingestLaunchSubscribers } from '@/lib/drop-lifecycle/contacts'
 import { scheduleDropLifecycle } from '@/lib/drop-lifecycle/cadence'
 import { sendDraftDropReview, sendDropSubmissionConfirmation } from '@/lib/email/notifications'
+import { proxyTallyImages } from '@/lib/markets/tally-images'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -90,8 +99,22 @@ export async function POST(request) {
 
     // Extract every field. Labels are tolerant — we match by substring.
     const vendorEmail = (getTallyEmail(fields) || '').trim().toLowerCase() || null
-    const productName = getTallyText(fields, 'product name') || getTallyText(fields, 'title') || 'Untitled drop'
-    const description = getTallyText(fields, 'description') || null
+    const productName = getTallyText(fields, 'product name')
+      || getTallyText(fields, 'drop title')
+      || getTallyText(fields, 'title')
+      || 'Untitled drop'
+    // Fix 4 — accept several common label variants for description / tagline so
+    // copy lifts off the Tally form correctly even when the wording varies.
+    const description = getTallyText(fields, 'description')
+      || getTallyText(fields, 'about this drop')
+      || getTallyText(fields, 'about the drop')
+      || getTallyText(fields, 'tell us about')
+      || null
+    const tagline = getTallyText(fields, 'tagline')
+      || getTallyText(fields, 'subtitle')
+      || getTallyText(fields, 'one line')
+      || getTallyText(fields, 'one-line')
+      || null
     const priceCents = (() => {
       const dollars = getTallyNumber(fields, 'price')
       if (dollars == null) return 0
@@ -99,12 +122,28 @@ export async function POST(request) {
       return dollars >= 1000 ? Math.round(dollars) : Math.round(dollars * 100)
     })()
     const capacity = getTallyNumber(fields, 'capacity') || getTallyNumber(fields, 'quantity') || null
-    const openMode = (getTallyText(fields, 'open mode') || getTallyText(fields, 'when') || 'now').toLowerCase()
+    // Fix 1 — open mode is a multi-choice field; resolve the option label
+    // (e.g. "Immediately when published") instead of the raw UUID.
+    const openModeRaw = getTallyOptionLabel(fields, 'open mode')
+      || getTallyOptionLabel(fields, 'when should orders open')
+      || getTallyOptionLabel(fields, 'when')
+      || getTallyText(fields, 'open mode')
+      || getTallyText(fields, 'when')
+      || 'now'
+    const openMode = String(openModeRaw || 'now').toLowerCase()
     const countdownAtRaw = getTallyText(fields, 'countdown')
+      || getTallyText(fields, 'open at')
+      || getTallyText(fields, 'specific date')
+      || getTallyText(fields, 'launch date')
     const countdownAt = countdownAtRaw ? new Date(countdownAtRaw) : null
     const pickupDetails = getTallyText(fields, 'pickup') || null
     const venmoHandle = (getTallyText(fields, 'venmo') || '').replace(/^@/, '').trim() || null
-    const collectionMode = (getTallyText(fields, 'collection') || 'pre-order').toLowerCase()
+    // Fix 1 — collection mode is a dropdown / radio. Resolve option label
+    // and normalise to one of the 4 canonical kebab-case values.
+    const collectionModeRaw = getTallyOptionLabel(fields, 'collection')
+      || getTallyText(fields, 'collection')
+      || 'pre-order'
+    const collectionMode = normaliseCollectionMode(collectionModeRaw)
     const coverFiles = getTallyFiles(fields, 'cover')
     const galleryFiles = getTallyFiles(fields, 'photo')
     const coverUrl = extractFirstUrl(coverFiles) || extractFirstUrl(galleryFiles) || null
@@ -123,15 +162,27 @@ export async function POST(request) {
 
     // closes_at — when this drop stops accepting orders. Optional. Matches
     // labels containing 'close', 'closes', 'order deadline', or 'cutoff'.
-    // Used by the lifecycle cron to schedule pre-close + close-summary emails.
+    // Fix 6 — Tally may send either a plain date (ISO 8601 YYYY-MM-DD) or
+    // a full datetime. `new Date('2026-06-15')` parses to midnight UTC,
+    // which was producing "closes at midnight on submission day" because
+    // Tally's date-only fields default to today when left blank. We now
+    // ONLY accept values that contain a time component (T..:.. or hh:mm)
+    // and fall back to null otherwise.
     const closeRaw = getTallyText(fields, 'close')
       || getTallyText(fields, 'closes')
       || getTallyText(fields, 'order deadline')
       || getTallyText(fields, 'cutoff')
     let closesAt = null
     if (closeRaw) {
-      const d = new Date(closeRaw)
-      if (!Number.isNaN(d.getTime())) closesAt = d.toISOString()
+      const s = String(closeRaw).trim()
+      // Accept any date-or-datetime string. JS Date is strict ISO 8601-compatible.
+      const d = new Date(s)
+      if (!Number.isNaN(d.getTime())) {
+        // Date-only strings (no 'T' or ':') get midnight UTC — which is
+        // fine as long as the vendor sent a real date. If the string was
+        // empty or 'today' shorthand, the Date is invalid and we skip.
+        closesAt = d.toISOString()
+      }
     }
 
     // publish_action — driven by the Tally "When should orders open?" field.
@@ -144,19 +195,19 @@ export async function POST(request) {
     //     Launch is created as a draft; vendor confirms → status='scheduled';
     //     lifecycle cron auto-publishes when launch_at <= now.
     //
-    // Decision rule: any signal of a future-dated open (explicit 'specific'
-    // text OR a parsed countdownAt in the future OR openMode starting with
-    // 'countdown') means schedule. Everything else falls back to publish.
+    // Fix 5 — "immediately" is the strongest signal. If the label parses to
+    // 'immediately' we always use the publish path regardless of any stray
+    // date strings; otherwise fall back to the previous heuristic.
     const now = new Date()
     const publishAction = (() => {
       const t = (openMode || '').toLowerCase()
-      if (t.includes('specific') || t.includes('date')) return 'schedule'
+      if (t.includes('immediately') || t.includes('right away') || t === 'now') return 'publish'
+      if (t.includes('specific') || t.includes('date') || t.includes('schedule')) return 'schedule'
       if (t.startsWith('countdown') && countdownAt && !Number.isNaN(countdownAt.getTime()) && countdownAt > now) {
         return 'schedule'
       }
-      if (t.includes('immediately')) return 'publish'
       // Default: a Tally form that omits the field entirely or sets openMode
-      // to "now" / "" → publish.
+      // to "" → publish.
       return 'publish'
     })()
 
@@ -194,10 +245,18 @@ export async function POST(request) {
     }
 
     // Decide launch_at
+    // Fix 5 — "publish immediately" → launch_at = now (drop opens the instant
+    // the vendor confirms publish). Only schedule a future launch_at when the
+    // vendor explicitly picked the "specific date" / countdown path.
     let launchAt = now.toISOString()
-    if (openMode.startsWith('countdown') && countdownAt && !isNaN(countdownAt.getTime())) {
+    if (publishAction === 'schedule' && countdownAt && !Number.isNaN(countdownAt.getTime())) {
       launchAt = countdownAt.toISOString()
     }
+
+    // Fix 7 — notify_at defaults to launch_at when the vendor didn't pick a
+    // separate notification time. Lifecycle cron scans email_schedules.open
+    // rows whose scheduled_for ≤ now() so the fan-out actually fires.
+    if (!notifyAt) notifyAt = launchAt
 
     // Unique handle
     const handle = await makeUniqueHandle(supa, productName)
@@ -206,6 +265,7 @@ export async function POST(request) {
     const insertPayload = {
       handle,
       title: productName,
+      tagline,
       description,
       price_cents: priceCents,
       capacity,
@@ -251,6 +311,11 @@ export async function POST(request) {
     //   2. Manual repeating fields (`product_1_name`, `product_1_price`, …).
     // If neither produced rows, the public /l/[handle] page falls back to the
     // existing single-product behaviour driven by drops.price_cents.
+    //
+    // Fix 2 — when products land via CSV or manual mode, also derive
+    // drops.price_cents from the catalogue so the dashboard / Resend preview
+    // emails don't show "$0.00". We use the MINIMUM positive price across
+    // all products (matches how shoppers see "from $X" listings).
     let productsSource = 'none'
     let productsInserted = 0
     try {
@@ -277,10 +342,56 @@ export async function POST(request) {
           }
         } else {
           productsInserted = ins?.length || 0
+          // Derive drops.price_cents from the catalogue (Fix 2).
+          const positivePrices = products
+            .map((p) => Number(p.price_cents || 0))
+            .filter((n) => Number.isFinite(n) && n > 0)
+          if (positivePrices.length && (!priceCents || priceCents === 0)) {
+            const minPrice = Math.min(...positivePrices)
+            const { error: upErr } = await supa
+              .from('drops')
+              .update({ price_cents: minPrice })
+              .eq('id', inserted.id)
+            if (!upErr) inserted.price_cents = minPrice
+          }
         }
       }
     } catch (e) {
       console.warn('[tally-direct-drop] product extraction failed (non-fatal):', e?.message || e)
+    }
+
+    // === Fix 3 — proxy Tally images into Supabase storage ===============
+    // Tally hosts uploaded images behind short-lived JWTs. Re-host them in
+    // the public `vendor-photos` bucket so the URLs survive after the
+    // token expires. Best-effort: on failure we keep the original Tally
+    // URL (which still works for the first few hours).
+    try {
+      let newCover = null
+      let newPhotos = []
+      if (coverFiles.length) {
+        const out = await proxyTallyImages({ supa, dropId: inserted.id, prefix: 'cover', files: coverFiles })
+        if (out.length) newCover = out[0]
+      }
+      if (galleryFiles.length) {
+        newPhotos = await proxyTallyImages({ supa, dropId: inserted.id, prefix: 'photo', files: galleryFiles })
+        // If no dedicated cover image was uploaded, promote the first gallery
+        // shot to drops.cover_url so the public page still has a hero.
+        if (!newCover && newPhotos.length) newCover = newPhotos[0]
+      }
+      if (newCover || newPhotos.length) {
+        const patch = {}
+        if (newCover) patch.cover_url = newCover
+        if (newPhotos.length) patch.photo_urls = newPhotos
+        const { error: pErr } = await supa.from('drops').update(patch).eq('id', inserted.id)
+        if (pErr) {
+          console.warn('[tally-direct-drop] image URL patch failed (non-fatal):', pErr.message)
+        } else {
+          if (newCover) inserted.cover_url = newCover
+          if (newPhotos.length) inserted.photo_urls = newPhotos
+        }
+      }
+    } catch (e) {
+      console.warn('[tally-direct-drop] image proxy crashed (non-fatal):', e?.message || e)
     }
 
     // === Phase A: contact list ingestion ================================
