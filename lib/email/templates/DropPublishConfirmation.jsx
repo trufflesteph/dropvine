@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { EmailShell, H1, Eyebrow, P, CTA, Detail, Divider, Italic } from './_shared'
+import { EmailShell, H1, Eyebrow, P, CTA, TextLink, Detail, Divider, Italic } from './_shared'
 import { formatCollectionMode } from '@/lib/markets/tally'
 
 // Vendor-facing "Your drop is live" confirmation sent the moment the vendor
@@ -46,7 +46,7 @@ export function DropPublishConfirmation({ launch, liveUrl, dashboardUrl, audienc
       <Divider />
 
       <CTA href={liveUrl}>View my live drop →</CTA>
-      {dashboardUrl ? <CTA href={dashboardUrl} ghost>Open dashboard →</CTA> : null}
+      {dashboardUrl ? <TextLink href={dashboardUrl}>Open dashboard →</TextLink> : null}
 
       <P muted>
         <Italic>Orders, waitlist sign-ups, and reservations all show up in your dashboard in real time.</Italic>

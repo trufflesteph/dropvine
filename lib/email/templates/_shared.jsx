@@ -76,35 +76,37 @@ const styles = {
   ctaWrap: {
     margin: '32px 0',
   },
-  // Round-2 Fix 14 + 21 — solid green button. Made a tiny bit chunkier
-  // (16px padding-y) so the text never bumps against the border, and
-  // text-align:center fixes a Gmail rendering quirk that was causing
-  // text to overflow on narrow widths.
+  // Round-2.1 — full-width primary button. Email clients (Gmail, Apple Mail)
+  // re-render `<Section>` as a `<table>` and don't honour `display: inline-block`
+  // on an `<a>` inside a table cell — that's why the previous ghost button
+  // was rendering as a 200-tall empty rectangle. The fix:
+  //   • Primary CTA → `<a>` with `display: block`, full-width, fat padding.
+  //   • "Ghost" CTA replaced with a plain text link (TextLink) used ABOVE
+  //     the primary button, so vendors don't get two stacked oversized buttons.
   cta: {
-    display: 'inline-block',
+    display: 'block',
+    width: '100%',
+    boxSizing: 'border-box',
     backgroundColor: BRAND.green,
     color: '#FFFFFF',
-    fontSize: '14px',
+    fontSize: '15px',
     fontWeight: 600,
     letterSpacing: '0.02em',
-    padding: '16px 32px',
+    padding: '18px 24px',
     textDecoration: 'none',
     textAlign: 'center',
     borderRadius: '2px',
     lineHeight: '1.2',
   },
-  ctaGhost: {
+  textLink: {
     display: 'inline-block',
-    border: `1px solid ${BRAND.green}`,
     color: BRAND.green,
     fontSize: '14px',
     fontWeight: 600,
     letterSpacing: '0.02em',
-    padding: '15px 32px',
-    textDecoration: 'none',
-    textAlign: 'center',
-    borderRadius: '2px',
-    lineHeight: '1.2',
+    textDecoration: 'underline',
+    textUnderlineOffset: '3px',
+    margin: '0 0 12px',
   },
   // Round-2 Fix 13 — Detail rows are now stacked vertically with the
   // label (uppercase eyebrow) on its own line, then the value below.
@@ -210,10 +212,24 @@ export function Eyebrow({ children }) { return <Text style={styles.eyebrow}>{chi
 export function P({ children, muted }) { return <Text style={muted ? styles.pMuted : styles.p}>{children}</Text> }
 export function Italic({ children }) { return <span style={styles.italic}>{children}</span> }
 export function Divider() { return <Hr style={styles.hr} /> }
-export function CTA({ href, children, ghost }) {
+export function CTA({ href, children }) {
+  // Single full-width primary button. The `ghost` prop is intentionally
+  // ignored — use <TextLink> for the secondary action instead so email
+  // clients don't blow up the layout (see _shared.jsx comment on `cta`).
   return (
     <Section style={styles.ctaWrap}>
-      <a href={href} style={ghost ? styles.ctaGhost : styles.cta}>{children}</a>
+      <a href={href} style={styles.cta}>{children}</a>
+    </Section>
+  )
+}
+
+// Plain inline text link used for secondary CTAs (e.g. "Review my drop")
+// in the same body section. Renders reliably across Gmail, Apple Mail,
+// Outlook, and dark-mode clients because there's no table/border to break.
+export function TextLink({ href, children }) {
+  return (
+    <Section style={{ margin: '0 0 8px' }}>
+      <a href={href} style={styles.textLink}>{children}</a>
     </Section>
   )
 }

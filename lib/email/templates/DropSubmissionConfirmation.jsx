@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { EmailShell, H1, Eyebrow, P, CTA, Detail, Divider, Italic, ProductLine } from './_shared'
+import { EmailShell, H1, Eyebrow, P, CTA, TextLink, Detail, Divider, Italic, ProductLine } from './_shared'
 import { formatCollectionMode } from '@/lib/markets/tally'
 
 // Vendor-facing email sent immediately after a Tally submission lands. Two
@@ -99,7 +99,11 @@ export function DropSubmissionConfirmation({
 
       <Divider />
 
-      <CTA href={previewUrl} ghost>Preview your drop →</CTA>
+      {/* Round-2.1 — secondary action is now a plain text link above the
+          single full-width green primary button (per vendor screenshot
+          feedback: ghost-button was rendering as a huge empty rectangle in
+          Gmail). Copy updated to "Review my drop" per spec. */}
+      <TextLink href={previewUrl}>Review my drop →</TextLink>
       <CTA href={confirmUrl}>{isSchedule ? 'Schedule my drop →' : 'Publish my drop →'}</CTA>
 
       {isSchedule ? (
