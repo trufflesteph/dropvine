@@ -21,12 +21,11 @@ export default function PublicLaunchPage() {
 // Helpers
 // --------------------------------------------------------------------------
 
-// Dropvine brand green for primary CTAs (Fix 22). Hex value is used via
-// inline `style` because Tailwind has no built-in palette token at this exact
-// shade; using a custom class would require config + restart. Keeping the
-// constant in one place makes future shade tweaks trivial.
-const DROPVINE_GREEN = '#2D4A2A'
-const DROPVINE_GREEN_HOVER = '#243a21'
+// Dropvine brand green for primary CTAs (Round-2 Fix 21 — bright #4CAF50 to
+// match the platform standard). Hex value used via inline `style` because
+// Tailwind has no built-in palette token at this exact shade.
+const DROPVINE_GREEN = '#4CAF50'
+const DROPVINE_GREEN_HOVER = '#43A047'
 
 function money(cents) {
   if (cents == null || cents === '') return '—'
@@ -387,9 +386,13 @@ function PublicLaunchPageInner() {
       {/* Body */}
       <section className="container py-24 md:py-32 grid md:grid-cols-12 gap-12">
         <div className="md:col-span-7">
-          {/* Description — heading removed (Fix 18 — "The piece" was
-              outdated copy; description text is self-evident from context). */}
-          <p className="text-lg leading-relaxed text-foreground/90 whitespace-pre-line text-pretty">{drop.description || 'No description provided.'}</p>
+          {/* Description — heading removed (Fix 18 R1 — "The piece" was
+              outdated copy; description text is self-evident from context).
+              Round-2 Fix 18 — also drop the "No description provided." fallback
+              so empty drops simply skip the section entirely. */}
+          {drop.description ? (
+            <p className="text-lg leading-relaxed text-foreground/90 whitespace-pre-line text-pretty">{drop.description}</p>
+          ) : null}
           {drop.price_cents > 0 && (
             <div className="mt-12 pt-8 border-t border-border">
               <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Price at release</div>

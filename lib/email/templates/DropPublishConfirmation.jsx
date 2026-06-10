@@ -24,7 +24,14 @@ export function DropPublishConfirmation({ launch, liveUrl, dashboardUrl, audienc
     : 'Your drop page is now public. Share the link with your audience to start collecting orders.'
 
   return (
-    <EmailShell preview={`Your drop is live — ${title}`} planTier={planTier}>
+    <EmailShell
+      preview={`Your drop is live — ${title}`}
+      planTier={planTier}
+      footerLines={[
+        "You're receiving this email because you submitted a drop on Dropvine.",
+        'Dropvine — your sales engine',
+      ]}
+    >
       <Eyebrow>Drop published</Eyebrow>
       <H1>Your drop is live.</H1>
       <P>

@@ -226,7 +226,7 @@ export default function AdminDropPreviewPage() {
         <header className="absolute top-12 inset-x-0 z-20">
           <div className="container flex items-center justify-between py-6">
             <Link href="/" className="font-serif text-lg tracking-tighter">Dropvine</Link>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Launch — {drop.handle}</div>
+            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Drop — {drop.handle}</div>
           </div>
         </header>
 

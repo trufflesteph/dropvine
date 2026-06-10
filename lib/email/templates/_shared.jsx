@@ -9,6 +9,10 @@ export const BRAND = {
   muted: '#6B6863',
   border: '#E8E5DE',
   accent: '#3D3B36',
+  // Round-2 Fix 21 — brighter platform green for all primary CTAs across
+  // both emails AND the public drop page. Keep this constant single-source.
+  green: '#4CAF50',
+  greenHover: '#43A047',
 }
 
 const SERIF = "'Cormorant Garamond', 'Times New Roman', Georgia, serif"
@@ -72,42 +76,80 @@ const styles = {
   ctaWrap: {
     margin: '32px 0',
   },
+  // Round-2 Fix 14 + 21 — solid green button. Made a tiny bit chunkier
+  // (16px padding-y) so the text never bumps against the border, and
+  // text-align:center fixes a Gmail rendering quirk that was causing
+  // text to overflow on narrow widths.
   cta: {
     display: 'inline-block',
-    backgroundColor: '#2D4A2A',
+    backgroundColor: BRAND.green,
     color: '#FFFFFF',
     fontSize: '14px',
+    fontWeight: 600,
     letterSpacing: '0.02em',
-    padding: '14px 28px',
+    padding: '16px 32px',
     textDecoration: 'none',
+    textAlign: 'center',
+    borderRadius: '2px',
+    lineHeight: '1.2',
   },
   ctaGhost: {
     display: 'inline-block',
-    border: `1px solid #2D4A2A`,
-    color: '#2D4A2A',
+    border: `1px solid ${BRAND.green}`,
+    color: BRAND.green,
     fontSize: '14px',
+    fontWeight: 600,
     letterSpacing: '0.02em',
-    padding: '13px 28px',
+    padding: '15px 32px',
     textDecoration: 'none',
+    textAlign: 'center',
+    borderRadius: '2px',
+    lineHeight: '1.2',
   },
-  detailRow: {
-    fontSize: '13px',
-    lineHeight: '1.7',
-    color: BRAND.muted,
-    margin: '0 0 6px',
+  // Round-2 Fix 13 — Detail rows are now stacked vertically with the
+  // label (uppercase eyebrow) on its own line, then the value below.
+  // Each pair gets bottom margin for visual breathing room. This replaces
+  // the old inline "label · value" layout where labels collided with values.
+  detailWrap: {
+    margin: '0 0 20px',
   },
   detailLabel: {
-    display: 'inline-block',
-    width: '110px',
+    display: 'block',
     color: BRAND.muted,
     textTransform: 'uppercase',
-    letterSpacing: '0.18em',
+    letterSpacing: '0.22em',
     fontSize: '10px',
-    paddingRight: '12px',
+    margin: '0 0 6px',
+    fontWeight: 600,
   },
   detailValue: {
-    fontSize: '13px',
+    display: 'block',
+    fontSize: '15px',
     color: BRAND.fg,
+    lineHeight: '1.5',
+    margin: 0,
+  },
+  productRow: {
+    padding: '14px 0',
+    borderBottom: `1px solid ${BRAND.border}`,
+  },
+  productName: {
+    fontSize: '15px',
+    color: BRAND.fg,
+    margin: '0 0 4px',
+    fontWeight: 600,
+  },
+  productDesc: {
+    fontSize: '13px',
+    color: BRAND.muted,
+    lineHeight: '1.5',
+    margin: '0 0 4px',
+  },
+  productPrice: {
+    fontSize: '14px',
+    color: BRAND.fg,
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    margin: 0,
   },
   footer: {
     fontSize: '11px',
@@ -117,6 +159,12 @@ const styles = {
     paddingTop: '24px',
     borderTop: `1px solid ${BRAND.border}`,
   },
+  footerLine: {
+    fontSize: '11px',
+    color: BRAND.muted,
+    lineHeight: '1.7',
+    margin: 0,
+  },
   italic: {
     fontStyle: 'italic',
     fontFamily: SERIF,
@@ -124,11 +172,15 @@ const styles = {
   },
 }
 
-export function EmailShell({ preview, children, planTier }) {
-  // Show "Powered by Dropvine" footer for free + maker tiers; hide for shop.
-  // planTier may be undefined (legacy callers / Markets module emails) — in
-  // that case we DO show the watermark (safe default for unknown tiers).
+// EmailShell accepts an optional `footerLines` array prop so each template
+// can supply its own context-appropriate footer (Round 2 Fix 9, 10, 16).
+// When omitted, we render a SAFE generic Dropvine footer so legacy callers
+// don't ship blank emails.
+export function EmailShell({ preview, children, planTier, footerLines }) {
   const showWatermark = (planTier || 'free') !== 'shop'
+  const lines = Array.isArray(footerLines) && footerLines.length
+    ? footerLines
+    : ['Sent by Dropvine.', 'Dropvine — your sales engine']
   return (
     <Html>
       <Head />
@@ -138,14 +190,11 @@ export function EmailShell({ preview, children, planTier }) {
           <Section style={styles.brandRow}>Dropvine</Section>
           {children}
           <Section style={styles.footer}>
-            <Text style={{ ...styles.detailRow, margin: 0 }}>
-              You&rsquo;re receiving this email because you submitted a drop on Dropvine.
-            </Text>
-            <Text style={{ ...styles.detailRow, margin: 0 }}>
-              Dropvine — Built for the gap between making and selling.
-            </Text>
+            {lines.map((line, i) => (
+              <Text key={i} style={styles.footerLine}>{line}</Text>
+            ))}
             {showWatermark ? (
-              <Text style={{ ...styles.detailRow, margin: '12px 0 0', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+              <Text style={{ ...styles.footerLine, margin: '12px 0 0', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
                 Powered by <a href="https://dropvine.pro" style={{ color: BRAND.muted, textDecoration: 'underline' }}>Dropvine</a>
               </Text>
             ) : null}
@@ -168,12 +217,28 @@ export function CTA({ href, children, ghost }) {
     </Section>
   )
 }
+
+// Round-2 Fix 13 — Detail now renders the label on its own line above
+// the value, with margin between rows. Backwards-compatible signature.
 export function Detail({ label, value }) {
   return (
-    <Text style={{ ...styles.detailRow, margin: '0 0 8px' }}>
-      <span style={styles.detailLabel}>{label}</span>
-      <span style={styles.detailValue}>{value}</span>
-    </Text>
+    <Section style={styles.detailWrap}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue}>{value}</Text>
+    </Section>
+  )
+}
+
+// Round-2 Fix 15 — Compact product line used in the submission confirmation
+// email. Renders {name, optional description, price-cents formatted}.
+export function ProductLine({ name, description, priceCents }) {
+  const price = priceCents != null ? `$${(Number(priceCents) / 100).toFixed(2)}` : ''
+  return (
+    <Section style={styles.productRow}>
+      <Text style={styles.productName}>{name}</Text>
+      {description ? <Text style={styles.productDesc}>{description}</Text> : null}
+      {price ? <Text style={styles.productPrice}>{price}</Text> : null}
+    </Section>
   )
 }
 

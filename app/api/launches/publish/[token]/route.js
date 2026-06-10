@@ -19,7 +19,7 @@
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
-import { sendDropOpenedFanout, sendDropPublishConfirmation } from '@/lib/email/notifications'
+import { sendDropPublishConfirmation } from '@/lib/email/notifications'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -134,47 +134,17 @@ export async function GET(request, { params }) {
     .update({ used_at: new Date().toISOString() })
     .eq('id', tok.id)
 
-  // 6) === Fix 10 — immediate announcement fan-out ====================
-  //    When the vendor picks PUBLISH (not schedule), broadcast the drop
-  //    to every subscriber that landed via the Tally contact CSV. We
-  //    also flag the matching email_schedules row as `sent` so the
-  //    nightly cron doesn't re-fan-out the same audience.
-  //
-  //    Skipped for the SCHEDULE flow — the lifecycle cron will fire the
-  //    `open` email when launch_at <= now.
-  let audienceCount = 0
-  if (action === 'publish') {
-    try {
-      const { data: subscribers } = await supa
-        .from('drop_subscribers')
-        .select('email, name, phone')
-        .eq('drop_id', drop.id)
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin
-      if (Array.isArray(subscribers) && subscribers.length) {
-        const fan = await sendDropOpenedFanout({ drop, subscribers, baseUrl })
-        audienceCount = fan?.sent || 0
-      }
-      // Mark the `open` email_schedules row sent so the cron skips it.
-      try {
-        await supa
-          .from('email_schedules')
-          .update({ sent_at: new Date().toISOString(), recipients: audienceCount })
-          .eq('drop_id', drop.id)
-          .eq('kind', 'open')
-          .is('sent_at', null)
-      } catch (e) {
-        console.warn('[publish] stamp open-schedule failed:', e?.message || e)
-      }
-    } catch (e) {
-      console.warn('[publish] open fan-out failed (non-fatal):', e?.message || e)
-    }
-  }
+  // 6) === Round-2 Fix 8 — NO immediate announcement fan-out =========
+  //    Previously this endpoint immediately fanned out the "Drop opened"
+  //    email to all drop_subscribers. That was wrong. The DropOpened
+  //    announcement must ONLY fire from the cron at /api/cron/send-drop-notifications
+  //    once `notify_at <= now()`. Releasing the email_schedules hold (Step 4)
+  //    is enough to let the cron pick it up at the right moment.
 
-  // 7) === Fix 8 — vendor publish confirmation =======================
+  // 7) === Fix 8 (R1) — vendor publish confirmation =======================
   //    Always send a "your drop is live" email to the vendor on a publish
-  //    click. (Skipped for schedule — the lifecycle cron will send the
-  //    open notification at launch_at; vendors get a separate "scheduled"
-  //    confirmation email in the same code path.)
+  //    click. Skipped for schedule — the lifecycle cron handles the
+  //    announcement at notify_at.
   if (action === 'publish' && drop.creator_id) {
     try {
       const { data: profile } = await supa
@@ -185,7 +155,8 @@ export async function GET(request, { params }) {
       const vendorEmail = profile?.email || null
       if (vendorEmail) {
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin
-        await sendDropPublishConfirmation({ drop, vendorEmail, audienceCount, baseUrl })
+        // Round 2 — no audience count surfaced (cron-driven now).
+        await sendDropPublishConfirmation({ drop, vendorEmail, audienceCount: 0, baseUrl })
       }
     } catch (e) {
       console.warn('[publish] vendor confirmation failed (non-fatal):', e?.message || e)

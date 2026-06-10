@@ -29,10 +29,10 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen grid md:grid-cols-2">
       <aside className="hidden md:flex flex-col justify-between p-12 bg-stone-100 border-r border-border">
-        <Link href="/"><img src="https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/assets/dropvine%202%20color%20logo_transparent.png" alt="Dropvine" style={{ height: '60px', width: 'auto' }} /></Link>
+        <Link href="/" className="font-serif text-xl tracking-tighter">Dropvine<span className="align-super text-[8px] ml-0.5 text-muted-foreground">®</span></Link>
         <div>
-          <p className="font-serif italic text-3xl leading-snug tracking-tight max-w-md">"Five minutes to set up. Zero DMs to manage. Made for every product and service."</p>
-          <p className="mt-6 text-sm text-muted-foreground">— Dropvine Founder, Stephanie Baturoni</p>
+          <p className="font-serif italic text-3xl leading-snug tracking-tight max-w-md">&ldquo;A quieter way to drop — the design holds its breath until the moment is right.&rdquo;</p>
+          <p className="mt-6 text-sm text-muted-foreground">— An early studio, Edition 01</p>
         </div>
         <div className="text-xs text-muted-foreground">© {new Date().getFullYear()} Dropvine</div>
       </aside>
@@ -56,7 +56,7 @@ export default function LoginPage() {
               <Label htmlFor="password" className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Password</Label>
               <Input id="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="••••••••" />
             </div>
-            <button disabled={loading} className="w-full bg-olive text-background h-12 text-sm hover:opacity-90 disabled:opacity-50">
+            <button disabled={loading} className="w-full bg-foreground text-background h-12 text-sm hover:opacity-90 disabled:opacity-50">
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>

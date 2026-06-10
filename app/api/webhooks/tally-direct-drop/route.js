@@ -77,6 +77,51 @@ function extractFirstUrl(arr) {
   return first?.url || null
 }
 
+// Round 2 helpers for the Tally date+time pair fields.
+// "Open on" / "Drop closes on" are date-only; "Open at" / "Drop closes at"
+// are time-only. We combine them into a single UTC ISO timestamp.
+//
+//   combineDateTime('2026-07-04', '18:00')    -> '2026-07-04T18:00:00.000Z'
+//   combineDateTime('2026-07-04', null)       -> '2026-07-04T23:59:59.000Z'  (default end of day)
+//   combineDateTime(null, '18:00')            -> null
+//   combineDateTime(null, null)               -> null
+function tryDate(s) {
+  if (!s) return null
+  const d = new Date(s)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+function combineDateTime(dateStr, timeStr) {
+  if (!dateStr) return null
+  // Strip any time portion the date field accidentally carries.
+  const datePart = String(dateStr).trim().slice(0, 10) // YYYY-MM-DD
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    // Try parsing as a full datetime instead.
+    const d = tryDate(dateStr)
+    return d || null
+  }
+  let time = '23:59:59' // default to end-of-day if no time given
+  if (timeStr) {
+    const t = String(timeStr).trim()
+    // Accept "18:00", "18:00:00", "6:00 PM", "6 PM". Normalise to 24h.
+    const ampm = t.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i)
+    if (ampm) {
+      let h = parseInt(ampm[1], 10)
+      const m = ampm[2] ? parseInt(ampm[2], 10) : 0
+      const isPm = ampm[3].toUpperCase() === 'PM'
+      if (isPm && h < 12) h += 12
+      if (!isPm && h === 12) h = 0
+      time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`
+    } else if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(t)) {
+      const parts = t.split(':').map((x) => x.padStart(2, '0'))
+      while (parts.length < 3) parts.push('00')
+      time = parts.join(':')
+    }
+  }
+  const d = new Date(`${datePart}T${time}Z`)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
 export async function POST(request) {
   try {
     const rawBody = await request.text()
@@ -97,60 +142,96 @@ export async function POST(request) {
 
     const fields = body?.data?.fields || []
 
+    // Round 2 — verbose diagnostic log so we can audit what Tally actually
+    // sends in production. Look in Vercel function logs for the line
+    // "[tally-direct-drop] FIELDS:" followed by the JSON dump.
+    try {
+      const dump = fields.map((f) => ({
+        label: f?.label,
+        type: f?.type,
+        value: f?.value,
+        options: Array.isArray(f?.options) ? f.options.map((o) => ({ id: o?.id, text: o?.text ?? o?.label })) : undefined,
+      }))
+      console.log('[tally-direct-drop] FIELDS:', JSON.stringify(dump))
+    } catch (e) {
+      console.warn('[tally-direct-drop] field dump failed:', e?.message || e)
+    }
+
     // Extract every field. Labels are tolerant — we match by substring.
-    const vendorEmail = (getTallyEmail(fields) || '').trim().toLowerCase() || null
-    const productName = getTallyText(fields, 'product name')
-      || getTallyText(fields, 'drop title')
+    // Round 2 — substring matchers updated to align with the live
+    // tally.so/r/VLbkW6 form (labels supplied by the platform owner):
+    //   Drop Title, Drop Subtitle/Tagline, When should your drop open?,
+    //   Open on, Open at, Drop closes on, Drop closes at, Fulfillment Details,
+    //   Collection Mode, Venmo Handle, Display Photo, Contact Email.
+    const vendorEmail = (
+      getTallyText(fields, 'contact email')
+      || getTallyEmail(fields)
+      || ''
+    ).trim().toLowerCase() || null
+    // Drop Title — check `drop title` first, otherwise fall through to the
+    // legacy substring matchers. The old order matched `product name` first
+    // which was hitting per-product fields in manual-upload mode.
+    const productName = getTallyText(fields, 'drop title')
       || getTallyText(fields, 'title')
+      || getTallyText(fields, 'product name')
       || 'Untitled drop'
-    // Fix 4 — accept several common label variants for description / tagline so
-    // copy lifts off the Tally form correctly even when the wording varies.
-    const description = getTallyText(fields, 'description')
-      || getTallyText(fields, 'about this drop')
-      || getTallyText(fields, 'about the drop')
-      || getTallyText(fields, 'tell us about')
-      || null
-    const tagline = getTallyText(fields, 'tagline')
+    // Tagline → Drop Subtitle/Tagline
+    const tagline = getTallyText(fields, 'subtitle/tagline')
       || getTallyText(fields, 'subtitle')
-      || getTallyText(fields, 'one line')
-      || getTallyText(fields, 'one-line')
+      || getTallyText(fields, 'tagline')
+      || null
+    // Description → Fulfillment Details (the live form's only long-text body
+    // field) with legacy fallbacks for older form revisions.
+    const description = getTallyText(fields, 'fulfillment details')
+      || getTallyText(fields, 'fulfillment')
+      || getTallyText(fields, 'about this drop')
+      || getTallyText(fields, 'description')
       || null
     const priceCents = (() => {
       const dollars = getTallyNumber(fields, 'price')
       if (dollars == null) return 0
-      // Treat any value > 1000 as already-cents; otherwise multiply.
       return dollars >= 1000 ? Math.round(dollars) : Math.round(dollars * 100)
     })()
-    const capacity = getTallyNumber(fields, 'capacity') || getTallyNumber(fields, 'quantity') || null
-    // Fix 1 — open mode is a multi-choice field; resolve the option label
-    // (e.g. "Immediately when published") instead of the raw UUID.
-    const openModeRaw = getTallyOptionLabel(fields, 'open mode')
-      || getTallyOptionLabel(fields, 'when should orders open')
-      || getTallyOptionLabel(fields, 'when')
+    const capacity = getTallyNumber(fields, 'quantity available')
+      || getTallyNumber(fields, 'capacity')
+      || getTallyNumber(fields, 'quantity')
+      || null
+    // Open mode — Tally form label is "When should your drop open?".
+    const openModeRaw = getTallyOptionLabel(fields, 'when should your drop open')
+      || getTallyOptionLabel(fields, 'when should')
+      || getTallyOptionLabel(fields, 'open mode')
+      || getTallyText(fields, 'when should your drop open')
       || getTallyText(fields, 'open mode')
-      || getTallyText(fields, 'when')
       || 'now'
     const openMode = String(openModeRaw || 'now').toLowerCase()
-    const countdownAtRaw = getTallyText(fields, 'countdown')
-      || getTallyText(fields, 'open at')
-      || getTallyText(fields, 'specific date')
-      || getTallyText(fields, 'launch date')
-    const countdownAt = countdownAtRaw ? new Date(countdownAtRaw) : null
+    // Open on (date) + Open at (time) — combine to a single ISO timestamp.
+    const openOnRaw = getTallyText(fields, 'open on')
+    const openAtRaw = getTallyText(fields, 'open at')
+    const countdownAt = combineDateTime(openOnRaw, openAtRaw)
+      || tryDate(getTallyText(fields, 'countdown'))
+      || tryDate(getTallyText(fields, 'specific date'))
+      || tryDate(getTallyText(fields, 'launch date'))
+    // No explicit pickup-details field on the current form — leave null
+    // unless the legacy "pickup" label is present.
     const pickupDetails = getTallyText(fields, 'pickup') || null
     const venmoHandle = (getTallyText(fields, 'venmo') || '').replace(/^@/, '').trim() || null
-    // Fix 1 — collection mode is a dropdown / radio. Resolve option label
-    // and normalise to one of the 4 canonical kebab-case values.
-    const collectionModeRaw = getTallyOptionLabel(fields, 'collection')
+    // Collection mode — resolve option label and normalise to one of the
+    // 4 canonical kebab-case values.
+    const collectionModeRaw = getTallyOptionLabel(fields, 'collection mode')
+      || getTallyOptionLabel(fields, 'collection')
       || getTallyText(fields, 'collection')
       || 'pre-order'
     const collectionMode = normaliseCollectionMode(collectionModeRaw)
-    const coverFiles = getTallyFiles(fields, 'cover')
-    const galleryFiles = getTallyFiles(fields, 'photo')
+    // Display Photo is the form's single image upload field.
+    const coverFiles = getTallyFiles(fields, 'display photo')
+      .concat(getTallyFiles(fields, 'cover'))
+    const galleryFiles = getTallyFiles(fields, 'photo').filter((f) => !coverFiles.some((c) => c.url === f.url))
     const coverUrl = extractFirstUrl(coverFiles) || extractFirstUrl(galleryFiles) || null
     const photoUrls = galleryFiles.map((f) => f.url).filter(Boolean)
 
-    // notify_at — when to fan-out to the waitlist. Optional on the Tally form.
-    // Matches labels containing 'notify', 'send notification', or 'announce'.
+    // notify_at — when to fan-out to the waitlist via cron. The current
+    // Tally form doesn't have a separate notify field, so we default to
+    // launch_at below (Fix 6 R2).
     const notifyRaw = getTallyText(fields, 'notify')
       || getTallyText(fields, 'send notification')
       || getTallyText(fields, 'announce')
@@ -160,29 +241,27 @@ export async function POST(request) {
       if (!Number.isNaN(d.getTime())) notifyAt = d.toISOString()
     }
 
-    // closes_at — when this drop stops accepting orders. Optional. Matches
-    // labels containing 'close', 'closes', 'order deadline', or 'cutoff'.
-    // Fix 6 — Tally may send either a plain date (ISO 8601 YYYY-MM-DD) or
-    // a full datetime. `new Date('2026-06-15')` parses to midnight UTC,
-    // which was producing "closes at midnight on submission day" because
-    // Tally's date-only fields default to today when left blank. We now
-    // ONLY accept values that contain a time component (T..:.. or hh:mm)
-    // and fall back to null otherwise.
-    const closeRaw = getTallyText(fields, 'close')
+    // closes_at — combine "Drop closes on" (date) + "Drop closes at" (time)
+    // into a single ISO timestamp. Round 2 Fix 5.
+    const closeOnRaw = getTallyText(fields, 'drop closes on')
+      || getTallyText(fields, 'closes on')
+      || getTallyText(fields, 'close on')
       || getTallyText(fields, 'closes')
+      || getTallyText(fields, 'close')
       || getTallyText(fields, 'order deadline')
       || getTallyText(fields, 'cutoff')
+    const closeAtRaw = getTallyText(fields, 'drop closes at')
+      || getTallyText(fields, 'closes at')
+      || getTallyText(fields, 'close at')
     let closesAt = null
-    if (closeRaw) {
-      const s = String(closeRaw).trim()
-      // Accept any date-or-datetime string. JS Date is strict ISO 8601-compatible.
-      const d = new Date(s)
-      if (!Number.isNaN(d.getTime())) {
-        // Date-only strings (no 'T' or ':') get midnight UTC — which is
-        // fine as long as the vendor sent a real date. If the string was
-        // empty or 'today' shorthand, the Date is invalid and we skip.
-        closesAt = d.toISOString()
-      }
+    const combinedClose = combineDateTime(closeOnRaw, closeAtRaw)
+    if (combinedClose) {
+      closesAt = combinedClose.toISOString()
+    } else if (closeOnRaw) {
+      // Fallback: parse the close-on string directly if it's already a full
+      // datetime (Tally legacy single-field date pickers).
+      const d = new Date(String(closeOnRaw).trim())
+      if (!Number.isNaN(d.getTime())) closesAt = d.toISOString()
     }
 
     // publish_action — driven by the Tally "When should orders open?" field.
@@ -203,11 +282,10 @@ export async function POST(request) {
       const t = (openMode || '').toLowerCase()
       if (t.includes('immediately') || t.includes('right away') || t === 'now') return 'publish'
       if (t.includes('specific') || t.includes('date') || t.includes('schedule')) return 'schedule'
-      if (t.startsWith('countdown') && countdownAt && !Number.isNaN(countdownAt.getTime()) && countdownAt > now) {
+      // countdownAt is a Date instance (or null) — check it's in the future.
+      if (countdownAt && countdownAt.getTime && countdownAt > now) {
         return 'schedule'
       }
-      // Default: a Tally form that omits the field entirely or sets openMode
-      // to "" → publish.
       return 'publish'
     })()
 
@@ -245,17 +323,16 @@ export async function POST(request) {
     }
 
     // Decide launch_at
-    // Fix 5 — "publish immediately" → launch_at = now (drop opens the instant
-    // the vendor confirms publish). Only schedule a future launch_at when the
-    // vendor explicitly picked the "specific date" / countdown path.
+    // Round 2 — countdownAt is now a Date object (from combineDateTime) when
+    // the schedule path is selected. publishAction='publish' → launch_at = now.
     let launchAt = now.toISOString()
-    if (publishAction === 'schedule' && countdownAt && !Number.isNaN(countdownAt.getTime())) {
+    if (publishAction === 'schedule' && countdownAt && !Number.isNaN(countdownAt.getTime?.() ?? countdownAt.getTime())) {
       launchAt = countdownAt.toISOString()
     }
 
-    // Fix 7 — notify_at defaults to launch_at when the vendor didn't pick a
-    // separate notification time. Lifecycle cron scans email_schedules.open
-    // rows whose scheduled_for ≤ now() so the fan-out actually fires.
+    // Round 2 Fix 6 — notify_at defaults to launchAt so the open fan-out
+    // cron actually fires. The current Tally form has no separate notify
+    // field, so this is the production default.
     if (!notifyAt) notifyAt = launchAt
 
     // Unique handle
@@ -318,9 +395,13 @@ export async function POST(request) {
     // all products (matches how shoppers see "from $X" listings).
     let productsSource = 'none'
     let productsInserted = 0
+    // Round 2 — keep a copy of the extracted product list so we can embed
+    // them inline in the vendor submission confirmation email (Fix 15).
+    let extractedProducts = []
     try {
       const { products, source } = await extractLaunchProducts(fields)
       productsSource = source
+      extractedProducts = products || []
       if (products.length) {
         const payload = products.map((p, i) => ({
           drop_id: inserted.id,
@@ -484,6 +565,10 @@ export async function POST(request) {
           publishAction,
           token: publishToken,
           baseUrl,
+          // Round 2 Fix 15 — pass the parsed catalogue + description so
+          // the email itemises the drop instead of showing just title + price.
+          products: extractedProducts,
+          description,
         })
       } catch (e) {
         console.warn('[tally-direct-drop] vendor confirmation failed (non-fatal):', e?.message || e)
