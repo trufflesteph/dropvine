@@ -107,11 +107,11 @@ export function DropSubmissionConfirmation({
       <CTA href={confirmUrl}>{isSchedule ? 'Schedule my drop →' : 'Publish my drop →'}</CTA>
 
       {isSchedule ? (
-        <P muted>
+        <P muted style={{ marginTop: '24px' }}>
           <Italic>Once scheduled, your drop will go live automatically on {launchAtLabel}. No further action needed after scheduling.</Italic>
         </P>
       ) : (
-        <P muted>
+        <P muted style={{ marginTop: '24px' }}>
           <Italic>Review your drop page carefully before publishing. Once live, customers can place orders immediately.</Italic>
         </P>
       )}

@@ -1,7 +1,9 @@
 // Shared layout + tokens for all Dropvine emails.
 // Tables-based, inline styles only. Mobile-friendly. No external fonts/images.
 import * as React from 'react'
-import { Body, Container, Head, Hr, Html, Preview, Section, Text } from '@react-email/components'
+import { Body, Container, Head, Hr, Html, Img, Preview, Section, Text } from '@react-email/components'
+
+const LOGO_URL = 'https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/assets/dropvine%202%20color%20logo_transparent.png'
 
 export const BRAND = {
   bg: '#FAFAF7',
@@ -189,7 +191,9 @@ export function EmailShell({ preview, children, planTier, footerLines }) {
       {preview ? <Preview>{preview}</Preview> : null}
       <Body style={styles.body}>
         <Container style={styles.container}>
-          <Section style={styles.brandRow}>Dropvine</Section>
+          <Section style={styles.brandRow}>
+            <Img src={LOGO_URL} alt="Dropvine" height={48} style={{ width: 'auto', display: 'block' }} />
+          </Section>
           {children}
           <Section style={styles.footer}>
             {lines.map((line, i) => (
@@ -209,7 +213,7 @@ export function EmailShell({ preview, children, planTier, footerLines }) {
 
 export function H1({ children, style }) { return <Text style={{ ...styles.h1, ...(style||{}) }}>{children}</Text> }
 export function Eyebrow({ children }) { return <Text style={styles.eyebrow}>{children}</Text> }
-export function P({ children, muted }) { return <Text style={muted ? styles.pMuted : styles.p}>{children}</Text> }
+export function P({ children, muted, style }) { return <Text style={{ ...(muted ? styles.pMuted : styles.p), ...(style || {}) }}>{children}</Text> }
 export function Italic({ children }) { return <span style={styles.italic}>{children}</span> }
 export function Divider() { return <Hr style={styles.hr} /> }
 export function CTA({ href, children }) {
@@ -228,7 +232,7 @@ export function CTA({ href, children }) {
 // Outlook, and dark-mode clients because there's no table/border to break.
 export function TextLink({ href, children }) {
   return (
-    <Section style={{ margin: '0 0 8px' }}>
+    <Section style={{ margin: '0 0 20px' }}>
       <a href={href} style={styles.textLink}>{children}</a>
     </Section>
   )

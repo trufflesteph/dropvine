@@ -355,13 +355,12 @@ function PublicLaunchPageInner() {
           {drop.tagline && (
             <p className="mt-8 font-serif italic text-2xl md:text-3xl text-muted-foreground max-w-3xl tracking-tight">{drop.tagline}</p>
           )}
-          {/* Vendor-supplied hero photo. Renders when drops.cover_url is set
-              (any drop, demo or real). Aspect ratio is wide-cinematic to keep
-              the page balanced with the headline above. */}
-          {drop.cover_url && (
+          {/* Vendor-supplied hero photo. Falls back to first gallery image when
+              cover_url is absent so the hero never shows blank when images exist. */}
+          {(drop.cover_url || (Array.isArray(drop.photo_urls) && drop.photo_urls[0])) && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={drop.cover_url}
+              src={drop.cover_url || drop.photo_urls[0]}
               alt={drop.title}
               className="mt-12 md:mt-16 w-full aspect-[16/9] object-cover border border-border"
               onError={(e) => { e.currentTarget.style.display = 'none' }}
@@ -384,60 +383,40 @@ function PublicLaunchPageInner() {
       )}
 
       {/* Body */}
-      <section className="container py-24 md:py-32 grid md:grid-cols-12 gap-12">
-        <div className="md:col-span-7">
-          {/* Description — heading removed (Fix 18 R1 — "The piece" was
-              outdated copy; description text is self-evident from context).
-              Round-2 Fix 18 — also drop the "No description provided." fallback
-              so empty drops simply skip the section entirely. */}
-          {drop.description ? (
-            <p className="text-lg leading-relaxed text-foreground/90 whitespace-pre-line text-pretty">{drop.description}</p>
-          ) : null}
-          {drop.price_cents > 0 && (
-            <div className="mt-12 pt-8 border-t border-border">
-              <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Price at release</div>
-              <div className="font-serif text-4xl tracking-tighter">{money(drop.price_cents)}</div>
-              {drop.capacity ? (
-                <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mt-3">
-                  Limited to {drop.capacity}
-                </div>
-              ) : null}
-            </div>
-          )}
-          {drop.pickup_details ? (
-            <div className="mt-10 pt-8 border-t border-border">
-              <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Pickup</div>
-              <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{drop.pickup_details}</p>
-            </div>
-          ) : null}
-        </div>
-
-        <aside className="md:col-span-5 md:sticky md:top-12 self-start">
-          {/* Fix 13 — the "Preview only — available when this drop goes live"
-              placeholder square was removed. The draft banner at the top of
-              the page already communicates the preview state; an extra block
-              above the order panel was redundant. */}
-          <div
-            className={`border border-border p-8 md:p-10 bg-background ${isDraft ? 'pointer-events-none opacity-60 select-none' : ''}`}
-            data-testid={`mode-panel-${mode}`}
-            aria-disabled={isDraft || undefined}
-          >
-            {rightRail}
+      <section className="container py-24 md:py-32">
+        {(drop.description || drop.pickup_details) ? (
+          <div className="max-w-2xl mb-12">
+            {drop.description ? (
+              <p className="text-lg leading-relaxed text-foreground/90 whitespace-pre-line text-pretty">{drop.description}</p>
+            ) : null}
+            {drop.pickup_details ? (
+              <div className={drop.description ? 'mt-10 pt-8 border-t border-border' : ''}>
+                <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Pickup</div>
+                <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{drop.pickup_details}</p>
+              </div>
+            ) : null}
           </div>
-          {drop?.creator_plan_tier !== 'shop' ? (
-            <p className="mt-4 text-[11px] uppercase tracking-[0.25em] text-muted-foreground text-center">
-              Powered by{' '}
-              <a
-                href="https://dropvine.pro"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-2 hover:text-foreground transition-colors"
-              >
-                Dropvine
-              </a>
-            </p>
-          ) : null}
-        </aside>
+        ) : null}
+        <div
+          className={`border border-border p-8 md:p-10 bg-background ${isDraft ? 'pointer-events-none opacity-60 select-none' : ''}`}
+          data-testid={`mode-panel-${mode}`}
+          aria-disabled={isDraft || undefined}
+        >
+          {rightRail}
+        </div>
+        {drop?.creator_plan_tier !== 'shop' ? (
+          <p className="mt-4 text-[11px] uppercase tracking-[0.25em] text-muted-foreground text-center">
+            Powered by{' '}
+            <a
+              href="https://dropvine.pro"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              Dropvine
+            </a>
+          </p>
+        ) : null}
       </section>
     </main>
   )

@@ -135,8 +135,8 @@ function SignupPageInner() {
           )}
           <form onSubmit={handleSubmit} className="mt-10 space-y-6">
             <div className="space-y-2">
-              <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Name</Label>
-              <Input required value={name} onChange={e => setName(e.target.value)} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="Your name" />
+              <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Business / Studio name</Label>
+              <Input required value={name} onChange={e => setName(e.target.value)} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="e.g. Good Flour Bakery" />
             </div>
             <div className="space-y-2">
               <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Email</Label>

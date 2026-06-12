@@ -245,11 +245,11 @@ export default function AdminDropPreviewPage() {
           </div>
         </section>
 
-        {/* Cover image */}
-        {drop.cover_url ? (
+        {/* Cover image — falls back to first gallery photo if cover_url is absent */}
+        {(drop.cover_url || (Array.isArray(drop.photo_urls) && drop.photo_urls[0])) ? (
           <section className="container max-w-5xl pb-12">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={drop.cover_url} alt="" className="w-full h-auto border border-border" />
+            <img src={drop.cover_url || drop.photo_urls[0]} alt="" className="w-full h-auto border border-border" />
           </section>
         ) : null}
 

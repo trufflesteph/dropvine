@@ -38,6 +38,7 @@ export async function GET() {
   const creatorIds = (vendors || []).map((v) => v.creator_id).filter(Boolean)
   const hasActiveByCreator = new Set()
   const dropCoverByCreator = new Map()
+  const latestDropAtByCreator = new Map()
   if (creatorIds.length) {
     const nowIso = new Date().toISOString()
     const { data: liveDrops } = await supa
@@ -55,6 +56,10 @@ export async function GET() {
         if (d.cover_url && !dropCoverByCreator.has(d.creator_id)) {
           dropCoverByCreator.set(d.creator_id, d.cover_url)
         }
+      }
+      // Track most recent published drop date for card sort order (open or closed).
+      if (d.creator_id && !latestDropAtByCreator.has(d.creator_id)) {
+        latestDropAtByCreator.set(d.creator_id, d.created_at)
       }
     }
   }
@@ -81,7 +86,16 @@ export async function GET() {
       tier: v.tier || 'free',
       is_demo: !!v.is_demo,
       has_active_drop: hasActiveByCreator.has(v.creator_id),
+      latest_drop_at: latestDropAtByCreator.get(v.creator_id) || null,
     }
+  })
+
+  // Sort by most recent published drop first; vendors with no drops fall to the end.
+  list.sort((a, b) => {
+    if (a.latest_drop_at && b.latest_drop_at) return new Date(b.latest_drop_at) - new Date(a.latest_drop_at)
+    if (a.latest_drop_at) return -1
+    if (b.latest_drop_at) return 1
+    return 0
   })
 
   return NextResponse.json({ vendors: list, count: list.length })
