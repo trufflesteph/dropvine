@@ -402,7 +402,17 @@ function PublicLaunchPageInner() {
           data-testid={`mode-panel-${mode}`}
           aria-disabled={isDraft || undefined}
         >
-          {rightRail}
+          {!isLive && !isDraft ? (
+            <div data-testid="not-open-panel">
+              <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Upcoming</div>
+              <div className="font-serif text-2xl md:text-3xl tracking-tighter">
+                Opens {launchAtLabel || 'soon'}.
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Orders open when the drop launches. Check back then.
+              </p>
+            </div>
+          ) : rightRail}
         </div>
         {drop?.creator_plan_tier !== 'shop' ? (
           <p className="mt-4 text-[11px] uppercase tracking-[0.25em] text-muted-foreground text-center">

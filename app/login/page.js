@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import { DropvineLogo } from '@/components/dropvine/logo'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
@@ -29,7 +30,7 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen grid md:grid-cols-2">
       <aside className="hidden md:flex flex-col justify-between p-12 bg-stone-100 border-r border-border">
-        <Link href="/" className="font-serif text-xl tracking-tighter">Dropvine<span className="align-super text-[8px] ml-0.5 text-muted-foreground">®</span></Link>
+        <Link href="/" aria-label="Dropvine home"><DropvineLogo height={48} /></Link>
         <div>
           <p className="font-serif italic text-3xl leading-snug tracking-tight max-w-md">&ldquo;The best part of making something is knowing someone&rsquo;s already waiting for it.&rdquo;</p>
           <p className="mt-6 text-sm text-muted-foreground">— Dropvine</p>
@@ -39,7 +40,7 @@ export default function LoginPage() {
 
       <section className="flex items-center justify-center p-8 md:p-12">
         <div className="w-full max-w-sm">
-          <div className="md:hidden mb-12"><Link href="/" className="font-serif text-xl tracking-tighter">Dropvine</Link></div>
+          <div className="md:hidden mb-12"><Link href="/" aria-label="Dropvine home"><DropvineLogo height={40} /></Link></div>
           <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Sign in</div>
           <h1 className="font-serif font-light text-4xl tracking-tighter">Welcome back.</h1>
           {!configured && (

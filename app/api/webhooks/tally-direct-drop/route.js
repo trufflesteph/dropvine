@@ -240,6 +240,14 @@ export async function POST(request) {
     const galleryFiles = getTallyFiles(fields, 'photo').filter((f) => !coverFiles.some((c) => c.url === f.url))
     const coverUrl = extractFirstUrl(coverFiles) || extractFirstUrl(galleryFiles) || null
     const photoUrls = galleryFiles.map((f) => f.url).filter(Boolean)
+    // Diagnostic: log image capture result. Check Vercel function logs after a
+    // form submission to see whether files were found and which URL was captured.
+    console.log('[tally-direct-drop] image capture:', {
+      coverFiles: coverFiles.length,
+      galleryFiles: galleryFiles.length,
+      coverUrl: coverUrl ? coverUrl.slice(0, 60) + '…' : null,
+      allFieldTypes: fields.map((f) => ({ label: f?.label, type: f?.type })),
+    })
 
     // notify_at — when to fan-out to the waitlist via cron. The current
     // Tally form doesn't have a separate notify field, so we default to
@@ -471,6 +479,10 @@ export async function POST(request) {
         // shot to drops.cover_url so the public page still has a hero.
         if (!newCover && newPhotos.length) newCover = newPhotos[0]
       }
+      console.log('[tally-direct-drop] image proxy result:', {
+        newCover: newCover ? newCover.slice(0, 60) + '…' : null,
+        newPhotos: newPhotos.length,
+      })
       if (newCover || newPhotos.length) {
         const patch = {}
         if (newCover) patch.cover_url = newCover
