@@ -46,7 +46,7 @@ export function DropPublishConfirmation({ launch, liveUrl, dashboardUrl, audienc
       <Divider />
 
       <CTA href={liveUrl}>View my live drop →</CTA>
-      {dashboardUrl ? <TextLink href={dashboardUrl}>Open dashboard →</TextLink> : null}
+      {dashboardUrl ? <TextLink href={dashboardUrl} style={{ margin: '24px 0 16px' }}>Open dashboard →</TextLink> : null}
 
       <P muted>
         <Italic>Orders, waitlist sign-ups, and reservations all show up in your dashboard in real time.</Italic>

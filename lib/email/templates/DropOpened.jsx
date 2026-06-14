@@ -5,36 +5,34 @@ import { EmailShell, H1, Eyebrow, P, CTA, Italic } from './_shared'
 // `notify_at` to every drop_subscriber. NEVER sent directly from the
 // publish endpoint (Round 2 Fix 8).
 //
-// Round 2 changes:
-//   • Fix 10 — footer line 1 references the vendor's business name
-//   • Fix 11 — body copy now reads "This one won't last long."
-//   • Fix 16 — footer line 2 is "Dropvine — your sales engine"
-//
 // Props:
-//   launch          — the drop row
+//   launch          — the drop row (title, closes_at, etc.)
 //   subscriberName  — string | null (used for greeting)
 //   viewUrl         — absolute URL to /l/[handle]
-//   vendorName      — vendor business_name from direct_vendors (used in footer)
+//   vendorName      — vendor business_name from direct_vendors (used in copy + footer)
 //   planTier        — passed through for watermark gating
 export function DropOpened({ launch, subscriberName, viewUrl, vendorName, planTier }) {
   const title = launch?.title || 'A drop'
   const business = vendorName || 'this maker'
+  const closesAtLabel = launch?.closes_at
+    ? new Date(launch.closes_at).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
+    : null
   return (
     <EmailShell
-      preview={`${title} is open.`}
+      preview={`Just dropped — ${title}`}
       planTier={planTier}
       footerLines={[
         `You're receiving this email because you follow ${business} on Dropvine.`,
-        'Dropvine — your sales engine',
+        'Dropvine — fresh drops daily',
       ]}
     >
       <Eyebrow>Now open</Eyebrow>
-      <H1>The doors are open.</H1>
+      <H1>Just dropped — {title}</H1>
       <P>
         {subscriberName ? <>Hi {subscriberName} — </> : null}
-        <strong>{title}</strong> is now live. This one won&rsquo;t last long.
+        <strong>{business}</strong> just dropped something new. Check it out while it&rsquo;s fresh!
       </P>
-      {launch?.tagline && <P muted><Italic>{launch.tagline}</Italic></P>}
+      {closesAtLabel ? <P muted><Italic>Drop closes on {closesAtLabel}.</Italic></P> : null}
       {viewUrl && <CTA href={viewUrl}>View the drop →</CTA>}
     </EmailShell>
   )

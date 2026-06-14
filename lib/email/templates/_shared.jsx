@@ -76,28 +76,23 @@ const styles = {
     margin: '32px 0',
   },
   ctaWrap: {
-    margin: '32px 0',
+    margin: '40px 0 32px',
   },
-  // Round-2.1 — full-width primary button. Email clients (Gmail, Apple Mail)
-  // re-render `<Section>` as a `<table>` and don't honour `display: inline-block`
-  // on an `<a>` inside a table cell — that's why the previous ghost button
-  // was rendering as a 200-tall empty rectangle. The fix:
-  //   • Primary CTA → `<a>` with `display: block`, full-width, fat padding.
-  //   • "Ghost" CTA replaced with a plain text link (TextLink) used ABOVE
-  //     the primary button, so vendors don't get two stacked oversized buttons.
+  // Full-width primary button. Styled to match the website's foreground buttons
+  // (login/signup/dashboard CTAs) — dark background, off-white text, no radius.
   cta: {
     display: 'block',
     width: '100%',
     boxSizing: 'border-box',
-    backgroundColor: BRAND.green,
-    color: '#FFFFFF',
-    fontSize: '15px',
+    backgroundColor: BRAND.fg,
+    color: BRAND.bg,
+    fontSize: '14px',
     fontWeight: 600,
-    letterSpacing: '0.02em',
-    padding: '18px 24px',
+    letterSpacing: '0.04em',
+    padding: '16px 24px',
     textDecoration: 'none',
     textAlign: 'center',
-    borderRadius: '2px',
+    borderRadius: '0',
     lineHeight: '1.2',
   },
   textLink: {
@@ -184,7 +179,7 @@ export function EmailShell({ preview, children, planTier, footerLines }) {
   const showWatermark = (planTier || 'free') !== 'shop'
   const lines = Array.isArray(footerLines) && footerLines.length
     ? footerLines
-    : ['Sent by Dropvine.', 'Dropvine — your sales engine']
+    : ['Sent by Dropvine.', 'Dropvine — fresh drops daily']
   return (
     <Html>
       <Head />
@@ -230,9 +225,9 @@ export function CTA({ href, children }) {
 // Plain inline text link used for secondary CTAs (e.g. "Review my drop")
 // in the same body section. Renders reliably across Gmail, Apple Mail,
 // Outlook, and dark-mode clients because there's no table/border to break.
-export function TextLink({ href, children }) {
+export function TextLink({ href, children, style }) {
   return (
-    <Section style={{ margin: '0 0 20px' }}>
+    <Section style={{ margin: '0 0 16px', ...(style || {}) }}>
       <a href={href} style={styles.textLink}>{children}</a>
     </Section>
   )

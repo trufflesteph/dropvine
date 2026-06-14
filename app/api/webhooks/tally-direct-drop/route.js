@@ -223,8 +223,20 @@ export async function POST(request) {
       || 'pre-order'
     const collectionMode = normaliseCollectionMode(collectionModeRaw)
     // Display Photo is the form's single image upload field.
-    const coverFiles = getTallyFiles(fields, 'display photo')
+    // Primary: label-based matching.
+    let coverFiles = getTallyFiles(fields, 'display photo')
       .concat(getTallyFiles(fields, 'cover'))
+    // Fallback: if label matching found nothing, grab the first FILE_UPLOAD field
+    // regardless of its label. Guards against label changes in the Tally form.
+    if (!coverFiles.length) {
+      const anyUpload = fields.find((f) => f?.type === 'FILE_UPLOAD' && f?.value != null)
+      if (anyUpload) {
+        const raw = Array.isArray(anyUpload.value) ? anyUpload.value : [anyUpload.value]
+        coverFiles = raw
+          .filter((x) => x && (x.url || x.uploadedUrl || x.uploaded_url))
+          .map((x) => ({ url: x.url || x.uploadedUrl || x.uploaded_url, name: x.name || null, mimeType: x.mimeType || x.mime_type || null }))
+      }
+    }
     const galleryFiles = getTallyFiles(fields, 'photo').filter((f) => !coverFiles.some((c) => c.url === f.url))
     const coverUrl = extractFirstUrl(coverFiles) || extractFirstUrl(galleryFiles) || null
     const photoUrls = galleryFiles.map((f) => f.url).filter(Boolean)

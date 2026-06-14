@@ -31,8 +31,8 @@ export default function LoginPage() {
       <aside className="hidden md:flex flex-col justify-between p-12 bg-stone-100 border-r border-border">
         <Link href="/" className="font-serif text-xl tracking-tighter">Dropvine<span className="align-super text-[8px] ml-0.5 text-muted-foreground">®</span></Link>
         <div>
-          <p className="font-serif italic text-3xl leading-snug tracking-tight max-w-md">&ldquo;A quieter way to drop — the design holds its breath until the moment is right.&rdquo;</p>
-          <p className="mt-6 text-sm text-muted-foreground">— An early studio, Edition 01</p>
+          <p className="font-serif italic text-3xl leading-snug tracking-tight max-w-md">&ldquo;The best part of making something is knowing someone&rsquo;s already waiting for it.&rdquo;</p>
+          <p className="mt-6 text-sm text-muted-foreground">— Dropvine</p>
         </div>
         <div className="text-xs text-muted-foreground">© {new Date().getFullYear()} Dropvine</div>
       </aside>
