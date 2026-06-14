@@ -297,11 +297,11 @@ export async function POST(request) {
     let vendorName = null
     if (vendorEmail) {
       const { data: profile } = await supa
-        .from('profiles').select('id, display_name, full_name')
+        .from('profiles').select('id, display_name')
         .eq('email', vendorEmail).maybeSingle()
       if (profile) {
         creatorId = profile.id
-        vendorName = profile.display_name || profile.full_name || null
+        vendorName = profile.display_name || null
       }
     }
     // Fallback: if no vendor profile match (vendors don't have logins in this

@@ -27,10 +27,15 @@ export default function DashboardPage() {
   const reload = async () => {
     if (!user) return
     setFetching(true)
-    const r = await fetch('/api/drops?creator=me', { headers: { 'x-user-id': user.id } })
-    const d = await r.json()
-    setDrops(d.drops || [])
-    setFetching(false)
+    try {
+      const r = await fetch('/api/drops?creator=me', { headers: { 'x-user-id': user.id } })
+      const d = await r.json()
+      setDrops(d.drops || [])
+    } catch {
+      // leave drops as-is; fetching clears below
+    } finally {
+      setFetching(false)
+    }
   }
 
   useEffect(() => { if (user) reload() }, [user])
