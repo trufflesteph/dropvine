@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { Img } from '@react-email/components'
 import { EmailShell, H1, Eyebrow, P, CTA, Italic } from './_shared'
 
 // Shopper-facing fan-out email when a drop opens. Sent by the cron at
@@ -32,6 +33,17 @@ export function DropOpened({ launch, subscriberName, viewUrl, vendorName, planTi
         {subscriberName ? <>Hi {subscriberName} — </> : null}
         <strong>{business}</strong> just dropped something new. Check it out while it&rsquo;s fresh!
       </P>
+      {launch?.cover_url ? (
+        <Img
+          src={launch.cover_url}
+          alt={title}
+          width="560"
+          style={{ width: '100%', maxWidth: '560px', height: 'auto', display: 'block', margin: '24px 0 0', border: '1px solid #E5E5E0' }}
+        />
+      ) : null}
+      {launch?.description ? (
+        <P style={{ marginTop: '16px', whiteSpace: 'pre-line' }}>{launch.description}</P>
+      ) : null}
       {closesAtLabel ? <P muted><Italic>Drop closes on {closesAtLabel}.</Italic></P> : null}
       {viewUrl && <CTA href={viewUrl}>View the drop →</CTA>}
     </EmailShell>

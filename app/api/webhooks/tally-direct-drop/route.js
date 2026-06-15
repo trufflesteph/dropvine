@@ -163,11 +163,7 @@ export async function POST(request) {
     //   Drop Title, Drop Subtitle/Tagline, When should your drop open?,
     //   Open on, Open at, Drop closes on, Drop closes at, Fulfillment Details,
     //   Collection Mode, Venmo Handle, Display Photo, Contact Email.
-    const vendorEmail = (
-      getTallyText(fields, 'contact email')
-      || getTallyEmail(fields)
-      || ''
-    ).trim().toLowerCase() || null
+    const vendorEmail = (getTallyText(fields, 'vendor_email') || '').trim().toLowerCase() || null
     // Pre-filled hidden fields — appended to the Tally URL by the dashboard
     // "New drop" CTA so the webhook can keep the vendor's profile in sync.
     const tallyBusinessName = getTallyText(fields, 'business_name') || null
@@ -318,31 +314,30 @@ export async function POST(request) {
     const supa = getSupabaseAdmin()
     if (!supa) return NextResponse.json({ error: 'supabase not configured' }, { status: 500 })
 
-    // Look up creator by email — profiles table is the source of truth.
+    // Look up creator by the vendor_email hidden field — profiles.email is the
+    // source of truth. Reject immediately if the field is missing or unmatched;
+    // no platform-owner fallback so bad submissions surface clearly.
+    if (!vendorEmail) {
+      console.error('[tally-direct-drop] vendor_email missing or no matching vendor — submission rejected')
+      return NextResponse.json({ error: 'vendor_email missing or no matching vendor' }, { status: 422 })
+    }
     let creatorId = null
     let vendorName = null
-    if (vendorEmail) {
-      const { data: profile } = await supa
-        .from('profiles').select('id, display_name')
-        .eq('email', vendorEmail).maybeSingle()
-      if (profile) {
-        creatorId = profile.id
-        vendorName = profile.display_name || null
-      }
+    const { data: profile } = await supa
+      .from('profiles').select('id, display_name')
+      .eq('email', vendorEmail).maybeSingle()
+    if (profile) {
+      creatorId = profile.id
+      vendorName = profile.display_name || null
     }
-    // Fallback: if no vendor profile match (vendors don't have logins in this
-    // flow, so they may not exist in `profiles` yet), assign the draft to the
-    // platform owner so it can land + be triaged. Owner can re-attribute later.
-    let attributedToOwner = false
-    if (!creatorId && process.env.PLATFORM_OWNER_EMAIL) {
-      const { data: owner } = await supa
-        .from('profiles').select('id')
-        .eq('email', process.env.PLATFORM_OWNER_EMAIL).maybeSingle()
-      if (owner) { creatorId = owner.id; attributedToOwner = true }
+    if (!creatorId) {
+      console.error('[tally-direct-drop] vendor_email missing or no matching vendor — submission rejected', { vendorEmail })
+      return NextResponse.json({ error: 'vendor_email missing or no matching vendor' }, { status: 422 })
     }
+    const attributedToOwner = false
     // Sync vendor profile fields back to direct_vendors from the hidden
     // Tally params. Best-effort — never blocks the drop insert.
-    if (creatorId && !attributedToOwner && (tallyBusinessName || tallyBusinessCategory || tallyCityState)) {
+    if (tallyBusinessName || tallyBusinessCategory || tallyCityState) {
       try {
         const profilePatch = {}
         if (tallyBusinessName) profilePatch.business_name = tallyBusinessName
@@ -356,14 +351,6 @@ export async function POST(request) {
       } catch (e) {
         console.warn('[tally-direct-drop] vendor profile sync failed (non-fatal):', e?.message || e)
       }
-    }
-
-    if (!creatorId) {
-      console.warn('[tally-direct-drop] no profile match for vendor or owner:', vendorEmail, process.env.PLATFORM_OWNER_EMAIL)
-      return NextResponse.json({
-        error: 'no_creator_match',
-        detail: `Could not find a profile for vendor_email "${vendorEmail || '(missing)'}" or PLATFORM_OWNER_EMAIL "${process.env.PLATFORM_OWNER_EMAIL || '(unset)'}". Create a profile for the vendor in Supabase (or set PLATFORM_OWNER_EMAIL to a registered user) and retry.`,
-      }, { status: 422 })
     }
 
     // Decide launch_at

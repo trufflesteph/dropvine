@@ -292,8 +292,7 @@ function DropCard({ drop }) {
             {drop.tagline}
           </p>
         ) : null}
-        <div className="mt-6 flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">{price || '—'}</span>
+        <div className="mt-6 flex items-center justify-end text-sm">
           <span className="inline-flex items-center gap-1 text-foreground/80 group-hover:text-foreground">
             View drop <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
           </span>

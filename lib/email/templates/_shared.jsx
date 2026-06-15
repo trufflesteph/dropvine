@@ -76,7 +76,8 @@ const styles = {
     margin: '32px 0',
   },
   ctaWrap: {
-    margin: '40px 0 32px',
+    margin: '40px 0 0',
+    paddingBottom: '40px',
   },
   cta: {
     display: 'inline-block',
