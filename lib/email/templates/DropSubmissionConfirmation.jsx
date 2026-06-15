@@ -40,7 +40,6 @@ export function DropSubmissionConfirmation({
   const isSchedule = publishAction === 'schedule'
   const title = launch?.title || 'Your drop'
   const mode = launch?.collection_mode ? formatCollectionMode(launch.collection_mode) : null
-  const price = launch?.price_cents ? `$${(Number(launch.price_cents) / 100).toFixed(2)}` : null
   const capacity = launch?.capacity || null
   const previewSubject = isSchedule
     ? `Your drop is ready to preview — goes live ${launchAtLabel || 'on schedule'}`
@@ -69,7 +68,6 @@ export function DropSubmissionConfirmation({
       <Eyebrow>Drop details</Eyebrow>
       <Detail label="Title" value={title} />
       {mode ? <Detail label="Collection mode" value={mode} /> : null}
-      {price ? <Detail label="Price" value={price} /> : null}
       {capacity ? <Detail label="Capacity" value={String(capacity)} /> : null}
       {launchAtLabel ? <Detail label="Opens" value={launchAtLabel} /> : null}
       {closesAtLabel ? <Detail label="Closes" value={closesAtLabel} /> : null}

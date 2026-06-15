@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { getSupabaseBrowser } from '@/lib/supabase/client'
 import { DROPVINE_LOGO_URL } from '@/components/dropvine/logo'
 
-const FOOTER_TAGLINE_FALLBACK = 'Built for the gap between making and selling.'
+const FOOTER_TAGLINE_FALLBACK = 'Your sales engine.'
 
 export function Footer() {
   // Pull the tagline from site_config so the operator can edit it from

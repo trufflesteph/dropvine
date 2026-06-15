@@ -8,8 +8,8 @@ import { Countdown } from '@/components/dropvine/countdown'
 import { ArrowRight, ArrowUpRight } from 'lucide-react'
 import { getSupabaseBrowser } from '@/lib/supabase/client'
 
-const PRICING_HEADLINE_FALLBACK = "Start free. Scale fast."
-const PRICING_SUBTEXT_FALLBACK = 'No credit card. No lock-in. Every tier includes all four collection modes — waitlist, pre-order, reservation, and deposit.'
+const PRICING_HEADLINE_FALLBACK = 'No transaction fees, EVER.'
+const PRICING_SUBTEXT_FALLBACK = 'Your sales are yours. Dropvine will never charge you a transaction fee.'
 
 // Centralised defaults for every editable copy field on the marketing site.
 // The homepage seeds state with these, then overlays any non-empty values
@@ -20,10 +20,10 @@ const DEFAULTS = {
   // Hero — fully DB-driven. The headline is split across two lines so the
   // second line can render in italic (matches the original visual). Set
   // `hero_headline_line2` to empty string to suppress the italic line entirely.
-  hero_headline_line1:       'You Want Orders.',
+  hero_headline_line1:       'Make more. Text less.',
   hero_headline_line2:       '',
-  hero_subtext:              "You don't want the DMs, texts, and calls to get them. Let Dropvine handle that.",
-  hero_microcopy:            '',
+  hero_subtext:              "Stop taking orders through DMs. Dropvine does the work for you.",
+  hero_microcopy:            'The best part — no transaction fees, EVER.',
   hero_primary_cta:          'Try it free',
   hero_primary_cta_href:     '/signup',
   hero_secondary_cta:        'See it in action',
@@ -37,10 +37,10 @@ const DEFAULTS = {
   how_it_works_headline:     'How it works',
   how_it_works_step1_title:  '01 — Fill out one form',
   how_it_works_step1_body:   'Set your products and pricing, pick a deadline. Takes five minutes.',
-  how_it_works_step2_title:  '02 — Your page goes live instantly',
-  how_it_works_step2_body:   'Dropvine builds your page automatically. Your customer list gets an SMS and email with the link — no extra steps on your end.',
-  how_it_works_step3_title:  '03 — Orders come in, you stay organized',
-  how_it_works_step3_body:   'Every order is logged in your dashboard. Customers pay you directly via Venmo. You mark orders paid and fulfilled as they come in — all in one place.',
+  how_it_works_step2_title:  '02 — Your page goes live',
+  how_it_works_step2_body:   'Dropvine does the work for you — building your sales page, creating the marketing messages and notifying your contact list.',
+  how_it_works_step3_title:  '03 — Your sales are yours',
+  how_it_works_step3_body:   'No transaction fees, EVER.',
 
   // Use cases
   use_cases_headline:        'Dropvine sells for you.',
@@ -70,14 +70,14 @@ const DEFAULTS = {
   // Collection modes
   modes_headline:            'Pick how your customers commit.',
   modes_subtext:             'Not every business runs the same way. Dropvine has four collection modes — use the one that fits your workflow.',
-  mode_1_name:               'Waitlist',
-  mode_1_body:               'Get people in line before you open. No payment, no friction — just names and excitement piling up.',
-  mode_2_name:               'Pre-order',
-  mode_2_body:               'Customers commit and pay through Venmo before you make it. You know exactly what to produce.',
-  mode_3_name:               'Reservation',
-  mode_3_body:               'Lock in the spot, collect payment later. Great for workshops, sessions, and events.',
-  mode_4_name:               'Deposit',
-  mode_4_body:               'A small payment now, the rest at pickup. Lower the barrier to commit while keeping it serious.',
+  mode_1_name:               'Pre-order',
+  mode_1_body:               'Customers commit and pay through Venmo before you make it. You know exactly what to produce.',
+  mode_2_name:               'Deposit',
+  mode_2_body:               'A small payment now, the rest at pickup. Lower the barrier to commit while keeping it serious.',
+  mode_3_name:               'Waitlist',
+  mode_3_body:               'Get people in line before you open. No payment, no friction — just names and excitement piling up.',
+  mode_4_name:               'Reservation',
+  mode_4_body:               'Lock in the spot, collect payment later. Great for workshops, sessions, and events.',
 
   // Bottom CTA
   bottom_cta_headline:       'Ready to stop managing orders through DMs?',
