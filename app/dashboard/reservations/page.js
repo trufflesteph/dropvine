@@ -18,6 +18,9 @@ export default function ReservationsPage() {
   // Vendor tier drives the "Create one →" Tally URL in the empty state.
   const [vendorTier, setVendorTier] = useState('free')
   const [vendorEmail, setVendorEmail] = useState(null)
+  const [vendorName, setVendorName] = useState(null)
+  const [vendorCategory, setVendorCategory] = useState(null)
+  const [vendorCityState, setVendorCityState] = useState(null)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
@@ -37,6 +40,11 @@ export default function ReservationsPage() {
         if (d?.vendor?.tier) setVendorTier(d.vendor.tier)
         if (d?.email) setVendorEmail(d.email)
         else if (user?.email) setVendorEmail(user.email)
+        if (d?.vendor?.business_name) setVendorName(d.vendor.business_name)
+        if (d?.vendor?.category) setVendorCategory(d.vendor.category)
+        const city = d?.vendor?.location_city || ''
+        const st = d?.vendor?.location_state || ''
+        if (city || st) setVendorCityState([city, st].filter(Boolean).join(', '))
       } catch {}
     })()
     return () => { cancelled = true }
@@ -127,7 +135,7 @@ export default function ReservationsPage() {
             <div className="text-sm text-muted-foreground">
               No drops with reservations enabled.{' '}
               <a
-                href={buildNewDropUrl(vendorTier, vendorEmail || user?.email)}
+                href={buildNewDropUrl(vendorTier, vendorEmail || user?.email, { businessName: vendorName, category: vendorCategory, cityState: vendorCityState })}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline underline-offset-4 text-foreground"

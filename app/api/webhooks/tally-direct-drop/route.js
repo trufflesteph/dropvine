@@ -168,6 +168,11 @@ export async function POST(request) {
       || getTallyEmail(fields)
       || ''
     ).trim().toLowerCase() || null
+    // Pre-filled hidden fields — appended to the Tally URL by the dashboard
+    // "New drop" CTA so the webhook can keep the vendor's profile in sync.
+    const tallyBusinessName = getTallyText(fields, 'business_name') || null
+    const tallyBusinessCategory = getTallyText(fields, 'business_category') || null
+    const tallyCityState = getTallyText(fields, 'city_state') || null
     // Drop Title — check `drop title` first, otherwise fall through to the
     // legacy substring matchers. The old order matched `product name` first
     // which was hitting per-product fields in manual-upload mode.
@@ -335,6 +340,24 @@ export async function POST(request) {
         .eq('email', process.env.PLATFORM_OWNER_EMAIL).maybeSingle()
       if (owner) { creatorId = owner.id; attributedToOwner = true }
     }
+    // Sync vendor profile fields back to direct_vendors from the hidden
+    // Tally params. Best-effort — never blocks the drop insert.
+    if (creatorId && !attributedToOwner && (tallyBusinessName || tallyBusinessCategory || tallyCityState)) {
+      try {
+        const profilePatch = {}
+        if (tallyBusinessName) profilePatch.business_name = tallyBusinessName
+        if (tallyBusinessCategory) profilePatch.category = tallyBusinessCategory
+        if (tallyCityState) {
+          const [tallyCity, tallyState] = tallyCityState.split(',').map((s) => s.trim())
+          if (tallyCity) profilePatch.location_city = tallyCity
+          if (tallyState) profilePatch.location_state = tallyState
+        }
+        await supa.from('direct_vendors').update(profilePatch).eq('creator_id', creatorId)
+      } catch (e) {
+        console.warn('[tally-direct-drop] vendor profile sync failed (non-fatal):', e?.message || e)
+      }
+    }
+
     if (!creatorId) {
       console.warn('[tally-direct-drop] no profile match for vendor or owner:', vendorEmail, process.env.PLATFORM_OWNER_EMAIL)
       return NextResponse.json({

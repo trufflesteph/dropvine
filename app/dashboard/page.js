@@ -19,6 +19,9 @@ export default function DashboardPage() {
   // been provisioned yet (rare — happens immediately after signup).
   const [vendorTier, setVendorTier] = useState('free')
   const [vendorEmail, setVendorEmail] = useState(null)
+  const [vendorName, setVendorName] = useState(null)
+  const [vendorCategory, setVendorCategory] = useState(null)
+  const [vendorCityState, setVendorCityState] = useState(null)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
@@ -55,6 +58,11 @@ export default function DashboardPage() {
         if (d?.vendor?.tier) setVendorTier(d.vendor.tier)
         if (d?.email) setVendorEmail(d.email)
         else if (user?.email) setVendorEmail(user.email)
+        if (d?.vendor?.business_name) setVendorName(d.vendor.business_name)
+        if (d?.vendor?.category) setVendorCategory(d.vendor.category)
+        const city = d?.vendor?.location_city || ''
+        const st = d?.vendor?.location_state || ''
+        if (city || st) setVendorCityState([city, st].filter(Boolean).join(', '))
       } catch {}
     })()
     return () => { cancelled = true }
@@ -89,7 +97,11 @@ export default function DashboardPage() {
   const totalWaitlist = 0 // placeholder; could fetch counts per drop
   // Compute once and pass into both CTAs (header + EmptyState) so they
   // never drift apart.
-  const newDropUrl = buildNewDropUrl(vendorTier, vendorEmail || user?.email)
+  const newDropUrl = buildNewDropUrl(vendorTier, vendorEmail || user?.email, {
+    businessName: vendorName,
+    category: vendorCategory,
+    cityState: vendorCityState,
+  })
 
   return (
     <div className="min-h-screen flex bg-background">
