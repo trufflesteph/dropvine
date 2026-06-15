@@ -111,10 +111,10 @@ function SignupPageInner() {
   return (
     <main className="min-h-screen grid md:grid-cols-2">
       <aside className="hidden md:flex flex-col justify-between p-12 bg-stone-100 border-r border-border">
-        <Link href=”/” aria-label=”Dropvine home”><DropvineLogo height={48} /></Link>
+        <Link href="/" aria-label="Dropvine home"><DropvineLogo height={48} /></Link>
         <div>
-          <p className=”font-serif italic text-3xl leading-snug tracking-tight max-w-md”>”Ready, set, sell!”</p>
-          <p className=”mt-6 text-sm text-muted-foreground”>— Dropvine, your new BBF (business best friend)</p>
+          <p className="font-serif italic text-3xl leading-snug tracking-tight max-w-md">"Ready, set, sell!"</p>
+          <p className="mt-6 text-sm text-muted-foreground">— Dropvine, your new BBF (business best friend)</p>
         </div>
         <div className="text-xs text-muted-foreground">© {new Date().getFullYear()} Dropvine</div>
       </aside>
