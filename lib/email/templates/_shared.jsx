@@ -78,22 +78,16 @@ const styles = {
   ctaWrap: {
     margin: '40px 0 32px',
   },
-  // Full-width primary button. Styled to match the website's foreground buttons
-  // (login/signup/dashboard CTAs) — dark background, off-white text, no radius.
   cta: {
-    display: 'block',
-    width: '100%',
-    boxSizing: 'border-box',
-    backgroundColor: BRAND.fg,
-    color: BRAND.bg,
+    display: 'inline-block',
+    backgroundColor: '#2D4A2A',
+    color: '#ffffff',
+    padding: '14px 28px',
     fontSize: '14px',
-    fontWeight: 600,
-    letterSpacing: '0.04em',
-    padding: '16px 24px',
+    fontFamily: 'sans-serif',
     textDecoration: 'none',
-    textAlign: 'center',
-    borderRadius: '0',
-    lineHeight: '1.2',
+    borderRadius: '2px',
+    fontWeight: 500,
   },
   textLink: {
     display: 'inline-block',

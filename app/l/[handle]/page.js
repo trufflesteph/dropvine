@@ -366,6 +366,9 @@ function PublicLaunchPageInner() {
               onError={(e) => { e.currentTarget.style.display = 'none' }}
             />
           )}
+          {drop.description && (
+            <p className="mt-8 text-lg leading-relaxed text-foreground/90 whitespace-pre-line text-pretty max-w-3xl">{drop.description}</p>
+          )}
         </div>
       </section>
 
@@ -384,17 +387,10 @@ function PublicLaunchPageInner() {
 
       {/* Body */}
       <section className="container py-24 md:py-32">
-        {(drop.description || drop.pickup_details) ? (
+        {drop.pickup_details ? (
           <div className="max-w-2xl mb-12">
-            {drop.description ? (
-              <p className="text-lg leading-relaxed text-foreground/90 whitespace-pre-line text-pretty">{drop.description}</p>
-            ) : null}
-            {drop.pickup_details ? (
-              <div className={drop.description ? 'mt-10 pt-8 border-t border-border' : ''}>
-                <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Pickup</div>
-                <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{drop.pickup_details}</p>
-              </div>
-            ) : null}
+            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Pickup</div>
+            <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{drop.pickup_details}</p>
           </div>
         ) : null}
         <div

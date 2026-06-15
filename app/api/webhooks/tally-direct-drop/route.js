@@ -180,9 +180,10 @@ export async function POST(request) {
       || getTallyText(fields, 'subtitle')
       || getTallyText(fields, 'tagline')
       || null
-    // Description → Fulfillment Details (the live form's only long-text body
-    // field) with legacy fallbacks for older form revisions.
-    const description = getTallyText(fields, 'fulfillment details')
+    // Description → "Drop Description" (current form field name), then
+    // legacy fallbacks for older form revisions.
+    const description = getTallyText(fields, 'drop description')
+      || getTallyText(fields, 'fulfillment details')
       || getTallyText(fields, 'fulfillment')
       || getTallyText(fields, 'about this drop')
       || getTallyText(fields, 'description')

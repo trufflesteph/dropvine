@@ -1,5 +1,6 @@
 import * as React from 'react'
-import { EmailShell, H1, Eyebrow, P, CTA, TextLink, Detail, Divider, Italic } from './_shared'
+import { Section, Text } from '@react-email/components'
+import { EmailShell, H1, Eyebrow, P, CTA, TextLink, Detail, Divider, Italic, BRAND } from './_shared'
 import { formatCollectionMode } from '@/lib/markets/tally'
 
 // Vendor-facing "Your drop is live" confirmation sent the moment the vendor
@@ -21,7 +22,7 @@ export function DropPublishConfirmation({ launch, liveUrl, dashboardUrl, audienc
     : null
   const audienceLine = audienceCount > 0
     ? `We've sent the launch announcement to ${audienceCount} ${audienceCount === 1 ? 'contact' : 'contacts'} on your list.`
-    : 'Your drop page is now public. Share the link with your audience to start collecting orders.'
+    : 'Messages are on the way to your followers and the drop link is ready to share on your socials.'
 
   return (
     <EmailShell
@@ -35,8 +36,14 @@ export function DropPublishConfirmation({ launch, liveUrl, dashboardUrl, audienc
       <Eyebrow>Drop published</Eyebrow>
       <H1>Your drop is live.</H1>
       <P>
-        <strong>{title}</strong> is now public on Dropvine. {audienceLine}
+        <strong>{title}</strong> is now published on Dropvine. {audienceLine}
       </P>
+      {liveUrl ? (
+        <Section style={{ margin: '16px 0 24px', padding: '14px 16px', backgroundColor: '#F0F0EC', border: `1px solid ${BRAND.border}` }}>
+          <Text style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.22em', color: BRAND.muted, fontWeight: 600, margin: '0 0 8px' }}>Drop link</Text>
+          <a href={liveUrl} style={{ fontSize: '13px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', color: BRAND.fg, wordBreak: 'break-all', textDecoration: 'none', display: 'block' }}>{liveUrl}</a>
+        </Section>
+      ) : null}
 
       <Divider />
       <Eyebrow>Drop details</Eyebrow>
