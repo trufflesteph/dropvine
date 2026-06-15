@@ -87,9 +87,17 @@ export async function POST(request) {
   const supa = getSupabaseAdmin()
   if (!supa) return bad('supabase not configured', 500)
 
+  const patch = { tier_intent: intent }
+  const category = body?.category ? String(body.category).trim() : null
+  const locationCity = body?.location_city ? String(body.location_city).trim() : null
+  const locationState = body?.location_state ? String(body.location_state).trim() : null
+  if (category) patch.category = category
+  if (locationCity) patch.location_city = locationCity
+  if (locationState) patch.location_state = locationState
+
   const { data, error } = await supa
     .from('direct_vendors')
-    .update({ tier_intent: intent })
+    .update(patch)
     .eq('creator_id', userId)
     .select('id, tier_intent')
     .maybeSingle()

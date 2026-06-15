@@ -146,12 +146,38 @@ export default function DashboardPage() {
           ) : (
             <ul className="divide-y divide-border border-y border-border">
               {drops.map(l => {
+                const now = new Date()
                 const isDraft = l.status === 'draft'
+                const isScheduled = l.status === 'scheduled'
+                const isClosed = l.status === 'closed' || (l.status === 'published' && l.closes_at && new Date(l.closes_at) < now)
+                const isLive = l.status === 'published' && !isClosed
+
+                const statusLabel = isClosed ? null
+                  : isScheduled ? 'Scheduled'
+                  : isLive ? 'Published'
+                  : l.status
+
+                let dateLabel, dateValue
+                if (isClosed) {
+                  dateLabel = 'Closed'
+                  dateValue = null
+                } else if (isLive) {
+                  dateLabel = 'Closes'
+                  dateValue = l.closes_at
+                    ? new Date(l.closes_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+                    : '—'
+                } else {
+                  dateLabel = 'Opens'
+                  dateValue = new Date(l.launch_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+                }
+
                 return (
                   <li key={l.id} className="py-7 grid grid-cols-12 gap-4 items-center group">
                     <div className="col-span-12 md:col-span-6">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">{l.status}</span>
+                        {statusLabel ? (
+                          <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">{statusLabel}</span>
+                        ) : null}
                         {isDraft ? (
                           <span className="inline-flex items-center text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm" style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #F59E0B' }}>
                             Needs review
@@ -162,8 +188,8 @@ export default function DashboardPage() {
                       <div className="text-sm text-muted-foreground">/l/{l.handle}</div>
                     </div>
                     <div className="col-span-6 md:col-span-3 text-sm">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-1">Opens</div>
-                      <div className="tabular-nums">{new Date(l.launch_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</div>
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-1">{dateLabel}</div>
+                      {dateValue ? <div className="tabular-nums">{dateValue}</div> : null}
                     </div>
                     <div className="col-span-6 md:col-span-3 flex items-center justify-end gap-3 text-sm flex-wrap">
                       {isDraft ? (

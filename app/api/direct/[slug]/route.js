@@ -49,7 +49,7 @@ export async function GET(request, { params }) {
     const { data: rows } = await supa
       .from('drops').select('*')
       .eq('creator_id', vendor.creator_id)
-      .in('status', ['published'])
+      .in('status', ['published', 'scheduled'])
       .order('launch_at', { ascending: true })
     const now = Date.now()
     for (const l of (rows || [])) {

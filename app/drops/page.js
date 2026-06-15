@@ -26,6 +26,18 @@ import { Footer } from '@/components/dropvine/footer'
 import { ArrowRight, Search, X, MapPin, Loader2 } from 'lucide-react'
 import { VENDOR_CATEGORIES, ALL_PILL } from '@/lib/vendors/categories'
 
+function fmtCountdown(targetMs) {
+  const ms = targetMs - Date.now()
+  if (ms <= 0) return null
+  const days = Math.floor(ms / 86400000)
+  const hours = Math.floor((ms % 86400000) / 3600000)
+  const mins = Math.floor((ms % 3600000) / 60000)
+  if (days > 1) return `${days}d ${hours}h`
+  if (days === 1) return `1d ${hours}h`
+  if (hours >= 1) return `${hours}h ${mins}m`
+  return `${mins}m`
+}
+
 export default function DropsDirectoryPage() {
   return (
     <Suspense fallback={
@@ -261,6 +273,10 @@ function VendorCard({ v }) {
           <span className="absolute top-3 left-3 text-[10px] uppercase tracking-[0.2em] px-2 py-1 bg-foreground text-background inline-flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             Live drop
+          </span>
+        ) : v.has_upcoming_drop ? (
+          <span className="absolute top-3 left-3 text-[10px] uppercase tracking-[0.2em] px-2 py-1 bg-foreground text-background inline-flex items-center gap-1.5 tabular-nums">
+            Upcoming{v.upcoming_launch_at ? ` · ${fmtCountdown(Date.parse(v.upcoming_launch_at)) ?? 'soon'}` : ''}
           </span>
         ) : null}
       </div>

@@ -29,36 +29,48 @@ export async function GET() {
     .order('created_at', { ascending: false })
   if (vErr) return NextResponse.json({ error: vErr.message }, { status: 500 })
 
-  // 2) Single batched query for active drops — for each vendor with an
-  // active (published + non-expired) drop, we flip has_active_drop=true
-  // AND remember the drop's own cover_url so the Fresh Drops cards can
-  // prefer the DROP photo (set by the vendor on the Tally form) over the
-  // vendor profile photo. Free-tier drops often have no vendor profile
-  // photo at all — falling back to the drop cover keeps cards visual.
+  // 2) Single batched query for published + scheduled drops — flip
+  // has_active_drop=true for vendors with a live published drop, and
+  // has_upcoming_drop=true for vendors with only a scheduled (future) drop.
+  // Also capture the soonest upcoming launch_at for the countdown badge.
   const creatorIds = (vendors || []).map((v) => v.creator_id).filter(Boolean)
   const hasActiveByCreator = new Set()
+  const hasUpcomingByCreator = new Set()
   const dropCoverByCreator = new Map()
   const latestDropAtByCreator = new Map()
+  const upcomingLaunchAtByCreator = new Map()
   if (creatorIds.length) {
     const nowIso = new Date().toISOString()
-    const { data: liveDrops } = await supa
+    const { data: allDrops } = await supa
       .from('drops')
-      .select('creator_id, closes_at, cover_url, created_at')
+      .select('creator_id, status, launch_at, closes_at, cover_url, created_at')
       .in('creator_id', creatorIds)
-      .eq('status', 'published')
+      .in('status', ['published', 'scheduled'])
       .order('created_at', { ascending: false })
-    for (const d of (liveDrops || [])) {
-      // Closes_at NULL = open-ended; future = still live.
+    for (const d of (allDrops || [])) {
+      if (!d.creator_id) continue
+      const isUpcoming = d.launch_at && new Date(d.launch_at) > new Date(nowIso)
       const isOpen = !d.closes_at || new Date(d.closes_at) > new Date(nowIso)
-      if (isOpen && d.creator_id) {
+      if (!isUpcoming && d.status === 'published' && isOpen) {
+        // Live published drop.
         hasActiveByCreator.add(d.creator_id)
-        // First seen (most recent) wins — Supabase returned them DESC.
+        if (d.cover_url && !dropCoverByCreator.has(d.creator_id)) {
+          dropCoverByCreator.set(d.creator_id, d.cover_url)
+        }
+      } else if (isUpcoming) {
+        // Scheduled / future drop.
+        hasUpcomingByCreator.add(d.creator_id)
+        // Keep the soonest upcoming launch_at per vendor for the countdown badge.
+        const existing = upcomingLaunchAtByCreator.get(d.creator_id)
+        if (!existing || new Date(d.launch_at) < new Date(existing)) {
+          upcomingLaunchAtByCreator.set(d.creator_id, d.launch_at)
+        }
         if (d.cover_url && !dropCoverByCreator.has(d.creator_id)) {
           dropCoverByCreator.set(d.creator_id, d.cover_url)
         }
       }
-      // Track most recent published drop date for card sort order (open or closed).
-      if (d.creator_id && !latestDropAtByCreator.has(d.creator_id)) {
+      // Track most recent drop date for card sort order.
+      if (!latestDropAtByCreator.has(d.creator_id)) {
         latestDropAtByCreator.set(d.creator_id, d.created_at)
       }
     }
@@ -86,6 +98,8 @@ export async function GET() {
       tier: v.tier || 'free',
       is_demo: !!v.is_demo,
       has_active_drop: hasActiveByCreator.has(v.creator_id),
+      has_upcoming_drop: !hasActiveByCreator.has(v.creator_id) && hasUpcomingByCreator.has(v.creator_id),
+      upcoming_launch_at: upcomingLaunchAtByCreator.get(v.creator_id) || null,
       latest_drop_at: latestDropAtByCreator.get(v.creator_id) || null,
     }
   })

@@ -19,6 +19,21 @@ import { toast } from 'sonner'
 const TALLY_MAKER_URL = 'https://tally.so/r/RGbWeJ'
 const TALLY_SHOP_URL  = 'https://tally.so/r/RGbWeJ'
 
+const BUSINESS_CATEGORIES = [
+  'Home baker',
+  'Ceramics / pottery',
+  'Candle maker',
+  'Soap / skincare',
+  'Hot sauce / condiments',
+  'Jam / preserves',
+  'Fashion / textiles',
+  'Fiber arts',
+  'Art / limited edition prints',
+  'Workshop / class instructor',
+  'Coach / small cohorts',
+  'Other',
+]
+
 const VALID_TIERS = new Set(['free', 'maker', 'shop'])
 
 function normaliseTier(raw) {
@@ -56,6 +71,9 @@ function SignupPageInner() {
 
   const { signUp, signIn, configured } = useAuth() || {}
   const [name, setName] = useState('')
+  const [category, setCategory] = useState('')
+  const [city, setCity] = useState('')
+  const [state, setState] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -83,7 +101,12 @@ function SignupPageInner() {
         fetch('/api/direct/me', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-user-id': newUserId },
-          body: JSON.stringify({ tier_intent: tier || 'free' }),
+          body: JSON.stringify({
+            tier_intent: tier || 'free',
+            category: category || null,
+            location_city: city || null,
+            location_state: state || null,
+          }),
         }).catch(() => {})
       }
 
@@ -137,6 +160,30 @@ function SignupPageInner() {
             <div className="space-y-2">
               <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Business Name</Label>
               <Input required value={name} onChange={e => setName(e.target.value)} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="e.g. Good Flour Bakery" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Business Category</Label>
+              <select
+                value={category}
+                onChange={e => setCategory(e.target.value)}
+                className="h-12 w-full rounded-none border-x-0 border-t-0 border-b border-border bg-transparent focus:outline-none focus:border-foreground text-sm text-foreground"
+                style={{ paddingLeft: 0 }}
+              >
+                <option value="">Select a category</option>
+                {BUSINESS_CATEGORIES.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">City</Label>
+                <Input value={city} onChange={e => setCity(e.target.value)} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="e.g. Austin" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">State</Label>
+                <Input value={state} onChange={e => setState(e.target.value)} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="e.g. TX" />
+              </div>
             </div>
             <div className="space-y-2">
               <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Email</Label>
