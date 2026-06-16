@@ -16,8 +16,6 @@ import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import {
-  getTallyField,
-  getTallyEmail,
   getTallyText,
   getTallyNumber,
   getTallyFiles,
@@ -162,13 +160,10 @@ export async function POST(request) {
     // tally.so/r/VLbkW6 form (labels supplied by the platform owner):
     //   Drop Title, Drop Subtitle/Tagline, When should your drop open?,
     //   Open on, Open at, Drop closes on, Drop closes at, Fulfillment Details,
-    //   Collection Mode, Venmo Handle, Display Photo, Contact Email.
-    const vendorEmail = (getTallyText(fields, 'vendor_email') || '').trim().toLowerCase() || null
-    // Pre-filled hidden fields — appended to the Tally URL by the dashboard
-    // "New drop" CTA so the webhook can keep the vendor's profile in sync.
-    const tallyBusinessName = getTallyText(fields, 'business_name') || null
-    const tallyBusinessCategory = getTallyText(fields, 'business_category') || null
-    const tallyCityState = getTallyText(fields, 'city_state') || null
+    //   Collection Mode, Venmo Handle, Display Photo, token.
+    // Token is echoed back from the hidden Tally field populated via ?token=...
+    const token = (getTallyText(fields, 'token') || '').trim() || null
+    console.log('[tally-direct-drop] token field value:', token ? token.slice(0, 16) + '…' : null)
     // Drop Title — check `drop title` first, otherwise fall through to the
     // legacy substring matchers. The old order matched `product name` first
     // which was hitting per-product fields in manual-upload mode.
@@ -314,44 +309,47 @@ export async function POST(request) {
     const supa = getSupabaseAdmin()
     if (!supa) return NextResponse.json({ error: 'supabase not configured' }, { status: 500 })
 
-    // Look up creator by the vendor_email hidden field — profiles.email is the
-    // source of truth. Reject immediately if the field is missing or unmatched;
-    // no platform-owner fallback so bad submissions surface clearly.
-    if (!vendorEmail) {
-      console.error('[tally-direct-drop] vendor_email missing or no matching vendor — submission rejected')
-      return NextResponse.json({ error: 'vendor_email missing or no matching vendor' }, { status: 422 })
+    // Look up the pending_submissions row by token — this is the canonical
+    // way to identify the submitting vendor. No token = no drop.
+    if (!token) {
+      console.error('[tally-direct-drop] token missing — submission rejected')
+      return NextResponse.json({ error: 'token missing' }, { status: 422 })
     }
-    let creatorId = null
-    let vendorName = null
-    const { data: profile } = await supa
-      .from('profiles').select('id, display_name')
-      .eq('email', vendorEmail).maybeSingle()
-    if (profile) {
-      creatorId = profile.id
-      vendorName = profile.display_name || null
+    const { data: pendingRow, error: pendingErr } = await supa
+      .from('pending_submissions')
+      .select('id, vendor_id, vendor_email, business_name, expires_at, used_at')
+      .eq('token', token)
+      .maybeSingle()
+    if (pendingErr) {
+      console.error('[tally-direct-drop] pending_submissions lookup error:', pendingErr.message)
+      return NextResponse.json({ error: pendingErr.message }, { status: 500 })
     }
+    if (!pendingRow) {
+      console.error('[tally-direct-drop] token not found — submission rejected', { token: token.slice(0, 16) })
+      return NextResponse.json({ error: 'invalid or expired token' }, { status: 422 })
+    }
+    if (pendingRow.used_at) {
+      console.error('[tally-direct-drop] token already used — submission rejected', { token: token.slice(0, 16) })
+      return NextResponse.json({ error: 'token already used' }, { status: 422 })
+    }
+    if (new Date(pendingRow.expires_at) < new Date()) {
+      console.error('[tally-direct-drop] token expired — submission rejected', { token: token.slice(0, 16), expires_at: pendingRow.expires_at })
+      return NextResponse.json({ error: 'token expired' }, { status: 422 })
+    }
+
+    // Resolve creator_id from the vendor_id stored in the pending row.
+    const { data: vendorRow } = await supa
+      .from('direct_vendors')
+      .select('creator_id')
+      .eq('id', pendingRow.vendor_id)
+      .maybeSingle()
+    const creatorId = vendorRow?.creator_id || null
     if (!creatorId) {
-      console.error('[tally-direct-drop] vendor_email missing or no matching vendor — submission rejected', { vendorEmail })
-      return NextResponse.json({ error: 'vendor_email missing or no matching vendor' }, { status: 422 })
+      console.error('[tally-direct-drop] vendor not found for pending row — submission rejected', { vendor_id: pendingRow.vendor_id })
+      return NextResponse.json({ error: 'vendor not found' }, { status: 422 })
     }
-    const attributedToOwner = false
-    // Sync vendor profile fields back to direct_vendors from the hidden
-    // Tally params. Best-effort — never blocks the drop insert.
-    if (tallyBusinessName || tallyBusinessCategory || tallyCityState) {
-      try {
-        const profilePatch = {}
-        if (tallyBusinessName) profilePatch.business_name = tallyBusinessName
-        if (tallyBusinessCategory) profilePatch.category = tallyBusinessCategory
-        if (tallyCityState) {
-          const [tallyCity, tallyState] = tallyCityState.split(',').map((s) => s.trim())
-          if (tallyCity) profilePatch.location_city = tallyCity
-          if (tallyState) profilePatch.location_state = tallyState
-        }
-        await supa.from('direct_vendors').update(profilePatch).eq('creator_id', creatorId)
-      } catch (e) {
-        console.warn('[tally-direct-drop] vendor profile sync failed (non-fatal):', e?.message || e)
-      }
-    }
+    const vendorEmail = pendingRow.vendor_email
+    const vendorName = pendingRow.business_name || null
 
     // Decide launch_at
     // Round 2 — countdownAt is now a Date object (from combineDateTime) when
@@ -412,6 +410,10 @@ export async function POST(request) {
       console.error('[tally-direct-drop] insert failed:', insErr.message)
       return NextResponse.json({ error: insErr.message }, { status: 500 })
     }
+
+    // Mark the submission token as consumed so it can't be replayed.
+    supa.from('pending_submissions').update({ used_at: new Date().toISOString() }).eq('id', pendingRow.id)
+      .then(({ error: uErr }) => { if (uErr) console.warn('[tally-direct-drop] used_at stamp failed (non-fatal):', uErr.message) })
 
     // === Multi-product seeding ===========================================
     // Two parsing modes (priority order):

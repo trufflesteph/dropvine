@@ -3,9 +3,10 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
-import { ArrowUpRight, Sparkles, Users, CheckCircle2, Clock, Infinity as InfinityIcon, Mail } from 'lucide-react'
+import { ArrowUpRight, Sparkles, Users, CheckCircle2, Clock, Infinity as InfinityIcon, Mail, Loader2 } from 'lucide-react'
 import { DropvineLogo } from '@/components/dropvine/logo'
-import { buildNewDropUrl } from '@/lib/dashboard/new-drop-url'
+import { toast } from 'sonner'
+import { TALLY_NEW_DROP_URLS } from '@/lib/dashboard/new-drop-url'
 
 export default function ReservationsPage() {
   const router = useRouter()
@@ -15,19 +16,13 @@ export default function ReservationsPage() {
   const [fetchingLaunches, setFetchingLaunches] = useState(true)
   const [fetchingReservations, setFetchingReservations] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
-  // Vendor tier drives the "Create one →" Tally URL in the empty state.
   const [vendorTier, setVendorTier] = useState('free')
-  const [vendorEmail, setVendorEmail] = useState(null)
-  const [vendorName, setVendorName] = useState(null)
-  const [vendorCategory, setVendorCategory] = useState(null)
-  const [vendorCityState, setVendorCityState] = useState(null)
+  const [creatingDrop, setCreatingDrop] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
   }, [loading, user, router])
 
-  // Resolve the current vendor's tier so the "Create one →" empty-state
-  // link routes to the right Tally form. Falls back to 'free' on error.
   useEffect(() => {
     if (!user) return
     let cancelled = false
@@ -38,17 +33,31 @@ export default function ReservationsPage() {
         const d = await r.json()
         if (cancelled) return
         if (d?.vendor?.tier) setVendorTier(d.vendor.tier)
-        if (d?.email) setVendorEmail(d.email)
-        else if (user?.email) setVendorEmail(user.email)
-        if (d?.vendor?.business_name) setVendorName(d.vendor.business_name)
-        if (d?.vendor?.category) setVendorCategory(d.vendor.category)
-        const city = d?.vendor?.location_city || ''
-        const st = d?.vendor?.location_state || ''
-        if (city || st) setVendorCityState([city, st].filter(Boolean).join(', '))
       } catch {}
     })()
     return () => { cancelled = true }
   }, [user])
+
+  const handleNewDrop = async () => {
+    if (!user || creatingDrop) return
+    const tab = window.open('', '_blank')
+    setCreatingDrop(true)
+    try {
+      const r = await fetch('/api/submission-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+      })
+      const d = await r.json()
+      if (!r.ok || !d.token) throw new Error(d.error || 'Could not generate submission token')
+      const base = TALLY_NEW_DROP_URLS[vendorTier] || TALLY_NEW_DROP_URLS.free
+      tab.location.href = `${base}?token=${d.token}`
+    } catch (e) {
+      tab?.close()
+      toast.error(e?.message || 'Could not open drop form — please try again')
+    } finally {
+      setCreatingDrop(false)
+    }
+  }
 
   // Load drops once
   useEffect(() => {
@@ -134,14 +143,14 @@ export default function ReservationsPage() {
           ) : drops.length === 0 ? (
             <div className="text-sm text-muted-foreground">
               No drops with reservations enabled.{' '}
-              <a
-                href={buildNewDropUrl(vendorTier, vendorEmail || user?.email, { businessName: vendorName, category: vendorCategory, cityState: vendorCityState })}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-4 text-foreground"
+              <button
+                onClick={handleNewDrop}
+                disabled={creatingDrop}
+                className="underline underline-offset-4 text-foreground inline-flex items-center gap-1 disabled:opacity-60"
               >
+                {creatingDrop ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                 Create one →
-              </a>
+              </button>
             </div>
           ) : (
             <div className="flex gap-2 flex-wrap">

@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import { ArrowUpRight, Plus, Calendar, Users, Sparkles, Loader2, Eye } from 'lucide-react'
 import { DropvineLogo } from '@/components/dropvine/logo'
-import { buildNewDropUrl } from '@/lib/dashboard/new-drop-url'
+import { TALLY_NEW_DROP_URLS } from '@/lib/dashboard/new-drop-url'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -14,14 +14,9 @@ export default function DashboardPage() {
   const [drops, setDrops] = useState([])
   const [fetching, setFetching] = useState(true)
   const [publishingId, setPublishingId] = useState(null)
-  // Vendor tier (from direct_vendors.tier) drives which Tally form the
-  // "New drop" CTA opens. Falls back to 'free' if the vendor row hasn't
-  // been provisioned yet (rare — happens immediately after signup).
+  const [creatingDrop, setCreatingDrop] = useState(false)
+  // Vendor tier drives which Tally form URL is used. Falls back to 'free'.
   const [vendorTier, setVendorTier] = useState('free')
-  const [vendorEmail, setVendorEmail] = useState(null)
-  const [vendorName, setVendorName] = useState(null)
-  const [vendorCategory, setVendorCategory] = useState(null)
-  const [vendorCityState, setVendorCityState] = useState(null)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
@@ -43,9 +38,7 @@ export default function DashboardPage() {
 
   useEffect(() => { if (user) reload() }, [user])
 
-  // Fetch the current vendor's tier so the "New drop" CTA routes to the
-  // right Tally form. Fire-and-forget — falls back to 'free' on any error
-  // so the dashboard never blocks loading on this side request.
+  // Fetch the vendor's tier so the "New drop" CTA routes to the right form.
   useEffect(() => {
     if (!user) return
     let cancelled = false
@@ -56,17 +49,33 @@ export default function DashboardPage() {
         const d = await r.json()
         if (cancelled) return
         if (d?.vendor?.tier) setVendorTier(d.vendor.tier)
-        if (d?.email) setVendorEmail(d.email)
-        else if (user?.email) setVendorEmail(user.email)
-        if (d?.vendor?.business_name) setVendorName(d.vendor.business_name)
-        if (d?.vendor?.category) setVendorCategory(d.vendor.category)
-        const city = d?.vendor?.location_city || ''
-        const st = d?.vendor?.location_state || ''
-        if (city || st) setVendorCityState([city, st].filter(Boolean).join(', '))
       } catch {}
     })()
     return () => { cancelled = true }
   }, [user])
+
+  // Open a new tab immediately (avoids popup blockers), fetch a submission
+  // token, then redirect the tab to the right Tally form with ?token=...
+  const handleNewDrop = async () => {
+    if (!user || creatingDrop) return
+    const tab = window.open('', '_blank')
+    setCreatingDrop(true)
+    try {
+      const r = await fetch('/api/submission-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+      })
+      const d = await r.json()
+      if (!r.ok || !d.token) throw new Error(d.error || 'Could not generate submission token')
+      const base = TALLY_NEW_DROP_URLS[vendorTier] || TALLY_NEW_DROP_URLS.free
+      tab.location.href = `${base}?token=${d.token}`
+    } catch (e) {
+      tab?.close()
+      toast.error(e?.message || 'Could not open drop form — please try again')
+    } finally {
+      setCreatingDrop(false)
+    }
+  }
 
   const publish = async (drop) => {
     if (!user) return
@@ -80,7 +89,6 @@ export default function DashboardPage() {
       const d = await r.json()
       if (!r.ok || d?.error) { toast.error(d?.error || 'Publish failed'); return }
       toast.success(d.already ? 'Already published.' : 'Published — your drop is now live.')
-      // Optimistic local update
       setDrops((prev) => prev.map((l) => l.id === drop.id ? { ...l, status: 'published' } : l))
     } catch (e) {
       toast.error(e?.message || 'Publish failed')
@@ -94,14 +102,7 @@ export default function DashboardPage() {
   }
 
   const upcoming = drops.filter(l => new Date(l.launch_at) > new Date())
-  const totalWaitlist = 0 // placeholder; could fetch counts per drop
-  // Compute once and pass into both CTAs (header + EmptyState) so they
-  // never drift apart.
-  const newDropUrl = buildNewDropUrl(vendorTier, vendorEmail || user?.email, {
-    businessName: vendorName,
-    category: vendorCategory,
-    cityState: vendorCityState,
-  })
+  const totalWaitlist = 0
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -130,15 +131,15 @@ export default function DashboardPage() {
               <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Your vine</div>
               <h1 className="font-serif font-light text-4xl md:text-5xl tracking-tighter">Your drops</h1>
             </div>
-            <a
-              href={newDropUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-background px-5 py-3 text-sm hover:opacity-90"
+            <button
+              onClick={handleNewDrop}
+              disabled={creatingDrop}
+              className="inline-flex items-center gap-2 text-background px-5 py-3 text-sm hover:opacity-90 disabled:opacity-60"
               style={{ backgroundColor: '#2D4A2A' }}
             >
-              <Plus className="h-4 w-4" /> New drop
-            </a>
+              {creatingDrop ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              New drop
+            </button>
           </div>
         </header>
 
@@ -154,7 +155,7 @@ export default function DashboardPage() {
           {fetching ? (
             <div className="text-sm text-muted-foreground">Loading…</div>
           ) : drops.length === 0 ? (
-            <EmptyState newDropUrl={newDropUrl} />
+            <EmptyState onNewDrop={handleNewDrop} creating={creatingDrop} />
           ) : (
             <ul className="divide-y divide-border border-y border-border">
               {drops.map(l => {
@@ -249,21 +250,21 @@ function Stat({ icon, label, value, hint }) {
   )
 }
 
-function EmptyState({ newDropUrl }) {
+function EmptyState({ onNewDrop, creating }) {
   return (
     <div className="border border-dashed border-border p-12 md:p-20 text-center">
       <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">On your vine</div>
       <h2 className="font-serif font-light text-3xl md:text-4xl tracking-tighter">Start your first drop.</h2>
       <p className="mt-3 text-muted-foreground max-w-md mx-auto text-sm">Set a deadline, share the link, and let your customers order before you make a thing.</p>
-      <a
-        href={newDropUrl || 'https://tally.so/r/VLbkW6'}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-8 inline-flex items-center gap-2 text-background px-6 py-3 text-sm hover:opacity-90"
+      <button
+        onClick={onNewDrop}
+        disabled={creating}
+        className="mt-8 inline-flex items-center gap-2 text-background px-6 py-3 text-sm hover:opacity-90 disabled:opacity-60"
         style={{ backgroundColor: '#2D4A2A' }}
       >
-        <Plus className="h-4 w-4" /> Create a drop
-      </a>
+        {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+        Create a drop
+      </button>
     </div>
   )
 }
