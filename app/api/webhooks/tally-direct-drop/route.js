@@ -138,11 +138,26 @@ export async function POST(request) {
       return NextResponse.json({ error: 'invalid json' }, { status: 400 })
     }
 
+    // DIAGNOSTIC — log the full raw payload so we can find where (if anywhere)
+    // the ?token=... URL param appears. Check Vercel function logs for
+    // "[tally-direct-drop] FULL PAYLOAD:" and scan the output for the token
+    // value, formUrl, respondentUrl, redirectUrl, referrer, or any key that
+    // carries the original query string.
+    try {
+      // Also capture request headers that might carry the referrer/origin.
+      const headerDump = {}
+      for (const [k, v] of request.headers.entries()) {
+        headerDump[k] = v
+      }
+      console.log('[tally-direct-drop] FULL PAYLOAD:', JSON.stringify(body))
+      console.log('[tally-direct-drop] REQUEST HEADERS:', JSON.stringify(headerDump))
+    } catch (e) {
+      console.warn('[tally-direct-drop] full payload dump failed:', e?.message || e)
+    }
+
     const fields = body?.data?.fields || []
 
-    // Round 2 — verbose diagnostic log so we can audit what Tally actually
-    // sends in production. Look in Vercel function logs for the line
-    // "[tally-direct-drop] FIELDS:" followed by the JSON dump.
+    // Verbose field dump — labels, types, values, options.
     try {
       const dump = fields.map((f) => ({
         label: f?.label,
