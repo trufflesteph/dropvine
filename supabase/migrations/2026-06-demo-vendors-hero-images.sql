@@ -53,18 +53,3 @@ SELECT handle, title, cover_url IS NOT NULL AS has_cover, hero_image_url IS NOT 
   FROM public.launches
  WHERE is_demo = true
  ORDER BY handle;
-
--- ---------------------------------------------------------------------------
--- Hero copy update — site_config (overrides app/page.js DEFAULTS at runtime).
--- The landing page reads these two keys on every render via the Supabase anon
--- client, so updating site_config takes effect WITHOUT a redeploy.
--- ---------------------------------------------------------------------------
-INSERT INTO public.site_config (key, value) VALUES
-  ('hero_headline_line1', 'You Want Orders.'),
-  ('hero_subtext',        'You don''t want the DMs, texts, and calls to get them. Let Dropvine handle that.')
-ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
-
--- Verify the hero copy is set:
-SELECT key, value FROM public.site_config
- WHERE key IN ('hero_headline_line1', 'hero_subtext')
- ORDER BY key;

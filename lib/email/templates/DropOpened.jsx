@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { Img } from '@react-email/components'
-import { EmailShell, H1, Eyebrow, P, CTA, Italic } from './_shared'
+import { Img, Section } from '@react-email/components'
+import { EmailShell, H1, Eyebrow, P, Italic } from './_shared'
 
 // Shopper-facing fan-out email when a drop opens. Sent by the cron at
 // `notify_at` to every drop_subscriber. NEVER sent directly from the
@@ -30,8 +30,8 @@ export function DropOpened({ launch, subscriberName, viewUrl, vendorName, planTi
       <Eyebrow>Now open</Eyebrow>
       <H1>Just dropped — {title}</H1>
       <P>
-        {subscriberName ? <>Hi {subscriberName} — </> : null}
-        <strong>{business}</strong> just dropped something new. Check it out while it&rsquo;s fresh!
+        {subscriberName ? <>Hi {subscriberName}, </> : null}
+        <strong>{business}</strong> just dropped something new.
       </P>
       {launch?.cover_url ? (
         <Img
@@ -45,7 +45,26 @@ export function DropOpened({ launch, subscriberName, viewUrl, vendorName, planTi
         <P style={{ marginTop: '16px', whiteSpace: 'pre-line' }}>{launch.description}</P>
       ) : null}
       {closesAtLabel ? <P muted><Italic>Drop closes on {closesAtLabel}.</Italic></P> : null}
-      {viewUrl && <CTA href={viewUrl}>View the drop →</CTA>}
+      {viewUrl && (
+        <Section style={{ margin: '40px 0 48px' }}>
+          <a
+            href={viewUrl}
+            style={{
+              backgroundColor: '#2D4A2A',
+              color: '#ffffff',
+              border: '14px solid #2D4A2A',
+              borderRadius: '2px',
+              textDecoration: 'none',
+              fontSize: '14px',
+              fontFamily: 'sans-serif',
+              fontWeight: 500,
+              display: 'inline-block',
+            }}
+          >
+            View the drop →
+          </a>
+        </Section>
+      )}
     </EmailShell>
   )
 }
