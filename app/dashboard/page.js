@@ -112,9 +112,7 @@ export default function DashboardPage() {
         <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-4">Your vine</div>
         <nav className="space-y-1 text-sm">
           <Link href="/dashboard" className="block py-2 px-3 -mx-3 text-background" style={{ backgroundColor: '#2D4A2A' }}>Drops</Link>
-          <Link href="/dashboard/reservations" className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground">Reservations</Link>
-          <a className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground cursor-not-allowed opacity-60">Audience</a>
-          <a className="block py-2 px-3 -mx-3 text-muted-foreground hover:text-foreground cursor-not-allowed opacity-60">Settings</a>
+          <a className="block py-2 px-3 -mx-3 text-muted-foreground cursor-not-allowed opacity-60">Settings</a>
         </nav>
         <div className="mt-auto pt-8 border-t border-border">
           <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Account</div>

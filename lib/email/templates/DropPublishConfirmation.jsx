@@ -22,7 +22,7 @@ export function DropPublishConfirmation({ launch, liveUrl, dashboardUrl, audienc
     : null
   const audienceLine = audienceCount > 0
     ? `We've sent the launch announcement to ${audienceCount} ${audienceCount === 1 ? 'contact' : 'contacts'} on your list.`
-    : 'Messages are on the way to your followers and the drop link is ready to share on your socials.'
+    : 'Notifications are rolling out to your followers and the drop link is ready for you to share everywhere!'
 
   return (
     <EmailShell

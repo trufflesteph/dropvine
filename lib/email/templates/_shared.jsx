@@ -214,12 +214,27 @@ export function P({ children, muted, style }) { return <Text style={{ ...(muted 
 export function Italic({ children }) { return <span style={styles.italic}>{children}</span> }
 export function Divider() { return <Hr style={styles.hr} /> }
 export function CTA({ href, children }) {
-  // Single full-width primary button. The `ghost` prop is intentionally
-  // ignored — use <TextLink> for the secondary action instead so email
-  // clients don't blow up the layout (see _shared.jsx comment on `cta`).
+  // Border-as-padding: border color matches background so it acts as visual
+  // padding. Outlook and quirks-mode clients respect border in the box model
+  // even when they ignore padding on <a> tags.
   return (
-    <Section style={styles.ctaWrap}>
-      <a href={href} style={styles.cta}>{children}</a>
+    <Section style={{ margin: '40px 0 48px' }}>
+      <a
+        href={href}
+        style={{
+          display: 'inline-block',
+          backgroundColor: '#2D4A2A',
+          color: '#ffffff',
+          border: '14px solid #2D4A2A',
+          borderRadius: '2px',
+          textDecoration: 'none',
+          fontSize: '14px',
+          fontFamily: 'sans-serif',
+          fontWeight: 500,
+        }}
+      >
+        {children}
+      </a>
     </Section>
   )
 }

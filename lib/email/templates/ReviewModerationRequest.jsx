@@ -49,12 +49,14 @@ export function ReviewModerationRequest({
                 href={approveUrl}
                 style={{
                   display: 'inline-block',
-                  padding: '12px 22px',
-                  background: '#2D4A2A',
+                  backgroundColor: '#2D4A2A',
                   color: '#FAFAF7',
+                  border: '12px solid #2D4A2A',
+                  borderRadius: '2px',
                   textDecoration: 'none',
                   fontSize: 14,
-                  letterSpacing: '0.02em',
+                  fontFamily: 'sans-serif',
+                  fontWeight: 500,
                 }}
               >
                 ✓ Approve review
@@ -65,13 +67,14 @@ export function ReviewModerationRequest({
                 href={rejectUrl}
                 style={{
                   display: 'inline-block',
-                  padding: '12px 22px',
-                  background: 'transparent',
+                  backgroundColor: 'transparent',
                   color: '#1F1F1B',
-                  border: '1px solid #1F1F1B',
+                  border: '12px solid #6B6863',
+                  borderRadius: '2px',
                   textDecoration: 'none',
                   fontSize: 14,
-                  letterSpacing: '0.02em',
+                  fontFamily: 'sans-serif',
+                  fontWeight: 500,
                 }}
               >
                 ✗ Reject review

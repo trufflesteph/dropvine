@@ -7,7 +7,7 @@ const styles = {
   kicker: { fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#8C8579', margin: 0 },
   h: { fontFamily: 'ui-serif, Georgia, serif', fontWeight: 400, fontSize: 28, lineHeight: 1.2, margin: '12px 0 16px', color: '#0E0E0C' },
   p: { fontSize: 15, lineHeight: 1.55, color: '#3D3B36', margin: '0 0 12px' },
-  cta: { display: 'inline-block', backgroundColor: '#2D4A2A', color: '#ffffff', padding: '14px 28px', fontSize: '14px', fontFamily: 'sans-serif', textDecoration: 'none', borderRadius: '2px', fontWeight: 500 },
+  cta: { display: 'inline-block', backgroundColor: '#2D4A2A', color: '#ffffff', border: '14px solid #2D4A2A', borderRadius: '2px', fontSize: '14px', fontFamily: 'sans-serif', textDecoration: 'none', fontWeight: 500 },
   meta: { fontSize: 12, color: '#8C8579', lineHeight: 1.6, margin: '24px 0 0' },
   hr: { border: 'none', borderTop: '1px solid #E8E5DE', margin: '24px 0' },
 }
