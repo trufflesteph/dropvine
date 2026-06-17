@@ -13,12 +13,12 @@ function money(cents) {
 //
 // Itemised when `items[]` is provided (multi-product drops). Falls back to a
 // single quantity line when items is empty (legacy single-SKU drops).
-export function DropOrderConfirmation({ order, launch, items = [], baseUrl, planTier }) {
+export function DropOrderConfirmation({ order, launch, items = [], baseUrl, planTier, vendorName }) {
   const isDeposit = order?.collection_mode === 'deposit'
   const subjectAmount = isDeposit ? order.deposit_cents : order.total_cents
   const headline = isDeposit
     ? 'Your deposit is in — order secured.'
-    : 'Your pre-order is in — payment pending review.'
+    : 'Order received.'
   const venmoUrl = order?.venmo_handle
     ? `https://venmo.com/${encodeURIComponent(String(order.venmo_handle).replace(/^@/, ''))}?txn=pay&amount=${(subjectAmount / 100).toFixed(2)}&note=${encodeURIComponent(order.venmo_note || '')}`
     : null
@@ -29,13 +29,15 @@ export function DropOrderConfirmation({ order, launch, items = [], baseUrl, plan
   const showItems = Array.isArray(items) && items.length > 0
     && (items.length > 1 || items[0]?.launch_product_id)
 
+  const eyebrowParts = [vendorName, launch?.title || 'Dropvine Direct', `Order #${order.short_code}`].filter(Boolean)
+  const pickupText = launch?.pickup_details || launch?.description || null
+
   return (
     <EmailShell preview={`Order #${order.short_code} — ${launch?.title || 'your drop'}`} planTier={planTier}>
-      <Eyebrow>{launch?.title || 'Dropvine Direct'} · Order #{order.short_code}</Eyebrow>
+      <Eyebrow>{eyebrowParts.join(' · ')}</Eyebrow>
       <H1>{headline}</H1>
       <P>
-        Thanks for ordering <Italic>{launch?.title || 'the drop'}</Italic>. We&rsquo;ve recorded your{' '}
-        {isDeposit ? 'deposit' : 'pre-order'} and the maker will mark it paid once your Venmo transfer comes through.
+        Thanks for your order! Check the pickup details below — we look forward to seeing you soon.
       </P>
 
       {showItems ? (
@@ -70,18 +72,23 @@ export function DropOrderConfirmation({ order, launch, items = [], baseUrl, plan
       <Detail label="Note (Venmo memo)" value={order.venmo_note} />
       <Divider />
 
-      {venmoUrl ? <CTA href={venmoUrl}>Open Venmo</CTA> : null}
+      {venmoUrl ? (
+        <>
+          <P>If you haven&rsquo;t already submitted payment, use the link below.</P>
+          <CTA href={venmoUrl}>Open Venmo</CTA>
+        </>
+      ) : null}
 
       <Section>
         <Text style={styles.eyebrow}>Pickup</Text>
         <Text style={{ ...styles.detailRow, margin: '0 0 4px' }}>
-          {launch?.pickup_details || 'The maker will email you with pickup details.'}
+          {pickupText || 'Pickup details will be provided by the vendor.'}
         </Text>
       </Section>
 
       <Divider />
       <P muted>
-        If you have already sent the Venmo transfer, no further action is needed — the maker will confirm shortly.
+        If you have already sent the Venmo transfer, no further action is needed.
         If anything looks wrong, reply to this email.
       </P>
     </EmailShell>
