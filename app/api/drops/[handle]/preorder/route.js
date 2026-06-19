@@ -114,9 +114,15 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'no valid items selected' }, { status: 400 })
     }
     if (mode === 'deposit') {
-      // Per-unit deposit applies to the whole basket count.
-      depositCents = parseInt(drop.reservation_hold_cents || 0, 10) * totalQty
-      balanceCents = Math.max(0, totalCents - depositCents)
+      // deposit_percent is the authoritative deposit calculation for
+      // deposit-mode drops — applied per line item, then summed. Left null
+      // (full total due via Venmo, no balance split) when the vendor hasn't
+      // configured a deposit percentage.
+      const pct = parseInt(drop.deposit_percent ?? '', 10)
+      if (Number.isFinite(pct) && pct > 0) {
+        depositCents = orderItemRows.reduce((sum, r) => sum + Math.round(r.price_cents * pct / 100) * r.quantity, 0)
+        balanceCents = Math.max(0, totalCents - depositCents)
+      }
     }
   } else {
     // Legacy single-product mode.
@@ -127,8 +133,11 @@ export async function POST(request, { params }) {
     totalQty = quantity
     totalCents = unit * quantity
     if (mode === 'deposit') {
-      depositCents = parseInt(drop.reservation_hold_cents || 0, 10) * quantity
-      balanceCents = Math.max(0, totalCents - depositCents)
+      const pct = parseInt(drop.deposit_percent ?? '', 10)
+      if (Number.isFinite(pct) && pct > 0) {
+        depositCents = Math.round(unit * pct / 100) * quantity
+        balanceCents = Math.max(0, totalCents - depositCents)
+      }
     }
     // Snapshot a single synthetic line item using the drop title — so the
     // email + admin UI can still itemise consistently even in legacy mode.

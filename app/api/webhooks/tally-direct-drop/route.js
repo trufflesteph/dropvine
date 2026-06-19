@@ -192,10 +192,11 @@ export async function POST(request) {
       || getTallyText(fields, 'tagline')
       || null
     // Description → "Drop Description" (current form field name), then
-    // legacy fallbacks for older form revisions.
+    // legacy fallbacks for older form revisions. NOTE: "Fulfillment Details"
+    // is a SEPARATE Tally question (captured into pickupDetails below) — it
+    // must not be folded in here, or its answer gets silently discarded
+    // whenever a "Drop Description" answer is also present.
     const description = getTallyText(fields, 'drop description')
-      || getTallyText(fields, 'fulfillment details')
-      || getTallyText(fields, 'fulfillment')
       || getTallyText(fields, 'about this drop')
       || getTallyText(fields, 'description')
       || null
@@ -223,9 +224,14 @@ export async function POST(request) {
       || tryDate(getTallyText(fields, 'countdown'))
       || tryDate(getTallyText(fields, 'specific date'))
       || tryDate(getTallyText(fields, 'launch date'))
-    // No explicit pickup-details field on the current form — leave null
-    // unless the legacy "pickup" label is present.
-    const pickupDetails = getTallyText(fields, 'pickup') || null
+    // Pickup / Fulfillment Details — the live form's question is labeled
+    // "Fulfillment Details". This is what shoppers see verbatim under
+    // "Pickup" in their order confirmation email, so it must land in its
+    // own column rather than being absorbed into `description` above.
+    const pickupDetails = getTallyText(fields, 'fulfillment details')
+      || getTallyText(fields, 'fulfillment')
+      || getTallyText(fields, 'pickup')
+      || null
     const venmoHandle = (getTallyText(fields, 'venmo') || '').replace(/^@/, '').trim() || null
     // Collection mode — resolve option label and normalise to one of the
     // 4 canonical kebab-case values.
@@ -234,6 +240,15 @@ export async function POST(request) {
       || getTallyText(fields, 'collection')
       || 'pre-order'
     const collectionMode = normaliseCollectionMode(collectionModeRaw)
+    // Deposit Percentage — only meaningful when collection_mode is 'deposit'.
+    // This is now the AUTHORITATIVE deposit calculation for deposit-mode
+    // drops (page totals, Venmo amount, order creation, emails). Kept as a
+    // separate column from reservation_hold_cents / drop_orders.deposit_cents
+    // — those are untouched by this field.
+    const depositPercentRaw = getTallyNumber(fields, 'deposit percentage')
+    const depositPercent = (collectionMode === 'deposit' && depositPercentRaw != null)
+      ? Math.max(0, Math.min(100, Math.round(depositPercentRaw)))
+      : null
     // Display Photo is the form's single image upload field.
     // Primary: label-based matching.
     let coverFiles = getTallyFiles(fields, 'display photo')
@@ -399,6 +414,7 @@ export async function POST(request) {
       photo_urls: photoUrls.length ? photoUrls : null,
       collection_mode: collectionMode,
       venmo_handle: venmoHandle,
+      deposit_percent: depositPercent,
       // Scheduled notifications (2026-06-drops-notify-schedule.sql)
       notify_at: notifyAt,
       // Phase A lifecycle (2026-06-drop-lifecycle.sql)

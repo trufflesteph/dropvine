@@ -516,6 +516,12 @@ function PreorderPanel({ drop, products, isDeposit }) {
   const [note, setNote] = useState('')
   const [order, setOrder] = useState(null)
 
+  // deposit_percent is the authoritative deposit calculation for deposit-mode
+  // drops. When it's not configured, the drop falls back to behaving like a
+  // regular pre-order — full price due, no deposit/balance split shown.
+  const depositPercentNum = parseInt(drop?.deposit_percent ?? '', 10)
+  const hasDepositPercent = isDeposit && Number.isFinite(depositPercentNum) && depositPercentNum > 0
+
   // -- Single-SKU helpers (legacy fallback) ---------------------------------
   const maxQty = useMemo(() => {
     const cap = parseInt(drop?.capacity || '0', 10)
@@ -542,26 +548,27 @@ function PreorderPanel({ drop, products, isDeposit }) {
     if (hasProducts) {
       let totalCents = 0
       let totalQty = 0
+      let depositCents = 0
       for (const p of products) {
         const q = productQty[p.id] || 0
         if (q <= 0) continue
-        totalCents += parseInt(p.price_cents || 0, 10) * q
+        const priceUnit = parseInt(p.price_cents || 0, 10)
+        totalCents += priceUnit * q
         totalQty += q
+        if (hasDepositPercent) depositCents += Math.round(priceUnit * depositPercentNum / 100) * q
       }
-      const depositPerUnit = parseInt(drop?.reservation_hold_cents || 0, 10)
-      const depositCents = isDeposit ? depositPerUnit * totalQty : 0
-      const balanceCents = isDeposit ? Math.max(0, totalCents - depositCents) : 0
-      const venmoAmount = isDeposit ? depositCents : totalCents
-      return { totalCents, totalQty, depositCents, balanceCents, venmoAmount }
+      const balanceCents = hasDepositPercent ? Math.max(0, totalCents - depositCents) : 0
+      const venmoAmount = hasDepositPercent ? depositCents : totalCents
+      return { totalCents, totalQty, depositCents: hasDepositPercent ? depositCents : 0, balanceCents, venmoAmount }
     }
     // Legacy path
     const unit = parseInt(drop?.price_cents || 0, 10)
     const totalCents = unit * qty
-    const depositCents = isDeposit ? parseInt(drop?.reservation_hold_cents || 0, 10) * qty : 0
-    const balanceCents = isDeposit ? Math.max(0, totalCents - depositCents) : 0
-    const venmoAmount = isDeposit ? depositCents : totalCents
+    const depositCents = hasDepositPercent ? Math.round(unit * depositPercentNum / 100) * qty : 0
+    const balanceCents = hasDepositPercent ? Math.max(0, totalCents - depositCents) : 0
+    const venmoAmount = hasDepositPercent ? depositCents : totalCents
     return { totalCents, totalQty: qty, depositCents, balanceCents, venmoAmount }
-  }, [hasProducts, products, productQty, qty, isDeposit, drop?.price_cents, drop?.reservation_hold_cents])
+  }, [hasProducts, products, productQty, qty, hasDepositPercent, depositPercentNum, drop?.price_cents])
 
   const venmoUrl = venmoDeepLink({ handle: drop?.venmo_handle, amountCents: totals.venmoAmount, note })
 
@@ -572,7 +579,7 @@ function PreorderPanel({ drop, products, isDeposit }) {
       toast.error('Pick at least one item to continue.')
       return
     }
-    if (isDeposit && totals.depositCents <= 0) {
+    if (hasDepositPercent && totals.depositCents <= 0) {
       toast.error('This drop has no deposit amount configured.')
       return
     }
@@ -621,7 +628,7 @@ function PreorderPanel({ drop, products, isDeposit }) {
       <div data-testid="preorder-confirmed">
         <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Order #{order.short_code}</div>
         <div className="font-serif text-3xl tracking-tighter">
-          {isDeposit ? 'Deposit recorded.' : 'Pre-order recorded.'}
+          {order.deposit_cents != null ? 'Deposit recorded.' : 'Pre-order recorded.'}
         </div>
         <p className="mt-4 text-sm text-muted-foreground">
           We&rsquo;ve emailed a receipt to <strong>{order.shopper_email}</strong>. The maker will mark it paid once your Venmo transfer comes through.
@@ -638,8 +645,8 @@ function PreorderPanel({ drop, products, isDeposit }) {
         ) : null}
         <div className="mt-6 pt-6 border-t border-border space-y-1 text-sm">
           <div className="flex justify-between"><span className="text-muted-foreground">Quantity</span><span>{order.quantity}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">{isDeposit ? 'Deposit paid' : 'Total'}</span><span>{money(isDeposit ? order.deposit_cents : order.total_cents)}</span></div>
-          {isDeposit ? (
+          <div className="flex justify-between"><span className="text-muted-foreground">{order.deposit_cents != null ? 'Deposit paid' : 'Total'}</span><span>{money(order.deposit_cents != null ? order.deposit_cents : order.total_cents)}</span></div>
+          {order.deposit_cents != null ? (
             <div className="flex justify-between"><span className="text-muted-foreground">Balance at pickup</span><span>{money(order.balance_cents)}</span></div>
           ) : null}
           <div className="flex justify-between"><span className="text-muted-foreground">Note</span><span className="font-mono text-xs">{order.venmo_note}</span></div>
@@ -654,11 +661,11 @@ function PreorderPanel({ drop, products, isDeposit }) {
       <div data-testid="preorder-venmo">
         <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Send Venmo</div>
         <div className="font-serif text-2xl md:text-3xl tracking-tighter mb-4">
-          {isDeposit ? `Send the deposit of ${money(totals.venmoAmount)}.` : `Send ${money(totals.venmoAmount)} via Venmo.`}
+          {hasDepositPercent ? `Send the deposit of ${money(totals.venmoAmount)}.` : `Send ${money(totals.venmoAmount)} via Venmo.`}
         </div>
         <p className="text-sm text-muted-foreground">
           Pay <strong className="text-foreground">@{String(drop.venmo_handle).replace(/^@/, '')}</strong> the exact amount and include the note below in the Venmo memo.
-          {isDeposit ? <> Balance of <strong className="text-foreground">{money(totals.balanceCents)}</strong> due at pickup.</> : null}
+          {hasDepositPercent ? <> Balance of <strong className="text-foreground">{money(totals.balanceCents)}</strong> due at pickup.</> : null}
         </p>
         <div className="mt-6 border border-border p-4 bg-stone-50">
           <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Venmo memo</div>
@@ -697,15 +704,15 @@ function PreorderPanel({ drop, products, isDeposit }) {
   return (
     <>
       <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">
-        {isDeposit ? 'Secure with a deposit' : 'Pre-order via Venmo'}
+        {hasDepositPercent ? 'Secure with a deposit' : 'Pre-order via Venmo'}
       </div>
       <div className="font-serif text-2xl md:text-3xl tracking-tighter">
-        {isDeposit
-          ? <>Secure your order with a <strong>{money(parseInt(drop?.reservation_hold_cents || 0, 10))} deposit</strong> via Venmo.</>
+        {hasDepositPercent
+          ? <>Secure your order with a <strong>{money(totals.depositCents)} deposit</strong> via Venmo.</>
           : <>Pre-order via Venmo.</>}
       </div>
-      {isDeposit && !hasProducts ? (
-        <p className="mt-2 text-xs text-muted-foreground">Balance of <strong className="text-foreground">{money(parseInt(drop?.price_cents || 0, 10) - parseInt(drop?.reservation_hold_cents || 0, 10))}</strong> due at pickup.</p>
+      {hasDepositPercent && !hasProducts ? (
+        <p className="mt-2 text-xs text-muted-foreground">Balance of <strong className="text-foreground">{money(totals.balanceCents)}</strong> due at pickup.</p>
       ) : null}
 
       {/* Catalogue grid (multi-product mode) */}
@@ -726,7 +733,11 @@ function PreorderPanel({ drop, products, isDeposit }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-2">
                     <div className="font-serif text-base text-foreground truncate">{p.name}</div>
-                    <div className="text-sm tabular-nums shrink-0">{money(p.price_cents)}</div>
+                    <div className="text-sm tabular-nums shrink-0">
+                      {hasDepositPercent
+                        ? `Reserve with ${money(Math.round((p.price_cents || 0) * depositPercentNum / 100))} deposit · ${money(p.price_cents)} total`
+                        : money(p.price_cents)}
+                    </div>
                   </div>
                   {p.description ? (
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2 whitespace-pre-line">{p.description}</p>
@@ -789,8 +800,8 @@ function PreorderPanel({ drop, products, isDeposit }) {
           </div>
         ) : null}
         <div className="pt-4 border-t border-border space-y-1 text-sm">
-          <div className="flex justify-between"><span className="text-muted-foreground">{isDeposit ? 'Order total' : 'Total'}</span><span data-testid="order-total">{money(totals.totalCents)}</span></div>
-          {isDeposit ? (
+          <div className="flex justify-between"><span className="text-muted-foreground">{hasDepositPercent ? 'Order total' : 'Total'}</span><span data-testid="order-total">{money(totals.totalCents)}</span></div>
+          {hasDepositPercent ? (
             <>
               <div className="flex justify-between"><span className="text-muted-foreground">Deposit due now</span><span className="font-medium" data-testid="deposit-due">{money(totals.depositCents)}</span></div>
               <div className="flex justify-between text-xs text-muted-foreground"><span>Balance at pickup</span><span>{money(totals.balanceCents)}</span></div>
@@ -804,7 +815,7 @@ function PreorderPanel({ drop, products, isDeposit }) {
           style={{ backgroundColor: DROPVINE_GREEN }}
           data-testid="preorder-submit"
         >
-          {isDeposit ? <>Send {money(totals.depositCents)} deposit via Venmo <ArrowRight className="h-4 w-4" /></>
+          {hasDepositPercent ? <>Send {money(totals.depositCents)} deposit via Venmo <ArrowRight className="h-4 w-4" /></>
                      : <>Pre-order via Venmo <ArrowRight className="h-4 w-4" /></>}
         </button>
       </form>

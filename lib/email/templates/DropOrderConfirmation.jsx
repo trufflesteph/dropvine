@@ -15,8 +15,12 @@ function money(cents) {
 // single quantity line when items is empty (legacy single-SKU drops).
 export function DropOrderConfirmation({ order, launch, items = [], baseUrl, planTier, vendorName }) {
   const isDeposit = order?.collection_mode === 'deposit'
-  const subjectAmount = isDeposit ? order.deposit_cents : order.total_cents
-  const headline = isDeposit
+  // deposit_cents/balance_cents are null when the vendor's drop has no
+  // deposit_percent configured — order behaves like a regular pre-order
+  // (full total due, no deposit/balance split) in that case.
+  const hasDeposit = isDeposit && order.deposit_cents != null
+  const subjectAmount = hasDeposit ? order.deposit_cents : order.total_cents
+  const headline = hasDeposit
     ? 'Your deposit is in — order secured.'
     : 'Order received.'
   const venmoUrl = order?.venmo_handle
@@ -30,7 +34,9 @@ export function DropOrderConfirmation({ order, launch, items = [], baseUrl, plan
     && (items.length > 1 || items[0]?.launch_product_id)
 
   const eyebrowParts = [vendorName, launch?.title || 'Dropvine Direct', `Order #${order.short_code}`].filter(Boolean)
-  const pickupText = launch?.pickup_details || launch?.description || null
+  // Must match the vendor's "Fulfillment Details" answer exactly — no
+  // fallback to launch.description, which is a separate, unrelated field.
+  const pickupText = launch?.pickup_details || null
 
   return (
     <EmailShell preview={`Order #${order.short_code} — ${launch?.title || 'your drop'}`} planTier={planTier}>
@@ -60,10 +66,10 @@ export function DropOrderConfirmation({ order, launch, items = [], baseUrl, plan
       <Detail label="Quantity" value={String(order.quantity)} />
       {!showItems && order.unit_price_cents ? <Detail label="Unit price" value={money(order.unit_price_cents)} /> : null}
       <Detail label="Total" value={money(order.total_cents)} />
-      {isDeposit ? (
+      {hasDeposit ? (
         <>
-          <Detail label="Deposit paid" value={money(order.deposit_cents)} />
-          <Detail label="Balance at pickup" value={money(order.balance_cents)} />
+          <Detail label="Deposit due now" value={money(order.deposit_cents)} />
+          <Detail label="Balance due at pickup" value={money(order.balance_cents)} />
         </>
       ) : null}
       <Divider />

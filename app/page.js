@@ -23,7 +23,6 @@ const DEFAULTS = {
   hero_headline_line1:       'Make more. Text less.',
   hero_headline_line2:       '',
   hero_subtext:              "Stop taking orders through DMs. Dropvine does the work for you.",
-  hero_microcopy:            'The best part — no transaction fees, EVER.',
   hero_primary_cta:          'Try it free',
   hero_primary_cta_href:     '/signup',
   hero_secondary_cta:        'See it in action',
@@ -289,8 +288,8 @@ export default function LandingPage() {
       {/* HERO */}
       <section className="relative pt-36 md:pt-44 pb-24 md:pb-40 overflow-hidden">
         <div className="container">
-          <div className="grid md:grid-cols-2 gap-16 items-center">
-            <div>
+          <div className="grid md:grid-cols-2 gap-16 md:items-center">
+            <div className="flex flex-col justify-center h-full">
               <h1 className="font-serif font-light text-[44px] sm:text-6xl md:text-7xl leading-[0.96] tracking-tightest text-balance animate-fade-up">
                 {config.hero_headline_line1}
                 {/* Empty string OR whitespace-only OR missing → skip the
@@ -305,12 +304,6 @@ export default function LandingPage() {
               <p className="mt-10 max-w-xl text-base md:text-lg text-muted-foreground leading-relaxed text-pretty animate-fade-up" style={{ animationDelay: '120ms' }}>
                 {config.hero_subtext}
               </p>
-              {/* Hidden entirely when value is empty / whitespace. */}
-              {config.hero_microcopy && String(config.hero_microcopy).trim() ? (
-                <p className="mt-3 font-serif italic text-foreground/60 text-base animate-fade-up" style={{ animationDelay: '160ms' }}>
-                  {config.hero_microcopy}
-                </p>
-              ) : null}
               <div className="mt-12 flex flex-col sm:flex-row items-start sm:items-center gap-5 animate-fade-up" style={{ animationDelay: '220ms' }}>
               <Link href={config.hero_primary_cta_href || '/signup'} className="group inline-flex items-center gap-3 bg-olive text-background px-7 py-4 text-sm hover:opacity-90 transition">
                   {stripTrailingArrow(config.hero_primary_cta) || 'Get started'}
@@ -556,7 +549,7 @@ function FeaturedDropCard({ drop, size, mounted }) {
       className="group block border border-border bg-background hover:border-foreground transition-colors overflow-hidden"
     >
       <div
-        className={`relative w-full bg-stone-800 bg-cover bg-center ${isLarge ? 'h-64' : 'h-32'}`}
+        className={`relative w-full bg-stone-800 bg-cover bg-center ${isLarge ? 'h-48' : 'h-24'}`}
         style={drop.image_url ? { backgroundImage: `url(${drop.image_url})` } : undefined}
       >
         <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />

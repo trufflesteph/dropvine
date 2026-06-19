@@ -68,6 +68,9 @@ export function DropSubmissionConfirmation({
       <Eyebrow>Drop details</Eyebrow>
       <Detail label="Title" value={title} />
       {mode ? <Detail label="Collection mode" value={mode} /> : null}
+      {launch?.collection_mode === 'deposit' && launch?.deposit_percent != null ? (
+        <Detail label="Deposit" value={`${launch.deposit_percent}%`} />
+      ) : null}
       {capacity ? <Detail label="Capacity" value={String(capacity)} /> : null}
       {launchAtLabel ? <Detail label="Opens" value={launchAtLabel} /> : null}
       {closesAtLabel ? <Detail label="Closes" value={closesAtLabel} /> : null}
