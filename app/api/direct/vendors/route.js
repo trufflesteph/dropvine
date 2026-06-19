@@ -54,9 +54,6 @@ export async function GET() {
       if (!isUpcoming && d.status === 'published' && isOpen) {
         // Live published drop.
         hasActiveByCreator.add(d.creator_id)
-        if (d.cover_url && !dropCoverByCreator.has(d.creator_id)) {
-          dropCoverByCreator.set(d.creator_id, d.cover_url)
-        }
       } else if (isUpcoming) {
         // Scheduled / future drop.
         hasUpcomingByCreator.add(d.creator_id)
@@ -65,9 +62,13 @@ export async function GET() {
         if (!existing || new Date(d.launch_at) < new Date(existing)) {
           upcomingLaunchAtByCreator.set(d.creator_id, d.launch_at)
         }
-        if (d.cover_url && !dropCoverByCreator.has(d.creator_id)) {
-          dropCoverByCreator.set(d.creator_id, d.cover_url)
-        }
+      }
+      // Image fallback — most recent PUBLISHED drop's cover_url, regardless
+      // of whether it's currently live, upcoming, or closed. Rows are
+      // already ordered by created_at desc, so the first published row
+      // per creator we see is the most recent one.
+      if (d.status === 'published' && d.cover_url && !dropCoverByCreator.has(d.creator_id)) {
+        dropCoverByCreator.set(d.creator_id, d.cover_url)
       }
       // Track most recent drop date for card sort order.
       if (!latestDropAtByCreator.has(d.creator_id)) {
@@ -77,21 +78,21 @@ export async function GET() {
   }
 
   // 3) Flatten to the shape the directory page expects.
-  // Fix 14 — Fresh Drops cards now prefer the drop's own cover_url; we keep
-  // the vendor profile photo as a secondary fallback and expose both fields
-  // so the card can decide how to render.
+  // Image priority: vendor's own photo_url, then their most recent published
+  // drop's cover_url, then their logo_url, then the card falls back to an
+  // initial-letter placeholder. This avoids showing the placeholder for
+  // vendors who have live drops with real photos but never uploaded a
+  // dedicated profile photo.
   const list = (vendors || []).map((v) => {
     const dropCover = dropCoverByCreator.get(v.creator_id) || null
-    const vendorPhoto = v.photo_url || v.logo_url || null
     return {
       slug: v.slug,
       business_name: v.business_name,
       tagline: v.tagline || null,
       bio: v.bio || null,
-      // Primary card image — prefer the active drop cover, then vendor photo.
-      photo_url: dropCover || vendorPhoto,
+      photo_url: v.photo_url || dropCover || v.logo_url || null,
       drop_cover_url: dropCover,
-      vendor_photo_url: vendorPhoto,
+      vendor_photo_url: v.photo_url || null,
       category: v.category || null,
       location_city: v.location_city || null,
       location_state: v.location_state || null,

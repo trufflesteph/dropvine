@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Nav } from '@/components/dropvine/nav'
 import { Footer } from '@/components/dropvine/footer'
 import { Countdown } from '@/components/dropvine/countdown'
-import { ArrowRight, ArrowUpRight } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, MapPin } from 'lucide-react'
 import { getSupabaseBrowser } from '@/lib/supabase/client'
 
 const PRICING_HEADLINE_FALLBACK = 'No transaction fees, EVER.'
@@ -170,6 +170,54 @@ const TICKER_ITEMS = [
   'Design masterclasses', 'Music listening sessions', 'Floral workshops', 'Small-batch product launches',
 ]
 
+// Short countdown string, e.g. "2h 47m", "3d 4h", "47m". Returns null once
+// the target has passed.
+function fmtCountdown(targetMs) {
+  const ms = targetMs - Date.now()
+  if (ms <= 0) return null
+  const days = Math.floor(ms / 86400000)
+  const hours = Math.floor((ms % 86400000) / 3600000)
+  const mins = Math.floor((ms % 3600000) / 60000)
+  if (days > 1) return `${days}d ${hours}h`
+  if (days === 1) return `1d ${hours}h`
+  if (hours >= 1) return `${hours}h ${mins}m`
+  return `${mins}m`
+}
+
+// Status pill shown on every featured-drop card image — derived from the
+// drop's actual launch_at/closes_at/collection_mode, never hardcoded.
+function getDropStatus(drop) {
+  const now = Date.now()
+  const launchMs = drop.launch_at ? Date.parse(drop.launch_at) : 0
+  const upcoming = launchMs && launchMs > now
+  if (upcoming) {
+    const cd = fmtCountdown(launchMs)
+    return { label: cd ? `Opens in ${cd}` : 'Opens soon', dotColor: 'bg-amber-400', pulse: false }
+  }
+  const mode = drop.collection_mode
+  if (mode === 'reservation') return { label: 'Reserve now', dotColor: 'bg-blue-400', pulse: true }
+  if (mode === 'waitlist') return { label: 'Join waitlist', dotColor: 'bg-amber-400', pulse: true }
+  return { label: 'Live drop', dotColor: 'bg-green-400', pulse: true }
+}
+
+// Bottom-left detail line on the large featured card, e.g. "2h 47m left" or
+// "Opens in 3d". Returns null when there's nothing time-bound to show.
+function getDetailText(drop) {
+  const now = Date.now()
+  const launchMs = drop.launch_at ? Date.parse(drop.launch_at) : 0
+  const closesMs = drop.closes_at ? Date.parse(drop.closes_at) : 0
+  const upcoming = launchMs && launchMs > now
+  if (upcoming) {
+    const cd = fmtCountdown(launchMs)
+    return cd ? `Opens in ${cd}` : null
+  }
+  if (closesMs && closesMs > now) {
+    const cd = fmtCountdown(closesMs)
+    return cd ? `${cd} left` : null
+  }
+  return null
+}
+
 export default function LandingPage() {
   const target = useMemo(() => new Date(Date.now() + 1000 * 60 * 60 * 36).toISOString(), [])
   const [mounted, setMounted] = useState(false)
@@ -179,7 +227,23 @@ export default function LandingPage() {
   // defaults on mount. Pricing-tier numbers / feature lists live in the same
   // state object but are read via buildPlans() which has its own formatting.
   const [config, setConfig] = useState(() => ({ ...DEFAULTS }))
+  const [featuredDrops, setFeaturedDrops] = useState([])
   useEffect(() => setMounted(true), [])
+
+  // Manually curated homepage drop cards — drops.is_featured_homepage = true,
+  // ordered by drops.featured_order. No auto-fill: whatever's marked is what
+  // shows, even if that's fewer than 3.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch('/api/direct/featured-drops')
+        const d = await r.json()
+        if (!cancelled && r.ok) setFeaturedDrops(d.drops || [])
+      } catch { /* leave featuredDrops empty */ }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   // Fetch every editable key from site_config in one go (anon read).
   useEffect(() => {
@@ -260,91 +324,15 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Demo drop cards
-                TODO: Replace hardcoded demo cards with a live query from `launches`
-                when vendor density is sufficient. Query: published launches ordered by
-                created_at desc, filtered to is_demo = false, limit 3.
-                Card background: launches.hero_image_url, fallback: direct_vendors.logo_url */}
+            {/* Featured drop cards — manually curated via
+                drops.is_featured_homepage + drops.featured_order (set
+                directly in Supabase). No auto-fill: whatever's marked is
+                what renders, large card first. */}
             <div className="flex flex-col gap-3">
-              {/* Sauce Mamas — featured live card */}
-              <Link
-                href="/l/sauce-mamas-workshop-june"
-                className="relative overflow-hidden p-8 text-white block hover:opacity-95 transition-opacity bg-cover bg-center"
-                style={{
-                  // hero_image_url from launches table — Unsplash placeholder until vendor uploads via dashboard.
-                  backgroundImage: 'url(https://images.unsplash.com/photo-1506368249639-73a05d6f6488?w=1200&q=80)',
-                  // Solid colour kept as backup if the image fails to load (browsers paint bg-color first).
-                  backgroundColor: '#792318',
-                }}
-              >
-                {/* Dark gradient overlay — strong at the bottom for CTA legibility,
-                    still dark enough at the top to keep "Live right now" + vendor
-                    name readable against busy food photography. */}
-                <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-black/45" />
-                <div className="relative">
-                  <span className="absolute top-0 right-0 text-[10px] uppercase tracking-[0.18em] px-2 py-1 bg-white/15 text-white border border-white/30">Demo</span>
-                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.15em] text-white/85 mb-6">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                    Live right now
-                  </div>
-                  <div className="font-serif text-2xl font-light tracking-tight mb-1 text-white drop-shadow-sm">Sauce Mamas</div>
-                  <div className="text-sm text-white/90 mb-6">Make your own hot sauce · 8 spots</div>
-                  {mounted && (
-                    <div className="grid grid-cols-4 gap-3 mb-6">
-                      {[['02','hrs'],['47','min'],['33','sec'],['8','seats']].map(([n, l]) => (
-                        <div key={l} className="text-center">
-                          <div className="font-serif text-3xl font-light tracking-tighter text-white drop-shadow-sm">{n}</div>
-                          <div className="text-[9px] uppercase tracking-[0.12em] text-white/80 mt-1">{l}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between pt-4 border-t border-white/25 text-xs text-white/85">
-                    <span>6 on waitlist</span>
-                    <span className="border border-white/50 px-3 py-1 text-white font-mono tracking-wide text-[10px] bg-white/5">Join Waitlist</span>
-                  </div>
-                </div>
-              </Link>
-
-              {/* Wildflour Cookies */}
-              <Link
-                href="/l/wildflour-may-21"
-                className="relative flex items-center justify-between px-5 py-4 text-white hover:opacity-95 transition-opacity bg-cover bg-center"
-                style={{
-                  backgroundImage: 'url(https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=1200&q=80)',
-                  backgroundColor: '#411900',
-                }}
-              >
-                <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/70 to-black/55" />
-                <div className="relative">
-                  <div className="text-sm font-medium text-white drop-shadow-sm">Wildflour Cookies</div>
-                  <div className="text-[11px] text-white/85 uppercase tracking-wider mt-0.5">Fresh cookies · pick up Wednesday</div>
-                </div>
-                <div className="relative flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 bg-white/15 text-white border border-white/30">Demo</span>
-                  <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-yellow-900/70 text-yellow-100 border border-yellow-700/50">Opens in 3d</span>
-                </div>
-              </Link>
-
-              {/* Baxter Farmstand */}
-              <Link
-                href="/l/baxter-produce-may-21"
-                className="relative flex items-center justify-between px-5 py-4 text-white hover:opacity-95 transition-opacity bg-cover bg-center"
-                style={{
-                  backgroundImage: 'url(https://images.unsplash.com/photo-1540420773420-3366772f4999?w=1200&q=80)',
-                  backgroundColor: '#3a4e30',
-                }}
-              >
-                <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/70 to-black/55" />
-                <div className="relative">
-                  <div className="text-sm font-medium text-white drop-shadow-sm">Baxter Farmstand</div>
-                  <div className="text-[11px] text-white/85 uppercase tracking-wider mt-0.5">Farm-fresh weekly box · West Linn</div>
-                </div>
-                <div className="relative flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-[0.18em] px-2 py-0.5 bg-white/15 text-white border border-white/30">Demo</span>
-                  <span className="text-[10px] font-mono tracking-wide px-2.5 py-1 bg-green-900/70 text-green-100 border border-green-700/50">Reserve Now</span>
-                </div>
-              </Link>
+              {featuredDrops[0] ? <FeaturedDropCard drop={featuredDrops[0]} size="large" mounted={mounted} /> : null}
+              {featuredDrops.slice(1, 3).map((d) => (
+                <FeaturedDropCard key={d.id} drop={d} size="small" mounted={mounted} />
+              ))}
             </div>
           </div>
         </div>
@@ -546,5 +534,82 @@ export default function LandingPage() {
 
       <Footer />
     </main>
+  )
+}
+
+// Featured homepage drop card — compact version of the Fresh Drops card
+// pattern (image on top with status/demo badges, content below). Same
+// component renders the large featured slot and the two smaller slots
+// beneath it; `size` controls image height and which content rows show.
+// All copy (category, location, business name, description, status) comes
+// from the drop's actual data — this is identical whether the drop is a
+// demo or a real vendor's drop.
+function FeaturedDropCard({ drop, size, mounted }) {
+  const status = getDropStatus(drop)
+  const detail = mounted ? getDetailText(drop) : null
+  const cityState = [drop.location_city, drop.location_state].filter(Boolean).join(', ')
+  const isLarge = size === 'large'
+
+  return (
+    <Link
+      href={`/l/${drop.handle}`}
+      className="group block border border-border bg-background hover:border-foreground transition-colors overflow-hidden"
+    >
+      <div
+        className={`relative w-full bg-stone-800 bg-cover bg-center ${isLarge ? 'h-64' : 'h-32'}`}
+        style={drop.image_url ? { backgroundImage: `url(${drop.image_url})` } : undefined}
+      >
+        <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />
+        <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] px-2 py-1 bg-black/60 text-white">
+          <span className={`w-1.5 h-1.5 rounded-full ${status.dotColor} ${status.pulse ? 'animate-pulse' : ''}`} />
+          {status.label}
+        </span>
+        {drop.is_demo ? (
+          <span className="absolute top-3 right-3 text-[9px] uppercase tracking-[0.18em] px-2 py-1 bg-black/60 text-white border border-white/30">
+            Demo
+          </span>
+        ) : null}
+      </div>
+
+      {isLarge ? (
+        <div className="p-6 md:p-8">
+          <div className="flex items-center gap-2 flex-wrap">
+            {drop.category ? (
+              <span className="text-[10px] uppercase tracking-[0.22em] px-2 py-1 bg-stone-100 text-foreground border border-border">
+                {drop.category}
+              </span>
+            ) : null}
+            {cityState ? (
+              <span className="inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                <MapPin className="h-3 w-3" />
+                {cityState}
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-3 font-serif text-2xl md:text-3xl tracking-tight">{drop.business_name}</div>
+          {drop.description ? (
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed line-clamp-1">{drop.description}</p>
+          ) : null}
+          <div className="mt-5 flex items-center justify-between text-sm">
+            <span className="text-muted-foreground tabular-nums">{detail || ''}</span>
+            <span className="inline-flex items-center gap-1 text-foreground/80 group-hover:text-foreground">
+              View drop <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="px-5 py-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-foreground truncate">{drop.business_name}</div>
+            {drop.description ? (
+              <div className="text-[12px] text-muted-foreground truncate">{drop.description}</div>
+            ) : null}
+          </div>
+          <span className="shrink-0 inline-flex items-center gap-1 text-sm text-foreground/80 group-hover:text-foreground">
+            View drop <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </div>
+      )}
+    </Link>
   )
 }

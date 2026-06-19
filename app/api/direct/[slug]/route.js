@@ -60,6 +60,15 @@ export async function GET(request, { params }) {
     drops = [...upcoming, ...past]
   }
 
+  // Image fallback — if the vendor has no photo_url, fall back to the
+  // cover_url of their most recent PUBLISHED drop (by created_at), before
+  // falling back further to logo_url on the page. `drops` above already
+  // includes published + scheduled rows for this vendor with created_at +
+  // cover_url, so no extra query is needed.
+  const dropCoverFallback = drops
+    .filter((d) => d.status === 'published' && d.cover_url)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]?.cover_url || null
+
   return NextResponse.json({
     vendor: {
       id: vendor.id,
@@ -67,7 +76,7 @@ export async function GET(request, { params }) {
       slug: vendor.slug,
       bio: vendor.bio,
       logo_url: vendor.logo_url,
-      photo_url: vendor.photo_url,
+      photo_url: vendor.photo_url || dropCoverFallback,
       venmo_handle: vendor.venmo_handle,
       instagram_url: vendor.instagram_url,
       website_url: vendor.website_url,

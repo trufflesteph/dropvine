@@ -120,11 +120,8 @@ export default function VendorProfilePage() {
           </div>
 
           <div className="md:col-span-8">
-            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">
-              Vendor profile
-            </div>
             <h1 className="font-serif font-light text-5xl md:text-7xl leading-[0.96] tracking-tightest text-balance">
-              {v.business_name}
+              Meet {v.business_name}.
             </h1>
             {(v.category || v.location_city) ? (
               <div className="mt-4 flex items-center flex-wrap gap-3">
