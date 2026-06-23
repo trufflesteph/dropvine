@@ -174,14 +174,6 @@ async function handleCloseSummary(supa, row) {
 async function runCron(request) {
   if (!authorise(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
-  // TEMPORARY — confirms which Twilio env vars are present in this
-  // deployment. Logs booleans only, never values. Remove after confirming.
-  // AUTH_TOKEN is the var actually used by lib/notifications/channels/sms.js
-  // (getTwilioClient() + smsEnabled()) — ACCOUNT_SID + AUTH_TOKEN + FROM_NUMBER
-  // is what really determines whether SMS sends. API_KEY/API_SECRET are
-  // checked here too only because they were the original suspects.
-  console.log('[twilio-check] SID present:', !!process.env.TWILIO_ACCOUNT_SID, 'KEY present:', !!process.env.TWILIO_API_KEY, 'SECRET present:', !!process.env.TWILIO_API_SECRET, 'AUTH_TOKEN present:', !!process.env.TWILIO_AUTH_TOKEN, 'FROM present:', !!process.env.TWILIO_FROM_NUMBER)
-
   const url = new URL(request.url)
   const dryRun = url.searchParams.get('dryRun') === '1'
   const kindsParam = url.searchParams.get('kinds')
