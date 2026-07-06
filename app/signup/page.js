@@ -197,7 +197,13 @@ function SignupPageInner() {
               {loading ? 'Submitting…' : 'Submit'}
             </button>
           </form>
-          <p className="mt-8 text-sm text-muted-foreground">
+          <p className="mt-6 text-xs text-muted-foreground leading-relaxed">
+            By creating an account, you agree to our{' '}
+            <Link href="/terms" className="underline underline-offset-2 text-foreground">Terms of Service</Link>
+            {' '}and{' '}
+            <Link href="/privacy" className="underline underline-offset-2 text-foreground">Privacy Policy</Link>.
+          </p>
+          <p className="mt-4 text-sm text-muted-foreground">
             Already have an account? <Link href="/login" className="underline underline-offset-4 text-foreground">Sign in</Link>
           </p>
         </div>

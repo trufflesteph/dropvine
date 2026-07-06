@@ -20,7 +20,7 @@ const DEFAULTS = {
   // Hero — fully DB-driven. The headline is split across two lines so the
   // second line can render in italic (matches the original visual). Set
   // `hero_headline_line2` to empty string to suppress the italic line entirely.
-  hero_headline_line1:       'Make more. Text less.',
+  hero_headline_line1:       'Sell more. Text less.',
   hero_headline_line2:       '',
   hero_subtext:              "Stop taking orders through DMs. Dropvine does the work for you.",
   hero_primary_cta:          'Try it free',

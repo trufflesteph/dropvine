@@ -51,12 +51,13 @@ export function Footer() {
           <div className="uppercase tracking-[0.2em] text-[11px] text-muted-foreground mb-4">Company</div>
           <ul className="space-y-2">
             <li><a href="/contact" className="hover:text-foreground text-muted-foreground">Contact</a></li>
+            <li><a href="/terms" className="hover:text-foreground text-muted-foreground">Terms of Service</a></li>
+            <li><a href="/privacy" className="hover:text-foreground text-muted-foreground">Privacy Policy</a></li>
           </ul>
         </div>
       </div>
       <div className="container pb-10 flex items-center justify-between text-xs text-muted-foreground">
         <span>© {new Date().getFullYear()} Dropvine</span>
-        <span className="font-serif italic">Built for the gap between making and selling.</span>
       </div>
     </footer>
   )
