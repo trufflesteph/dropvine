@@ -33,6 +33,7 @@ export function DropOpened({ launch, subscriberName, viewUrl, vendorName, planTi
         {subscriberName ? <>Hi {subscriberName}, </> : null}
         <strong>{business}</strong> just dropped something new.
       </P>
+      <P>This one won&apos;t last long.</P>
       {launch?.cover_url ? (
         <Img
           src={launch.cover_url}
