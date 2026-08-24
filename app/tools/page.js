@@ -8,8 +8,8 @@ const tools = [
     name: 'Cost Calculator',
     description: 'See what it really costs to make and sell each product, from ingredients and supplies to your time.',
     Icon: Calculator,
-    href: '#cost-calculator',
-    status: 'Coming soon',
+    href: '/dropvine-cost-calculator.xlsx',
+    status: 'View / download',
   },
   {
     name: 'Pricing Calculator',
@@ -46,6 +46,9 @@ export default function ToolsPage() {
               <Link
                 key={name}
                 href={href}
+                target={name === 'Cost Calculator' ? '_blank' : undefined}
+                rel={name === 'Cost Calculator' ? 'noopener noreferrer' : undefined}
+                download={name === 'Cost Calculator' ? 'dropvine-cost-calculator.xlsx' : undefined}
                 className="group flex min-h-[310px] flex-col justify-between bg-background p-8 transition-colors hover:bg-secondary md:p-10"
               >
                 <div className="flex items-start justify-between gap-6">
