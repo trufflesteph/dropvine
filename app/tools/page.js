@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { ArrowUpRight, Calculator, CircleDollarSign } from 'lucide-react'
+import Image from 'next/image'
+import { ArrowUpRight, CircleDollarSign } from 'lucide-react'
 import { Nav } from '@/components/dropvine/nav'
 import { Footer } from '@/components/dropvine/footer'
 
@@ -7,7 +8,7 @@ const tools = [
   {
     name: 'Cost Calculator',
     description: 'See what it really costs to make and sell each product, from ingredients and supplies to your time.',
-    Icon: Calculator,
+    image: '/cost-calculator-banner.png',
     href: '/dropvine-cost-calculator.xlsx',
     status: 'View / download',
     download: true,
@@ -43,7 +44,7 @@ export default function ToolsPage() {
           </div>
 
           <div className="mt-20 grid gap-px border border-border bg-border md:grid-cols-2">
-            {tools.map(({ name, description, Icon, href, status, download }) => {
+            {tools.map(({ name, description, Icon, image, href, status, download }) => {
               const Card = download ? 'a' : Link
               return (
               <Card
@@ -52,13 +53,23 @@ export default function ToolsPage() {
                 target={download ? '_blank' : undefined}
                 rel={download ? 'noopener noreferrer' : undefined}
                 download={download ? 'dropvine-cost-calculator.xlsx' : undefined}
-                className="group flex min-h-[310px] flex-col justify-between bg-background p-8 transition-colors hover:bg-secondary md:p-10"
+                className={`group flex min-h-[310px] flex-col justify-between bg-background transition-colors hover:bg-secondary ${image ? 'p-0' : 'p-8 md:p-10'}`}
               >
-                <div className="flex items-start justify-between gap-6">
-                  <div className="flex h-12 w-12 items-center justify-center border border-olive text-olive">
-                    <Icon size={22} strokeWidth={1.5} aria-hidden="true" />
+                {image && (
+                  <div className="relative h-36 w-full overflow-hidden md:h-44">
+                    <Image src={image} alt="Baking ingredients for the cost calculator" fill sizes="(min-width: 768px) 50vw, 100vw" className="object-cover transition-transform duration-500 group-hover:scale-105" />
                   </div>
-                  <ArrowUpRight className="text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" size={22} strokeWidth={1.5} aria-hidden="true" />
+                )}
+                <div className={image ? 'p-8 md:p-10' : 'flex items-start justify-between gap-6'}>
+                  {!image && (
+                    <div className="flex w-full items-start justify-between gap-6">
+                      <div className="flex h-12 w-12 items-center justify-center border border-olive text-olive">
+                        <Icon size={22} strokeWidth={1.5} aria-hidden="true" />
+                      </div>
+                      <ArrowUpRight className="text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" size={22} strokeWidth={1.5} aria-hidden="true" />
+                    </div>
+                  )}
+                  {image && <ArrowUpRight className="float-right text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" size={22} strokeWidth={1.5} aria-hidden="true" />}
                 </div>
                 <div>
                   <p className="mb-3 text-xs uppercase tracking-[0.16em] text-olive">{status}</p>
