@@ -67,6 +67,7 @@ export function Nav({ variant = 'light' }) {
           <Link href="/#how" className="text-muted-foreground hover:text-foreground transition-colors">How it works</Link>
           <Link href="/drops" className="text-muted-foreground hover:text-foreground transition-colors">Fresh Drops</Link>
           <Link href="/#example" className="text-muted-foreground hover:text-foreground transition-colors">Example</Link>
+          <Link href="/tools" className="text-muted-foreground hover:text-foreground transition-colors">Tools</Link>
           <Link href="/#pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
         </nav>
         <div className="flex items-center gap-2 md:gap-5 text-sm">
