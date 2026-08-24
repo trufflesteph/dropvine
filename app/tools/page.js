@@ -10,6 +10,7 @@ const tools = [
     Icon: Calculator,
     href: '/dropvine-cost-calculator.xlsx',
     status: 'View / download',
+    download: true,
   },
   {
     name: 'Pricing Calculator',
@@ -42,13 +43,15 @@ export default function ToolsPage() {
           </div>
 
           <div className="mt-20 grid gap-px border border-border bg-border md:grid-cols-2">
-            {tools.map(({ name, description, Icon, href, status }) => (
-              <Link
+            {tools.map(({ name, description, Icon, href, status, download }) => {
+              const Card = download ? 'a' : Link
+              return (
+              <Card
                 key={name}
                 href={href}
-                target={name === 'Cost Calculator' ? '_blank' : undefined}
-                rel={name === 'Cost Calculator' ? 'noopener noreferrer' : undefined}
-                download={name === 'Cost Calculator' ? 'dropvine-cost-calculator.xlsx' : undefined}
+                target={download ? '_blank' : undefined}
+                rel={download ? 'noopener noreferrer' : undefined}
+                download={download ? 'dropvine-cost-calculator.xlsx' : undefined}
                 className="group flex min-h-[310px] flex-col justify-between bg-background p-8 transition-colors hover:bg-secondary md:p-10"
               >
                 <div className="flex items-start justify-between gap-6">
@@ -61,9 +64,11 @@ export default function ToolsPage() {
                   <p className="mb-3 text-xs uppercase tracking-[0.16em] text-olive">{status}</p>
                   <h2 className="font-serif text-3xl tracking-tight">{name}</h2>
                   <p className="mt-4 max-w-md leading-relaxed text-muted-foreground">{description}</p>
+                  {download && <p className="mt-6 text-sm text-olive underline underline-offset-4">Open workbook</p>}
                 </div>
-              </Link>
-            ))}
+              </Card>
+              )
+            })}
           </div>
         </section>
       </main>
