@@ -112,8 +112,10 @@ export async function GET(request, { params }) {
   if (path.startsWith('drops/by-handle/')) {
     const handle = path.replace('drops/by-handle/', '')
     const preview = url.searchParams.get('preview') === 'true'
-    // Use admin client for preview mode to bypass RLS (drafts are not public)
-    const sb = preview ? getSupabaseAdmin() : getSupabaseServer()
+    // Use the admin client for public reads so featured/demo drops remain
+    // reachable even when the anonymous RLS policy does not expose them.
+    // Drafts and archived drops are still filtered below.
+    const sb = getSupabaseAdmin() || getSupabaseServer()
     if (sb) {
       const { data, error } = await sb.from('drops').select('*').eq('handle', handle).maybeSingle()
       if (error) return err(error.message, 500)
