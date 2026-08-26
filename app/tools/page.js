@@ -47,7 +47,7 @@ export default function ToolsPage() {
             </p>
           </div>
 
-          <div className="mt-20 grid gap-px border border-border bg-border md:grid-cols-2">
+          <div className="mt-20 grid gap-6 md:grid-cols-2">
             {tools.map(({ name, description, Icon, image, href, status, download, downloadName }) => {
               const Card = download ? 'a' : Link
               return (
@@ -57,7 +57,7 @@ export default function ToolsPage() {
                 target={download ? '_blank' : undefined}
                 rel={download ? 'noopener noreferrer' : undefined}
                 download={download ? downloadName : undefined}
-                className={`group flex min-h-[310px] flex-col justify-between bg-background transition-colors hover:bg-secondary ${image ? 'p-0' : 'p-8 md:p-10'}`}
+                className={`group flex min-h-[310px] flex-col justify-between border border-border bg-background transition-colors hover:bg-secondary ${image ? 'p-0' : 'p-8 md:p-10'}`}
               >
                 {image && (
                   <div className="relative h-36 w-full overflow-hidden md:h-44">
@@ -75,7 +75,7 @@ export default function ToolsPage() {
                   )}
                   {image && <ArrowUpRight className="float-right text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" size={22} strokeWidth={1.5} aria-hidden="true" />}
                 </div>
-                <div>
+                <div className={image ? 'p-8 md:p-10' : ''}>
                   <p className="mb-3 text-xs uppercase tracking-[0.16em] text-olive">{status}</p>
                   <h2 className="font-serif text-3xl tracking-tight">{name}</h2>
                   <p className="mt-4 max-w-md leading-relaxed text-muted-foreground">{description}</p>
