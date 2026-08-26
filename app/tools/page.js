@@ -12,13 +12,17 @@ const tools = [
     href: '/dropvine-cost-calculator.xlsx',
     status: 'View / download',
     download: true,
+    downloadName: 'dropvine-cost-calculator.xlsx',
   },
   {
     name: 'Pricing Calculator',
     description: 'Find a price that covers your costs, pays you fairly, and still makes sense for your customers.',
     Icon: CircleDollarSign,
-    href: '#pricing-calculator',
-    status: 'Coming soon',
+    image: '/pricing-calculator-banner.png',
+    href: '/dropvine-pricing-calculator.xlsx',
+    status: 'View / download',
+    download: true,
+    downloadName: 'dropvine-pricing-calculator.xlsx',
   },
 ]
 
@@ -44,7 +48,7 @@ export default function ToolsPage() {
           </div>
 
           <div className="mt-20 grid gap-px border border-border bg-border md:grid-cols-2">
-            {tools.map(({ name, description, Icon, image, href, status, download }) => {
+            {tools.map(({ name, description, Icon, image, href, status, download, downloadName }) => {
               const Card = download ? 'a' : Link
               return (
               <Card
@@ -52,12 +56,12 @@ export default function ToolsPage() {
                 href={href}
                 target={download ? '_blank' : undefined}
                 rel={download ? 'noopener noreferrer' : undefined}
-                download={download ? 'dropvine-cost-calculator.xlsx' : undefined}
+                download={download ? downloadName : undefined}
                 className={`group flex min-h-[310px] flex-col justify-between bg-background transition-colors hover:bg-secondary ${image ? 'p-0' : 'p-8 md:p-10'}`}
               >
                 {image && (
                   <div className="relative h-36 w-full overflow-hidden md:h-44">
-                    <Image src={image} alt="Baking ingredients for the cost calculator" fill sizes="(min-width: 768px) 50vw, 100vw" className="object-cover transition-transform duration-500 group-hover:scale-105" />
+                    <Image src={image} alt={`${name} banner`} fill sizes="(min-width: 768px) 50vw, 100vw" className="object-cover transition-transform duration-500 group-hover:scale-105" />
                   </div>
                 )}
                 <div className={image ? 'p-8 md:p-10' : 'flex items-start justify-between gap-6'}>
