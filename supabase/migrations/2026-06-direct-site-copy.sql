@@ -62,5 +62,5 @@ insert into public.site_config (key, value) values
   -- Bottom CTA
   ('bottom_cta_headline', 'Ready to stop managing orders through DMs?'),
   ('bottom_cta_subtext',  'Set your products and pricing, pick a deadline, and let Dropvine handle the rest.'),
-  ('bottom_cta_button',   'Try it free →')
+  ('bottom_cta_button',   'Start 30-day free trial →')
 on conflict (key) do nothing;

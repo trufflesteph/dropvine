@@ -23,15 +23,15 @@ const SECTIONS = [
   {
     title: 'Pricing', kicker: 'Heading shown above the pricing tier cards', defaultOpen: true,
     fields: [
-      { key: 'pricing_headline', label: 'Pricing headline', type: 'text',     help: 'e.g. “Start free. Grow when you’re ready.”' },
+      { key: 'pricing_headline', label: 'Pricing headline', type: 'text',     help: 'e.g. “Start your 30-day free trial. Grow when you’re ready.”' },
       { key: 'pricing_subtext',  label: 'Pricing subtext',  type: 'textarea', help: 'One short paragraph; renders below the headline.' },
     ],
   },
   {
-    title: 'Free tier', kicker: 'Hobbyist plan',
+    title: '30-day free trial', kicker: 'Hobbyist plan',
     fields: [
       { key: 'free_tier_name',        label: 'Tier name',          type: 'text' },
-      { key: 'free_tier_price_label', label: 'Price label',         type: 'text', help: 'Freeform — e.g. “Free” or “$0”' },
+      { key: 'free_tier_price_label', label: 'Price label',         type: 'text', help: 'Freeform — e.g. “30-day free trial” or “$0”' },
       { key: 'free_tier_features',    label: 'Features',            type: 'textarea', help: 'One feature per line' },
       { key: 'free_tier_cta',         label: 'CTA button text',     type: 'text' },
     ],

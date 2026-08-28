@@ -23,7 +23,7 @@ const DEFAULTS = {
   hero_headline_line1:       'Sell more. Text less.',
   hero_headline_line2:       '',
   hero_subtext:              "Stop taking orders through DMs. Dropvine does the work for you.",
-  hero_primary_cta:          'Try it free',
+  hero_primary_cta:          'Start 30-day free trial',
   hero_primary_cta_href:     '/signup',
   hero_secondary_cta:        'See it in action',
   hero_secondary_cta_href:   '#example',
@@ -81,7 +81,7 @@ const DEFAULTS = {
   // Bottom CTA
   bottom_cta_headline:       'Ready to stop managing orders through DMs?',
   bottom_cta_subtext:        'Set your products and pricing, pick a deadline, and let Dropvine handle the rest.',
-  bottom_cta_button:         'Try it free',
+  bottom_cta_button:         'Start 30-day free trial',
 }
 
 // All keys we read from `site_config`. Pricing tier keys are listed inline
@@ -130,7 +130,7 @@ function buildPlans(cfg) {
   // Three tier slots in display order. Names come from site_config; if a key is
   // missing we fall back to a neutral capitalised label.
   const tiers = [
-    { slug: 'free',   prefix: 'free_tier_',   defaultName: 'Free'   },
+    { slug: 'free',   prefix: 'free_tier_',   defaultName: '30-day free trial' },
     { slug: 'maker',  prefix: 'maker_tier_',  defaultName: 'Maker'  },
     { slug: 'studio', prefix: 'studio_tier_', defaultName: 'Shop' },
   ]
@@ -140,7 +140,7 @@ function buildPlans(cfg) {
       cents: cfg[`${prefix}price_cents`],
     })
     // Append `/month` to paid tiers only when the price label isn't already
-    // a sentence like "Always free" or doesn't already contain a slash/period.
+    // a sentence like "30-day free trial" or doesn't already contain a slash/period.
     const isPaidNumeric = slug !== 'free' && /^\$[\d.,]+$/.test(rawPrice)
     const price = isPaidNumeric ? `${rawPrice}/month` : rawPrice
     // Map the marketing-page slug ('free' | 'maker' | 'studio') to the
@@ -520,7 +520,7 @@ export default function LandingPage() {
             {config.bottom_cta_subtext}
           </p>
           <Link href="/signup" className="mt-12 inline-flex items-center gap-3 bg-background text-foreground px-8 py-4 text-sm hover:opacity-90">
-            {stripTrailingArrow(config.bottom_cta_button) || 'Try it free'} <ArrowRight className="h-4 w-4" />
+            {stripTrailingArrow(config.bottom_cta_button) || 'Start 30-day free trial'} <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </section>
