@@ -149,9 +149,15 @@ function buildPlans(cfg) {
     // 'shop' as the canonical tier code everywhere downstream
     // (direct_vendors.tier_intent + tier columns).
     const tierParam = slug === 'free' ? null : (slug === 'studio' ? 'shop' : slug)
+    const baseName = cfg[`${prefix}name`]?.trim() || defaultName
+    const name = slug === 'free' ? 'Free' : baseName
+    const subtitle = slug === 'free'
+      ? (baseName && baseName !== 'Free' ? baseName : '30-day free trial')
+      : null
     return {
       slug,
-      name: cfg[`${prefix}name`]?.trim() || defaultName,
+      name,
+      subtitle,
       price,
       features: parseFeatures(cfg[`${prefix}features`]),
       // strip operator-pasted trailing arrows so we don't render two arrows.
@@ -491,7 +497,12 @@ export default function LandingPage() {
                   Most popular
                 </div>
               ) : null}
-              <div className={`font-serif text-xl tracking-tight ${p.featured ? 'text-background' : ''}`}>{p.name}</div>
+              <div className={`font-serif text-xl tracking-tight pr-2 ${p.featured ? 'text-background' : ''}`}>{p.name}</div>
+              {p.subtitle ? (
+                <div className={`mt-2 max-w-[11rem] pr-2 text-[11px] uppercase tracking-[0.18em] ${p.featured ? 'text-background/75' : 'text-foreground/60'} break-words leading-tight`}>
+                  {p.subtitle}
+                </div>
+              ) : null}
               <div className={`font-serif text-4xl lg:text-5xl font-light tracking-tighter mt-6 whitespace-nowrap ${p.featured ? 'text-background' : ''}`}>{p.price}</div>
               <ul className="space-y-3 text-sm flex-1 mt-8">
                 {p.features.map((f) => (
