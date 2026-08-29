@@ -100,7 +100,7 @@ const SECTIONS = [
     ],
   },
   {
-    title: 'Collection modes', kicker: 'Four collection-mode cards',
+    title: 'Drop modes', kicker: 'Five drop-mode cards',
     fields: [
       { key: 'modes_headline', label: 'Section headline', type: 'text' },
       { key: 'modes_subtext',  label: 'Section subtext',  type: 'textarea' },
@@ -112,6 +112,8 @@ const SECTIONS = [
       { key: 'mode_3_body',    label: 'Mode 3 — body',    type: 'textarea' },
       { key: 'mode_4_name',    label: 'Mode 4 — name',    type: 'text' },
       { key: 'mode_4_body',    label: 'Mode 4 — body',    type: 'textarea' },
+      { key: 'mode_5_name',    label: 'Mode 5 — name',    type: 'text' },
+      { key: 'mode_5_body',    label: 'Mode 5 — body',    type: 'textarea' },
     ],
   },
   {

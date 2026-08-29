@@ -47,11 +47,12 @@ function randomCode4() {
   return out
 }
 
-// Decide which collection mode the page will actually render. Falls back to
+// Decide which drop mode the page will actually render. Falls back to
 // 'waitlist' for venmo-based modes when venmo_handle is missing, and emits a
 // console warning so creators / support can spot misconfigured drops.
 function resolveMode(drop) {
   const raw = (drop?.collection_mode || 'waitlist').toLowerCase().trim()
+  if (raw === 'announcement') return 'announcement'
   if (raw === 'pre-order' || raw === 'deposit') {
     if (!drop?.venmo_handle) {
       console.warn(`[dropvine] drop "${drop?.handle}" is collection_mode="${raw}" but has no venmo_handle — falling back to waitlist.`)
@@ -150,7 +151,9 @@ function PublicLaunchPageInner() {
       setJoined(true)
       toast.success(mode === 'reservation'
         ? 'Your spot is reserved. Watch your inbox.'
-        : 'You are on the list. Watch your inbox.')
+        : mode === 'announcement'
+          ? 'You’re subscribed for updates.'
+          : 'You are on the list. Watch your inbox.')
     } catch (e) { toast.error(e.message) } finally { setSubmitting(false) }
   }
 
@@ -190,10 +193,24 @@ function PublicLaunchPageInner() {
       <div data-testid="confirmed-panel">
         <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Confirmed</div>
         <div className="font-serif text-3xl tracking-tighter">
-          {mode === 'reservation' ? 'Your spot is reserved.' : 'You’re on the list.'}
+          {mode === 'reservation' ? 'Your spot is reserved.' : mode === 'announcement' ? 'You’re subscribed.' : 'You’re on the list.'}
         </div>
-        <p className="mt-3 text-sm text-muted-foreground">We’ll let you know the moment the doors open.</p>
+        <p className="mt-3 text-sm text-muted-foreground">
+          {mode === 'announcement' ? 'You’ll get the next update as soon as it goes out.' : 'We’ll let you know the moment the doors open.'}
+        </p>
       </div>
+    )
+  } else if (mode === 'announcement') {
+    rightRail = (
+      <WaitlistPanel
+        mode={mode}
+        email={email}
+        setEmail={setEmail}
+        name={name}
+        setName={setName}
+        submitting={submitting}
+        onJoin={join}
+      />
     )
   } else if (mode === 'pre-order' || mode === 'deposit') {
     rightRail = (
@@ -435,9 +452,17 @@ function PublicLaunchPageInner() {
 function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoin }) {
   // Fix 19 — "Be present at release" copy was removed; headline now mirrors
   // the action ("Join the waitlist" / "Reserve your spot") cleanly.
-  const headline = mode === 'reservation' ? 'Reserve your spot.' : 'Join the waitlist.'
-  const eyebrow = mode === 'reservation' ? 'Reserve your spot' : 'Join the waitlist'
-  const cta = mode === 'reservation' ? 'Reserve my spot' : 'Join the list'
+  const headline = mode === 'reservation'
+    ? 'Reserve your spot.'
+    : mode === 'announcement'
+      ? 'Get the update.'
+      : 'Join the waitlist.'
+  const eyebrow = mode === 'reservation'
+    ? 'Reserve your spot'
+    : mode === 'announcement'
+      ? 'Announcement'
+      : 'Join the waitlist'
+  const cta = mode === 'reservation' ? 'Reserve my spot' : mode === 'announcement' ? 'Get updates' : 'Join the list'
   return (
     <>
       <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">{eyebrow}</div>

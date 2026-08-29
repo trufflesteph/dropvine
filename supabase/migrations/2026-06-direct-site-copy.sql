@@ -9,7 +9,7 @@
 --   • How it works   (headline + 3 numbered steps)
 --   • Use cases      (headline + 3 emoji cards)
 --   • Example        (business name, tagline, description, 4 stat tiles)
---   • Collection modes (headline, subtext, 4 mode cards)
+--   • Drop modes      (headline, subtext, 5 mode cards)
 --   • Bottom CTA     (headline, subtext, button label)
 
 insert into public.site_config (key, value) values
@@ -47,9 +47,9 @@ insert into public.site_config (key, value) values
   ('example_stat_4_value',  '0'),
   ('example_stat_4_label',  'DMs to manage'),
 
-  -- Collection modes
-  ('modes_headline', 'Pick how your customers commit.'),
-  ('modes_subtext',  'Not every business runs the same way. Dropvine has four collection modes — use the one that fits your workflow.'),
+  -- Drop modes
+  ('modes_headline', 'Pick how your drop works.'),
+  ('modes_subtext',  'Not every business runs the same way. Dropvine has five drop modes — use the one that fits your workflow.'),
   ('mode_1_name',    'Waitlist'),
   ('mode_1_body',    'Get people in line before you open. No payment, no friction — just names and excitement piling up.'),
   ('mode_2_name',    'Pre-order'),
@@ -58,6 +58,8 @@ insert into public.site_config (key, value) values
   ('mode_3_body',    'Lock in the spot, collect payment later. Great for workshops, sessions, and events.'),
   ('mode_4_name',    'Deposit'),
   ('mode_4_body',    'A small payment now, the rest at pickup. Lower the barrier to commit while keeping it serious.'),
+  ('mode_5_name',    'Announcement'),
+  ('mode_5_body',    'Share a sale, popup, or event update without any ordering flow. Great for simple one-way communication.'),
 
   -- Bottom CTA
   ('bottom_cta_headline', 'Ready to stop managing orders through DMs?'),

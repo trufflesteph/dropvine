@@ -66,9 +66,9 @@ const DEFAULTS = {
   example_stat_4_value:      '0',
   example_stat_4_label:      'DMs to manage',
 
-  // Collection modes
-  modes_headline:            'Pick how your customers commit.',
-  modes_subtext:             'Not every business runs the same way. Dropvine has four collection modes — use the one that fits your workflow.',
+  // Drop modes
+  modes_headline:            'Pick how your drop works.',
+  modes_subtext:             'Not every business runs the same way. Dropvine has five drop modes — use the one that fits your workflow.',
   mode_1_name:               'Pre-order',
   mode_1_body:               'Customers commit and pay through Venmo before you make it. You know exactly what to produce.',
   mode_2_name:               'Deposit',
@@ -77,6 +77,8 @@ const DEFAULTS = {
   mode_3_body:               'Get people in line before you open. No payment, no friction — just names and excitement piling up.',
   mode_4_name:               'Reservation',
   mode_4_body:               'Lock in the spot, collect payment later. Great for workshops, sessions, and events.',
+  mode_5_name:               'Announcement',
+  mode_5_body:               'Share a sale, popup, or event update without any ordering flow. Great for simple one-way communication.',
 
   // Bottom CTA
   bottom_cta_headline:       'Ready to stop managing orders through DMs?',
@@ -198,6 +200,7 @@ function getDropStatus(drop) {
   const mode = drop.collection_mode
   if (mode === 'reservation') return { label: 'Reserve now', dotColor: 'bg-blue-400', pulse: true }
   if (mode === 'waitlist') return { label: 'Join waitlist', dotColor: 'bg-amber-400', pulse: true }
+  if (mode === 'announcement') return { label: 'Announcement', dotColor: 'bg-violet-400', pulse: true }
   return { label: 'Live drop', dotColor: 'bg-green-400', pulse: true }
 }
 
@@ -448,18 +451,18 @@ export default function LandingPage() {
   </div>
 </section>
 
-      {/* COLLECTION MODES */}
+      {/* DROP MODES */}
       <section id="collect" className="container py-24 md:py-40">
-        <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Four ways to collect</div>
+        <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Five ways to drop</div>
         <h2 className="font-serif font-light text-4xl md:text-5xl leading-[0.96] tracking-tightest text-balance mb-4">
           {config.modes_headline}
         </h2>
         <p className="text-muted-foreground leading-relaxed max-w-xl mb-16">
           {config.modes_subtext}
         </p>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 border border-border">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className={`p-8 border-border ${i < 4 ? 'border-r' : ''} ${i % 2 === 0 ? 'bg-secondary/40' : ''}`}>
+        <div className="grid sm:grid-cols-2 xl:grid-cols-5 border border-border">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className={`p-8 border-border ${i < 5 ? 'border-r' : ''} ${i % 2 === 0 ? 'bg-secondary/40' : ''}`}>
               <div className="font-serif text-2xl tracking-tight mb-3">{config[`mode_${i}_name`]}</div>
               <p className="text-sm text-muted-foreground leading-relaxed">{config[`mode_${i}_body`]}</p>
             </div>
