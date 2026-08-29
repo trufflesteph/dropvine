@@ -71,7 +71,7 @@ CREATE INDEX IF NOT EXISTS idx_launch_photos_launch_sort
   ON launch_photos (launch_id, sort_order);
 
 COMMENT ON TABLE launch_photos IS
-  'Drop-level photo carousel (1 for Free/Maker, up to 10 for Shop). Per-product photos live on launch_products.photo_url.';
+  'Drop-level photo carousel (1 for Free, 5 for Maker, up to 10 for Shop). Per-product photos live on launch_products.photo_url.';
 
 -- ---------------------------------------------------------------------------
 -- 4. email_schedules — idempotent cadence ledger

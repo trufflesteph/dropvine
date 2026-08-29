@@ -75,6 +75,13 @@ function extractFirstUrl(arr) {
   return first?.url || null
 }
 
+const MAX_PHOTOS_BY_TIER = {
+  free: 1,
+  maker: 5,
+  shop: 10,
+  studio: 10,
+}
+
 // Round 2 helpers for the Tally date+time pair fields.
 // "Open on" / "Drop closes on" are date-only; "Open at" / "Drop closes at"
 // are time-only. We combine them into a single UTC ISO timestamp.
@@ -265,13 +272,18 @@ export async function POST(request) {
       }
     }
     const galleryFiles = getTallyFiles(fields, 'photo').filter((f) => !coverFiles.some((c) => c.url === f.url))
-    const coverUrl = extractFirstUrl(coverFiles) || extractFirstUrl(galleryFiles) || null
-    const photoUrls = galleryFiles.map((f) => f.url).filter(Boolean)
+    const maxGalleryPhotos = MAX_PHOTOS_BY_TIER[vendorTier] ?? MAX_PHOTOS_BY_TIER.free
+    const cappedGalleryFiles = galleryFiles.slice(0, maxGalleryPhotos)
+    const coverUrl = extractFirstUrl(coverFiles) || extractFirstUrl(cappedGalleryFiles) || null
+    const photoUrls = cappedGalleryFiles.map((f) => f.url).filter(Boolean)
     // Diagnostic: log image capture result. Check Vercel function logs after a
     // form submission to see whether files were found and which URL was captured.
     console.log('[tally-direct-drop] image capture:', {
       coverFiles: coverFiles.length,
       galleryFiles: galleryFiles.length,
+      cappedGalleryFiles: cappedGalleryFiles.length,
+      vendorTier,
+      maxGalleryPhotos,
       coverUrl: coverUrl ? coverUrl.slice(0, 60) + '…' : null,
       allFieldTypes: fields.map((f) => ({ label: f?.label, type: f?.type })),
     })
@@ -370,10 +382,11 @@ export async function POST(request) {
     // Resolve creator_id from the vendor_id stored in the pending row.
     const { data: vendorRow } = await supa
       .from('direct_vendors')
-      .select('creator_id')
+      .select('creator_id, tier')
       .eq('id', pendingRow.vendor_id)
       .maybeSingle()
     const creatorId = vendorRow?.creator_id || null
+    const vendorTier = String(vendorRow?.tier || 'free').toLowerCase()
     if (!creatorId) {
       console.error('[tally-direct-drop] vendor not found for pending row — submission rejected', { vendor_id: pendingRow.vendor_id })
       return NextResponse.json({ error: 'vendor not found' }, { status: 422 })
