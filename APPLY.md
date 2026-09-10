@@ -93,6 +93,9 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 
 # Tally (Markets — leave empty for placeholder mode)
 TALLY_WEBHOOK_SECRET=
+
+# Telnyx inbound SMS webhooks
+TELNYX_PUBLIC_KEY
 ```
 
 ## After pushing — required Supabase schema
