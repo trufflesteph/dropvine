@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { VENDOR_CATEGORIES as BUSINESS_CATEGORIES } from '@/lib/vendors/categories'
 
 // -- Tier → post-signup destination --------------------------------------
 // Free goes straight to the dashboard (no upsell). Maker and Shop get
@@ -18,21 +19,6 @@ import { toast } from 'sonner'
 // Stripe success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?signup=complete`
 const TALLY_MAKER_URL = 'https://tally.so/r/RGbWeJ'
 const TALLY_SHOP_URL  = 'https://tally.so/r/RGbWeJ'
-
-const BUSINESS_CATEGORIES = [
-  'Home baker',
-  'Ceramics / pottery',
-  'Candle maker',
-  'Soap / skincare',
-  'Hot sauce / condiments',
-  'Jam / preserves',
-  'Fashion / textiles',
-  'Fiber arts',
-  'Art / limited edition prints',
-  'Workshop / class instructor',
-  'Coach / small cohorts',
-  'Other',
-]
 
 const VALID_TIERS = new Set(['free', 'maker', 'shop'])
 
