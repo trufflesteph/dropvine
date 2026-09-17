@@ -231,8 +231,56 @@ export default function VendorProfilePage() {
         </>
       ) : null}
 
+      <DirectVendorMarkets slug={v.slug} />
+
       <Footer />
     </div>
+  )
+}
+
+function DirectVendorMarkets({ slug }) {
+  const [markets, setMarkets] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/direct/${encodeURIComponent(slug)}/markets`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setMarkets(data?.markets || [])
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [slug])
+
+  if (!markets.length) return null
+
+  return (
+    <section className="container pb-16 md:pb-24">
+      <div className="h-px bg-border mb-12" />
+      <div className="mb-6">
+        <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Find them in person</div>
+        <h2 className="font-serif font-light text-3xl md:text-4xl leading-[0.96] tracking-tightest">Find them at these markets.</h2>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-4 max-w-3xl">
+        {markets.map((market) => (
+          <a
+            key={market.id}
+            href={market.url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="group block rounded-2xl border border-stone-200 bg-white p-5 hover:border-stone-300 transition"
+          >
+            <div className="font-serif text-xl text-stone-800 group-hover:text-stone-900">{market.name}</div>
+            {(market.city || market.state) ? (
+              <div className="mt-2 text-sm text-stone-600">
+                {[market.city, market.state].filter(Boolean).join(', ')}
+              </div>
+            ) : null}
+            <div className="mt-4 text-xs uppercase tracking-widest text-stone-500 group-hover:text-stone-800">Visit market</div>
+          </a>
+        ))}
+      </div>
+    </section>
   )
 }
 
