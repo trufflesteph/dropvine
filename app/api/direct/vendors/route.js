@@ -103,7 +103,7 @@ export async function GET() {
       upcoming_launch_at: upcomingLaunchAtByCreator.get(v.creator_id) || null,
       latest_drop_at: latestDropAtByCreator.get(v.creator_id) || null,
     }
-  })
+  }).filter((v) => v.is_demo || v.has_active_drop)
 
   // Sort by most recent published drop first; vendors with no drops fall to the end.
   list.sort((a, b) => {
