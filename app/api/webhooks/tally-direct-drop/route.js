@@ -186,6 +186,7 @@ export async function POST(request) {
     // Token is echoed back from the hidden Tally field populated via ?token=...
     const token = (getTallyText(fields, 'token') || '').trim() || null
     console.log('[tally-direct-drop] token field value:', token ? token.slice(0, 16) + '…' : null)
+    let vendorTier = 'free'
     // Drop Title — check `drop title` first, otherwise fall through to the
     // legacy substring matchers. The old order matched `product name` first
     // which was hitting per-product fields in manual-upload mode.
@@ -386,7 +387,7 @@ export async function POST(request) {
       .eq('id', pendingRow.vendor_id)
       .maybeSingle()
     const creatorId = vendorRow?.creator_id || null
-    const vendorTier = String(vendorRow?.tier || 'free').toLowerCase()
+    vendorTier = String(vendorRow?.tier || 'free').toLowerCase()
     if (!creatorId) {
       console.error('[tally-direct-drop] vendor not found for pending row — submission rejected', { vendor_id: pendingRow.vendor_id })
       return NextResponse.json({ error: 'vendor not found' }, { status: 422 })
