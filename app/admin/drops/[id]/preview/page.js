@@ -33,6 +33,28 @@ function fmtPretty(iso) {
   return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+function toDetailsForm(drop) {
+  const closes = drop?.closes_at ? new Date(drop.closes_at) : null
+  const validCloses = closes && !Number.isNaN(closes.getTime()) ? closes : null
+  const pad = (n) => String(n).padStart(2, '0')
+  return {
+    title: drop?.title || '',
+    tagline: drop?.tagline || '',
+    description: drop?.description || '',
+    closes_on: validCloses ? `${validCloses.getFullYear()}-${pad(validCloses.getMonth() + 1)}-${pad(validCloses.getDate())}` : '',
+    closes_at: validCloses ? `${pad(validCloses.getHours())}:${pad(validCloses.getMinutes())}` : '',
+    pickup_details: drop?.pickup_details || '',
+    venmo_handle: drop?.venmo_handle || '',
+  }
+}
+
+function combineDateTime(date, time) {
+  if (!date) return null
+  const value = `${date}T${time || '23:59'}`
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+}
+
 export default function AdminDropPreviewPage() {
   const { id } = useParams()
   const router = useRouter()
@@ -42,6 +64,9 @@ export default function AdminDropPreviewPage() {
   const [publishing, setPublishing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [sendingNow, setSendingNow] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [savingDetails, setSavingDetails] = useState(false)
+  const [details, setDetails] = useState(null)
   const [notifyAtInput, setNotifyAtInput] = useState('')
   const [notFound, setNotFound] = useState(false)
 
@@ -54,7 +79,11 @@ export default function AdminDropPreviewPage() {
         const r = await adminFetch(`/api/market/admin/drops/${id}`)
         if (r.status === 404) { if (!cancelled) setNotFound(true); return }
         const d = await r.json()
-        if (!cancelled) { setDrop(d.drop); setCreator(d.creator) }
+        if (!cancelled) {
+          setDrop(d.drop)
+          setCreator(d.creator)
+          setDetails(toDetailsForm(d.drop))
+        }
       } catch (e) {
         if (!cancelled) toast.error(e?.message || 'Failed to load')
       } finally {
@@ -64,6 +93,29 @@ export default function AdminDropPreviewPage() {
     load()
     return () => { cancelled = true }
   }, [id])
+
+  const saveDetails = async () => {
+    if (!drop || !details) return
+    setSavingDetails(true)
+    try {
+      const r = await adminFetch(`/api/market/admin/drops/${drop.id}`, {
+        method: 'PATCH', body: JSON.stringify({
+          ...details,
+          closes_at: combineDateTime(details.closes_on, details.closes_at),
+        }),
+      })
+      const d = await r.json()
+      if (!r.ok || d?.error) { toast.error(d?.error || 'Save failed'); return }
+      setDrop(d.drop)
+      setDetails(toDetailsForm(d.drop))
+      setEditing(false)
+      toast.success('Drop details saved.')
+    } catch (e) {
+      toast.error(e?.message || 'Save failed')
+    } finally {
+      setSavingDetails(false)
+    }
+  }
 
   // Keep the datetime-local field in sync when drop loads / changes.
   useEffect(() => {
@@ -183,6 +235,14 @@ export default function AdminDropPreviewPage() {
             {isDraft ? (
               <>
                 <button
+                  onClick={() => setEditing((value) => !value)}
+                  disabled={publishing || deleting || savingDetails}
+                  className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-white border border-stone-300 text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                >
+                  {editing ? <X className="w-3 h-3" /> : <Save className="w-3 h-3" />}
+                  {editing ? 'Cancel edit' : 'Edit details'}
+                </button>
+                <button
                   onClick={publish}
                   disabled={publishing || deleting}
                   className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-stone-900 text-stone-50 disabled:opacity-50"
@@ -220,6 +280,16 @@ export default function AdminDropPreviewPage() {
           sendNow={sendNow}
         />
       </div>
+
+      {isDraft && editing && details ? (
+        <DropDetailsEditor
+          details={details}
+          setDetails={setDetails}
+          saving={savingDetails}
+          onCancel={() => { setDetails(toDetailsForm(drop)); setEditing(false) }}
+          onSave={saveDetails}
+        />
+      ) : null}
 
       {/* Shopper-identical preview */}
       <main className="min-h-screen bg-background text-foreground">
@@ -322,6 +392,61 @@ export default function AdminDropPreviewPage() {
         ) : null}
       </main>
     </div>
+  )
+}
+
+function DropDetailsEditor({ details, setDetails, saving, onCancel, onSave }) {
+  const update = (patch) => setDetails((current) => ({ ...current, ...patch }))
+  const fieldClass = 'mt-1 w-full bg-white border border-stone-200 rounded px-3 py-2 text-sm'
+  return (
+    <section className="border-b border-stone-300 bg-stone-50">
+      <div className="max-w-6xl mx-auto px-5 py-5 md:py-6">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.25em] text-stone-500">Edit preview</div>
+            <h2 className="font-serif text-2xl text-stone-800 mt-1">Drop details</h2>
+          </div>
+          <span className="text-xs text-stone-500">Changes save to this drop</span>
+        </div>
+        <div className="grid md:grid-cols-2 gap-4">
+          <label className="block md:col-span-2">
+            <span className="text-[10px] uppercase tracking-widest text-stone-500">Drop title</span>
+            <input value={details.title} onChange={(e) => update({ title: e.target.value })} className={`${fieldClass} font-serif text-lg`} />
+          </label>
+          <label className="block md:col-span-2">
+            <span className="text-[10px] uppercase tracking-widest text-stone-500">Subtitle / tagline</span>
+            <input value={details.tagline} onChange={(e) => update({ tagline: e.target.value })} className={fieldClass} />
+          </label>
+          <label className="block md:col-span-2">
+            <span className="text-[10px] uppercase tracking-widest text-stone-500">Description</span>
+            <textarea value={details.description} onChange={(e) => update({ description: e.target.value })} rows={5} className={fieldClass} />
+          </label>
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-widest text-stone-500">Drop closes on</span>
+            <input type="date" value={details.closes_on} onChange={(e) => update({ closes_on: e.target.value })} className={fieldClass} />
+          </label>
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-widest text-stone-500">Drop closes at</span>
+            <input type="time" value={details.closes_at} onChange={(e) => update({ closes_at: e.target.value })} className={fieldClass} />
+          </label>
+          <label className="block md:col-span-2">
+            <span className="text-[10px] uppercase tracking-widest text-stone-500">Fulfillment details</span>
+            <textarea value={details.pickup_details} onChange={(e) => update({ pickup_details: e.target.value })} rows={3} className={fieldClass} />
+          </label>
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-widest text-stone-500">Venmo handle</span>
+            <input value={details.venmo_handle} onChange={(e) => update({ venmo_handle: e.target.value })} placeholder="@handle" className={fieldClass} />
+          </label>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} disabled={saving} className="text-xs px-3 py-1.5 rounded-full bg-white border border-stone-300 text-stone-700 hover:bg-stone-50 disabled:opacity-50">Cancel</button>
+          <button type="button" onClick={onSave} disabled={saving} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-stone-900 text-stone-50 disabled:opacity-50">
+            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+            Save changes
+          </button>
+        </div>
+      </div>
+    </section>
   )
 }
 
