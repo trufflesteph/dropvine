@@ -125,6 +125,7 @@ export default function AdminDropPreviewPage() {
 
   const publish = async () => {
     if (!drop) return
+    if (!confirm('Publish this drop now? This makes it visible to shoppers immediately.')) return
     setPublishing(true)
     try {
       const body = {}
@@ -234,6 +235,7 @@ export default function AdminDropPreviewPage() {
             <Link href="/admin" className="text-xs text-stone-600 underline">All</Link>
             {isDraft ? (
               <>
+                <span className="text-xs text-stone-600">Changes save to this drop</span>
                 <button
                   onClick={() => setEditing((value) => !value)}
                   disabled={publishing || deleting || savingDetails}
