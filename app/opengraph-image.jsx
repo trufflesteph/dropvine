@@ -13,7 +13,7 @@ import { DROPVINE_LOGO_URL } from '@/components/dropvine/logo'
 // `fontFamily: 'serif'` / `'sans-serif'` hints fall back to next/og's bundled
 // default font per the brief (no external font fetch, kept simple/robust).
 
-export const runtime = 'nodejs'
+export const runtime = 'edge'
 export const revalidate = 3600
 export const alt = 'Dropvine — Sell more. Text less.'
 export const size = { width: 1200, height: 630 }
