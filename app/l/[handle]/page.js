@@ -408,15 +408,15 @@ function PublicLaunchPageInner() {
       )}
 
       {/* Body */}
-      <section className="container py-24 md:py-32">
+      <section className="container max-w-5xl py-12 md:py-16">
         {drop.pickup_details ? (
-          <div className="max-w-2xl mb-12">
+          <div className="max-w-2xl mb-8">
             <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Pickup</div>
             <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{drop.pickup_details}</p>
           </div>
         ) : null}
         <div
-          className={`border border-border p-8 md:p-10 bg-background ${isDraft ? 'pointer-events-none opacity-60 select-none' : ''}`}
+          className={`border border-border p-8 md:p-10 bg-background lg:max-w-[360px] lg:ml-auto ${isDraft ? 'pointer-events-none opacity-60 select-none' : ''}`}
           data-testid={`mode-panel-${mode}`}
           aria-disabled={isDraft || undefined}
         >
