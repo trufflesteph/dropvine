@@ -300,19 +300,24 @@ function PublicLaunchPageInner() {
                 <>This is a preview of your drop — it’s not live yet. Review everything carefully, then publish to make it live immediately.</>
               )}
             </div>
-            {publishToken?.token ? (
-              <a
-                href={`/api/launches/publish/${publishToken.token}`}
-                className="inline-flex items-center gap-2 text-white px-4 py-2 text-sm font-medium whitespace-nowrap"
-                style={{ backgroundColor: DROPVINE_GREEN }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = DROPVINE_GREEN_HOVER)}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = DROPVINE_GREEN)}
-              >
-                {isScheduleFlow ? 'Schedule my drop' : 'Publish my drop'} <ArrowRight className="h-4 w-4" />
-              </a>
-            ) : (
-              <span className="text-[11px] text-white/60">Token expired — resubmit the Tally form for a fresh link.</span>
-            )}
+            <div className="flex items-center gap-3">
+              <Link href="/dashboard" className="text-[11px] uppercase tracking-[0.2em] text-white/80 hover:text-white underline underline-offset-4">
+                Dashboard
+              </Link>
+              {publishToken?.token ? (
+                <a
+                  href={`/api/launches/publish/${publishToken.token}`}
+                  className="inline-flex items-center gap-2 text-white px-4 py-2 text-sm font-medium whitespace-nowrap"
+                  style={{ backgroundColor: DROPVINE_GREEN }}
+                  onMouseOver={(e) => (e.currentTarget.style.backgroundColor = DROPVINE_GREEN_HOVER)}
+                  onMouseOut={(e) => (e.currentTarget.style.backgroundColor = DROPVINE_GREEN)}
+                >
+                  {isScheduleFlow ? 'Schedule my drop' : 'Publish my drop'} <ArrowRight className="h-4 w-4" />
+                </a>
+              ) : (
+                <span className="text-[11px] text-white/60">Token expired — resubmit the Tally form for a fresh link.</span>
+              )}
+            </div>
           </div>
         </div>
       )}

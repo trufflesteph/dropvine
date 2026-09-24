@@ -206,7 +206,7 @@ export default function DashboardPage() {
                       {isDraft ? (
                         <>
                           <Link
-                            href={`/admin/drops/${l.id}/preview`}
+                            href={`/l/${l.handle}?preview=true`}
                             className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
                           >
                             <Eye className="h-3.5 w-3.5" /> Preview

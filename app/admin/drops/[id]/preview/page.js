@@ -179,7 +179,7 @@ export default function AdminDropPreviewPage() {
       const d = await r.json().catch(() => ({}))
       if (!r.ok || d?.error) { toast.error(d?.error || 'Delete failed'); return }
       toast.success('Draft deleted.')
-      router.replace('/admin')
+      router.replace('/dashboard')
     } catch (e) {
       toast.error(e?.message || 'Delete failed')
     } finally {
@@ -196,7 +196,7 @@ export default function AdminDropPreviewPage() {
         <div className="py-20 text-center">
           <div className="font-serif text-2xl text-stone-800 mb-2">Draft not found</div>
           <p className="text-sm text-stone-500">It may have already been published or deleted.</p>
-          <Link href="/admin" className="inline-block mt-6 text-sm underline text-stone-600">← Back to dashboard</Link>
+          <Link href="/dashboard" className="inline-block mt-6 text-sm underline text-stone-600">← Back to dashboard</Link>
         </div>
       </AdminShell>
     )
@@ -232,7 +232,7 @@ export default function AdminDropPreviewPage() {
           </span>
           <span className="text-stone-500"><span className="text-stone-400">Submitted:</span> {submittedAt}</span>
           <div className="ml-auto flex items-center gap-2 flex-wrap">
-            <Link href="/admin" className="text-xs text-stone-600 underline">All</Link>
+            <Link href="/dashboard" className="text-xs text-stone-600 underline">Dashboard</Link>
             {isDraft ? (
               <>
                 <span className="text-xs text-stone-600">Changes save to this drop</span>
