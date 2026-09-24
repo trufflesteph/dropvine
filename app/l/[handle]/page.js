@@ -394,15 +394,18 @@ function PublicLaunchPageInner() {
         </div>
       </section>
 
-      {/* Countdown — hidden on demo pages and once the drop is live. The
-          live-state CTA ("It's time" / "Enter the drop") was removed in
-          June 2026 as outdated copy (Fix 17). The countdown panel remains
-          for upcoming drops so shoppers can see exactly when the doors open. */}
-      {!drop.is_demo && !isLive && (
+      {/* Countdown / live state — hidden only on demo pages. */}
+      {!drop.is_demo && (
       <section className="border-y border-border bg-stone-100/60">
         <div className="container py-16 md:py-24">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-6">Opens in</div>
-          <Countdown target={drop.launch_at} size="lg" />
+          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-6">
+            {isLive ? 'Open now' : 'Opens in'}
+          </div>
+          {isLive ? (
+            <div className="font-serif text-5xl md:text-7xl tracking-tight">Take a look below.</div>
+          ) : (
+            <Countdown target={drop.launch_at} size="lg" />
+          )}
         </div>
       </section>
       )}
