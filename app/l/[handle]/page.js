@@ -414,28 +414,32 @@ function PublicLaunchPageInner() {
 
       {/* Body */}
       <section className="container max-w-5xl py-12 md:py-16">
-        {drop.pickup_details ? (
-          <div className="max-w-2xl mb-8">
-            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Pickup</div>
-            <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{drop.pickup_details}</p>
-          </div>
-        ) : null}
-        <div
-          className={`border border-border p-8 md:p-10 bg-background lg:max-w-[360px] lg:ml-auto ${isDraft ? 'pointer-events-none opacity-60 select-none' : ''}`}
-          data-testid={`mode-panel-${mode}`}
-          aria-disabled={isDraft || undefined}
-        >
-          {!isLive && !isDraft ? (
-            <div data-testid="not-open-panel">
-              <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Upcoming</div>
-              <div className="font-serif text-2xl md:text-3xl tracking-tighter">
-                Opens {launchAtLabel || 'soon'}.
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+          <div className="min-w-0">
+            {drop.pickup_details ? (
+              <div className="max-w-2xl">
+                <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Pickup</div>
+                <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{drop.pickup_details}</p>
               </div>
-              <p className="mt-3 text-sm text-muted-foreground">
-                Orders open when the drop launches. Check back then.
-              </p>
-            </div>
-          ) : rightRail}
+            ) : null}
+          </div>
+          <div
+            className={`w-full border border-border p-8 md:p-10 bg-background ${isDraft ? 'pointer-events-none opacity-60 select-none' : ''}`}
+            data-testid={`mode-panel-${mode}`}
+            aria-disabled={isDraft || undefined}
+          >
+            {!isLive && !isDraft ? (
+              <div data-testid="not-open-panel">
+                <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Upcoming</div>
+                <div className="font-serif text-2xl md:text-3xl tracking-tighter">
+                  Opens {launchAtLabel || 'soon'}.
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Orders open when the drop launches. Check back then.
+                </p>
+              </div>
+            ) : rightRail}
+          </div>
         </div>
         {drop?.creator_plan_tier !== 'shop' ? (
           <p className="mt-4 text-[11px] uppercase tracking-[0.25em] text-muted-foreground text-center">
