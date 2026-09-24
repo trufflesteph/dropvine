@@ -245,8 +245,17 @@ export async function POST(request) {
     // 4 canonical kebab-case values.
     const collectionModeRaw = getTallyOptionLabel(fields, 'collection mode')
       || getTallyOptionLabel(fields, 'collection')
+      || getTallyOptionLabel(fields, 'drop mode')
       || getTallyText(fields, 'collection')
+      || getTallyText(fields, 'drop mode')
       || 'pre-order'
+    const hasCollectionModeField = fields.some((field) => {
+      const label = String(field?.label || '').toLowerCase()
+      return ['collection mode', 'collection', 'drop mode'].some((name) => label.includes(name))
+    })
+    if (!hasCollectionModeField) {
+      console.warn('[tally-direct-drop] Collection Mode field not found; defaulting to pre-order.')
+    }
     const collectionMode = normaliseCollectionMode(collectionModeRaw)
     // Deposit Percentage — only meaningful when collection_mode is 'deposit'.
     // This is now the AUTHORITATIVE deposit calculation for deposit-mode
