@@ -399,10 +399,12 @@ function PublicLaunchPageInner() {
       <section className="border-y border-border bg-stone-100/60">
         <div className="container py-16 md:py-24">
           <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-6">
-            {isLive ? 'Open now' : 'Opens in'}
+            {isLive && mode === 'announcement' ? 'Hey there' : isLive ? 'Open now' : 'Opens in'}
           </div>
           {isLive ? (
-            <div className="font-serif text-5xl md:text-7xl tracking-tight">Take a look below.</div>
+            <div className="font-serif text-5xl md:text-7xl tracking-tight">
+              {mode === 'announcement' ? 'This message is for you.' : 'Take a look below.'}
+            </div>
           ) : (
             <Countdown target={drop.launch_at} size="lg" />
           )}
