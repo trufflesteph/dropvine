@@ -83,6 +83,7 @@ function PublicLaunchPageInner() {
   const [submitting, setSubmitting] = useState(false)
   const [reserving, setReserving] = useState(false)
   const [reservationStatus, setReservationStatus] = useState(null) // 'pending' | 'held' | 'cancelled'
+  const [markets, setMarkets] = useState(null) // null while loading; [] when none
 
   useEffect(() => {
     const load = async () => {
@@ -99,6 +100,20 @@ function PublicLaunchPageInner() {
     }
     if (handle) load()
   }, [handle, isPreview])
+
+  // Markets this vendor is booked at, from the separate Dropvine Markets
+  // project (matched on the vendor's dropvine.pro/direct/<slug>).
+  const vendorSlug = drop?.vendor_slug
+  useEffect(() => {
+    if (!drop) return
+    if (!vendorSlug) { setMarkets([]); return }
+    let cancelled = false
+    fetch(`/api/direct/${encodeURIComponent(vendorSlug)}/markets`)
+      .then((r) => (r.ok ? r.json() : { markets: [] }))
+      .then((d) => { if (!cancelled) setMarkets(Array.isArray(d.markets) ? d.markets : []) })
+      .catch(() => { if (!cancelled) setMarkets([]) })
+    return () => { cancelled = true }
+  }, [drop, vendorSlug])
 
   // Handle return from Stripe
   useEffect(() => {
@@ -391,6 +406,7 @@ function PublicLaunchPageInner() {
           {drop.description && (
             <p className="mt-8 text-lg leading-relaxed text-foreground/90 whitespace-pre-line text-pretty max-w-3xl">{drop.description}</p>
           )}
+          <MarketsSection markets={markets} />
         </div>
       </section>
 
@@ -456,6 +472,49 @@ function PublicLaunchPageInner() {
         ) : null}
       </section>
     </main>
+  )
+}
+
+// --------------------------------------------------------------------------
+// Markets
+// --------------------------------------------------------------------------
+
+// Always rendered (even with no matches) so shoppers see the vendor has no
+// upcoming markets rather than wondering whether the section failed to load.
+function MarketsSection({ markets }) {
+  return (
+    <div className="mt-10 max-w-3xl" data-testid="markets-section">
+      <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Find them at these markets</div>
+      {markets === null ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : markets.length === 0 ? (
+        <p className="text-sm text-muted-foreground" data-testid="markets-empty">No current markets</p>
+      ) : (
+        <ul className="divide-y divide-border border-y border-border">
+          {markets.map((m) => (
+            <li key={m.id}>
+              <a
+                href={m.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between gap-4 py-3 group"
+              >
+                <span className="min-w-0">
+                  <span className="block font-serif text-lg tracking-tight group-hover:underline underline-offset-4 decoration-1">{m.name}</span>
+                  {m.city || m.state ? (
+                    <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {[m.city, m.state].filter(Boolean).join(', ')}
+                    </span>
+                  ) : null}
+                </span>
+                <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-foreground" />
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 

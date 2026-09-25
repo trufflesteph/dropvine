@@ -13,7 +13,8 @@ export async function GET(_request, { params }) {
     return NextResponse.json({ markets }, {
       headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=900' },
     })
-  } catch {
+  } catch (err) {
+    console.error('[markets] lookup failed for', slug, err?.message || err)
     return NextResponse.json({ markets: [] })
   }
 }
