@@ -11,12 +11,18 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { isOpenDrop, isUpcomingDrop } from '@/lib/vendors/visibility'
 
 // Public vendor profile page — /direct/[slug]
 //
 // Renders a vendor's bio + photo + social links + a grid of their published
 // drops (upcoming first, then past). 404s gracefully if the slug doesn't
 // match an active vendor.
+//
+// Shop-tier vendors always get the full page. Free/Maker vendors only while
+// they have an open or upcoming drop (the API's `page_available`, rule in
+// lib/vendors/visibility.js); otherwise the page shows a "Nothing live"
+// message linking to Fresh Drops instead of the profile, drops and reviews.
 //
 // Data source: GET /api/direct/[slug] (server endpoint backed by direct_vendors
 // + drops via the service-role client).
@@ -54,7 +60,7 @@ export default function VendorProfilePage() {
           setState({ loading: false, vendor: null, drops: [], error: d?.error || 'Vendor not found' })
           return
         }
-        setState({ loading: false, vendor: d.vendor, drops: d.drops || [], error: null })
+        setState({ loading: false, vendor: d.vendor, drops: d.drops || [], error: null, pageAvailable: d.page_available !== false })
       } catch (e) {
         if (!cancelled) setState({ loading: false, vendor: null, drops: [], error: e?.message || 'Network error' })
       }
@@ -83,6 +89,24 @@ export default function VendorProfilePage() {
           <p className="mt-4 text-muted-foreground">{state.error || `No active vendor at /direct/${slug}.`}</p>
           <Link href="/" className="mt-10 inline-flex items-center gap-2 border border-foreground px-6 py-3 text-sm hover:bg-foreground hover:text-background transition">
             Back to home <ArrowRight className="h-4 w-4" />
+          </Link>
+        </main>
+      </div>
+    )
+  }
+
+  // Free/Maker vendor with no open or upcoming drop. Not a 404: the vendor
+  // exists, there's just nothing to show right now.
+  if (!state.pageAvailable) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Nav />
+        <main className="container py-40 text-center" data-testid="vendor-nothing-live">
+          <h1 className="font-serif font-light text-5xl tracking-tightest text-balance">
+            Nothing live from {state.vendor.business_name} right now.
+          </h1>
+          <Link href="/drops" className="mt-10 inline-flex items-center gap-2 border border-foreground px-6 py-3 text-sm hover:bg-foreground hover:text-background transition">
+            Browse Fresh Drops <ArrowRight className="h-4 w-4" />
           </Link>
         </main>
       </div>
@@ -197,6 +221,13 @@ export default function VendorProfilePage() {
                 // headline reflects what's actually live right now.
                 const now = Date.now()
                 const current = state.drops.filter((d) => !d.closes_at || Date.parse(d.closes_at) > now)
+                // Nothing open yet but something scheduled: say it's coming,
+                // not "live now".
+                if (!state.drops.some((d) => isOpenDrop(d, now))) {
+                  const upcoming = state.drops.filter((d) => isUpcomingDrop(d, now)).length
+                  if (upcoming === 1) return 'One drop coming soon.'
+                  if (upcoming > 1) return `${upcoming} drops coming soon.`
+                }
                 if (current.length === 0) return 'No Current Drops'
                 if (current.length === 1) return 'One drop, live now.'
                 return `${current.length} drops.`

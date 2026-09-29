@@ -1,22 +1,26 @@
 'use client'
 //
-// /drops — public directory of vendors using Dropvine.
+// /drops — Fresh Drops: one card per open or upcoming drop.
 //
 // Renamed from /creators in June 2026 (next.config.js issues a permanent
-// 301 from /creators → /drops). Functionality unchanged from the previous
-// implementation — only the route + headline copy + meta tags differ.
+// 301 from /creators → /drops).
 //
-// June 2026 update — fully data-driven (no more hard-coded demo list):
-//   • Live fetch from GET /api/direct/vendors.
-//   • Debounced search across business_name, tagline, bio.
-//   • Horizontally scrollable category pills (one per VENDOR_CATEGORIES + All).
-//   • "Has active drop" toggle filtering on the server-computed flag.
+// Lists DROPS, not vendors:
+//   • Live fetch from GET /api/direct/vendors, which returns every open and
+//     upcoming drop from an active vendor (plus demo drops), already sorted:
+//     open drops closing soonest first, open drops with no close time
+//     (newest launch first), then upcoming drops launching soonest first.
+//   • Each card links straight to the drop page (/l/{handle}) and shows the
+//     cover (vendor photo, then letter placeholder as fallbacks), title,
+//     vendor name, category, and a "Live now" or "Upcoming · countdown" badge.
+//   • Debounced search across drop title and vendor business name.
+//   • Horizontally scrollable category pills (vendor's category).
+//   • "Open now" toggle hides upcoming drops (URL param stays ?active=1).
 //   • All filter state is mirrored into the URL (?q=...&category=...&active=1)
 //     so directory views are shareable + back-button friendly.
-//   • Empty state when no vendor matches.
+//   • Empty state when no drop matches.
 //
-// All filtering is client-side after the initial fetch — the endpoint
-// returns every active vendor in one round-trip.
+// All filtering is client-side after the initial fetch.
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -62,7 +66,7 @@ function DropsDirectoryInner() {
   const initialCategory = searchParams.get('category') || ALL_PILL
   const initialActive = searchParams.get('active') === '1'
 
-  const [vendors, setVendors] = useState([])
+  const [drops, setDrops] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -90,7 +94,7 @@ function DropsDirectoryInner() {
     router.replace(qs ? `/drops?${qs}` : '/drops', { scroll: false })
   }, [debouncedQuery, activeCategory, activeOnly, router])
 
-  // Initial vendor fetch.
+  // Initial drops fetch.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -98,8 +102,8 @@ function DropsDirectoryInner() {
         const r = await fetch('/api/direct/vendors')
         const d = await r.json()
         if (cancelled) return
-        if (!r.ok) { setError(d?.error || 'Could not load directory.'); setLoading(false); return }
-        setVendors(d.vendors || [])
+        if (!r.ok) { setError(d?.error || 'Could not load drops.'); setLoading(false); return }
+        setDrops(d.drops || [])
         setLoading(false)
       } catch (e) {
         if (!cancelled) { setError(e?.message || 'Network error.'); setLoading(false) }
@@ -110,22 +114,22 @@ function DropsDirectoryInner() {
 
   // Apply filters in-memory.
   const filtered = useMemo(() => {
-    let list = vendors
+    let list = drops
     if (activeCategory && activeCategory !== ALL_PILL) {
-      list = list.filter((v) => (v.category || '') === activeCategory)
+      list = list.filter((d) => (d.category || '') === activeCategory)
     }
     if (activeOnly) {
-      list = list.filter((v) => v.has_active_drop)
+      list = list.filter((d) => d.is_open)
     }
     const q = debouncedQuery.trim().toLowerCase()
     if (q) {
-      list = list.filter((v) => {
-        const hay = `${v.business_name || ''} ${v.tagline || ''} ${v.bio || ''}`.toLowerCase()
+      list = list.filter((d) => {
+        const hay = `${d.title || ''} ${d.business_name || ''}`.toLowerCase()
         return hay.includes(q)
       })
     }
     return list
-  }, [vendors, debouncedQuery, activeCategory, activeOnly])
+  }, [drops, debouncedQuery, activeCategory, activeOnly])
 
   return (
     <div className="min-h-screen bg-background">
@@ -138,7 +142,7 @@ function DropsDirectoryInner() {
           Browse Fresh Drops
         </h1>
         <p className="mt-8 text-base md:text-lg text-muted-foreground leading-relaxed max-w-2xl">
-          A growing list of independent makers, farms, and studios running their drops on Dropvine. Filter by category, search by name, or jump straight to a profile.
+          A growing list of independent makers, farms, and studios running their drops on Dropvine. Filter by category, search by name, or jump straight to a drop.
         </p>
       </section>
 
@@ -153,9 +157,9 @@ function DropsDirectoryInner() {
                 type="text"
                 value={rawQuery}
                 onChange={(e) => setRawQuery(e.target.value)}
-                placeholder="Search makers..."
+                placeholder="Search drops or makers..."
                 className="w-full pl-10 pr-10 py-2.5 bg-background border border-border focus:border-foreground focus:outline-none text-sm transition-colors"
-                aria-label="Search makers"
+                aria-label="Search drops or makers"
               />
               {rawQuery ? (
                 <button
@@ -175,12 +179,12 @@ function DropsDirectoryInner() {
                   checked={activeOnly}
                   onChange={(e) => setActiveOnly(e.target.checked)}
                   className="peer absolute opacity-0 w-0 h-0"
-                  aria-label="Has active drop"
+                  aria-label="Open now"
                 />
                 <span className="absolute inset-0 bg-stone-200 peer-checked:bg-foreground transition-colors rounded-full" />
                 <span className="absolute left-0.5 top-0.5 h-4 w-4 bg-background border border-border peer-checked:translate-x-4 transition-transform rounded-full" />
               </span>
-              <span className={activeOnly ? 'text-foreground' : ''}>Has active drop</span>
+              <span className={activeOnly ? 'text-foreground' : ''}>Open now</span>
             </label>
           </div>
 
@@ -215,7 +219,7 @@ function DropsDirectoryInner() {
       <section className="container pb-20 md:pb-28">
         {loading ? (
           <div className="py-24 flex items-center justify-center text-muted-foreground text-sm">
-            <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading vendors…
+            <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading drops…
           </div>
         ) : error ? (
           <div className="border border-dashed border-border p-10 text-center text-muted-foreground">
@@ -224,7 +228,7 @@ function DropsDirectoryInner() {
         ) : filtered.length === 0 ? (
           <div className="border border-dashed border-border p-10 md:p-16 text-center text-muted-foreground">
             <p className="max-w-md mx-auto text-sm">
-              No vendors match those filters. Try clearing the search or picking a different category.
+              No drops match those filters. Try clearing the search or picking a different category.
             </p>
             <button
               type="button"
@@ -236,8 +240,8 @@ function DropsDirectoryInner() {
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            {filtered.map((v) => (
-              <VendorCard key={v.slug} v={v} />
+            {filtered.map((d) => (
+              <DropCard key={d.id} d={d} />
             ))}
           </div>
         )}
@@ -248,41 +252,43 @@ function DropsDirectoryInner() {
   )
 }
 
-function VendorCard({ v }) {
-  const cityState = [v.location_city, v.location_state].filter(Boolean).join(', ')
+function DropCard({ d }) {
+  const cityState = [d.location_city, d.location_state].filter(Boolean).join(', ')
+  const image = d.cover_url || d.vendor_photo_url
   return (
     <Link
-      href={`/direct/${v.slug}`}
+      href={`/l/${d.handle}`}
       className="group block border border-border bg-background hover:border-foreground transition-colors"
+      data-testid={`drop-card-${d.handle}`}
     >
       <div
         className="relative w-full aspect-[4/3] border-b border-border bg-stone-100 overflow-hidden"
-        style={v.photo_url ? { backgroundImage: `url(${v.photo_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+        style={image ? { backgroundImage: `url(${image})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
       >
-        {v.photo_url ? <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" /> : (
+        {image ? <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" /> : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="font-serif text-7xl text-stone-300">{(v.business_name || '?').charAt(0).toUpperCase()}</div>
+            <div className="font-serif text-7xl text-stone-300">{(d.business_name || d.title || '?').charAt(0).toUpperCase()}</div>
           </div>
         )}
-        {v.is_demo ? (
+        {d.is_demo ? (
           <span className="absolute top-3 right-3 text-[9px] uppercase tracking-[0.18em] px-2 py-1 bg-white/80 text-foreground border border-white/40">
             Demo
           </span>
         ) : null}
-        {v.has_active_drop ? (
+        {d.is_open ? (
           <span className="absolute top-3 left-3 text-[10px] uppercase tracking-[0.2em] px-2 py-1 bg-foreground text-background inline-flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            Live drop
+            Live now
           </span>
-        ) : v.has_upcoming_drop ? (
+        ) : d.is_upcoming ? (
           <span className="absolute top-3 left-3 text-[10px] uppercase tracking-[0.2em] px-2 py-1 bg-foreground text-background inline-flex items-center gap-1.5 tabular-nums">
-            Upcoming{v.upcoming_launch_at ? ` · ${fmtCountdown(Date.parse(v.upcoming_launch_at)) ?? 'soon'}` : ''}
+            Upcoming · {fmtCountdown(Date.parse(d.launch_at)) ?? 'soon'}
           </span>
         ) : null}
       </div>
       <div className="p-6 md:p-8">
         <div className="flex items-center gap-2 flex-wrap">
-          {v.category ? <CategoryPill label={v.category} /> : null}
+          {d.category ? <CategoryPill label={d.category} /> : null}
           {cityState ? (
             <span className="inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
               <MapPin className="h-3 w-3" />
@@ -291,14 +297,14 @@ function VendorCard({ v }) {
           ) : null}
         </div>
         <div className="mt-3 font-serif text-2xl md:text-3xl tracking-tighter group-hover:underline underline-offset-4 decoration-1">
-          {v.business_name}
+          {d.title}
         </div>
-        {v.tagline ? (
-          <p className="mt-3 text-sm text-muted-foreground leading-relaxed line-clamp-2">{v.tagline}</p>
+        {d.business_name ? (
+          <p className="mt-2 text-sm text-muted-foreground">by {d.business_name}</p>
         ) : null}
         <div className="mt-6 flex items-center justify-end text-sm">
           <span className="inline-flex items-center gap-1 text-foreground/80 group-hover:text-foreground">
-            Visit <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+            View drop <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
           </span>
         </div>
       </div>
@@ -306,7 +312,7 @@ function VendorCard({ v }) {
   )
 }
 
-// Tiny pill used inside vendor cards + reused on /direct/[slug] + /l/[handle].
+// Tiny pill used inside drop cards + reused on /direct/[slug] + /l/[handle].
 function CategoryPill({ label }) {
   return (
     <span className="text-[10px] uppercase tracking-[0.22em] px-2 py-1 bg-stone-100 text-foreground border border-border">

@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { store, uuidv4 } from '@/lib/mock-store'
 import { getSupabaseServer, getSupabaseAdmin, getServerSupabaseConfig } from '@/lib/supabase/server'
 import { notifyWaitlistConfirmed } from '@/lib/notifications'
+import { isVendorPageAvailable, normalizeTier } from '@/lib/vendors/visibility'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -135,6 +136,13 @@ export async function GET(request, { params }) {
       let vendorLocationState = null
       let vendorBusinessName = null
       let vendorSlug = null
+      // Whether /direct/{vendor_slug} shows the vendor's page (Shop tier, or
+      // an open/upcoming drop). The drop page only links "by {vendor}" when true.
+      let vendorPageAvailable = false
+      // direct_vendors.tier — what the drop page uses to hide the "Powered by
+      // Dropvine" watermark for Shop vendors. (profiles.plan_tier can't hold
+      // 'shop', so creator_plan_tier can't drive that.)
+      let vendorTier = 'free'
       if (data.creator_id) {
         try {
           const { data: prof } = await sb
@@ -147,7 +155,7 @@ export async function GET(request, { params }) {
         try {
           const { data: dv } = await sb
             .from('direct_vendors')
-            .select('slug, business_name, category, location_city, location_state')
+            .select('slug, business_name, category, location_city, location_state, tier, active')
             .eq('creator_id', data.creator_id)
             .maybeSingle()
           if (dv) {
@@ -156,6 +164,15 @@ export async function GET(request, { params }) {
             vendorLocationState = dv.location_state || null
             vendorBusinessName = dv.business_name || null
             vendorSlug = dv.slug || null
+            vendorTier = normalizeTier(dv.tier)
+            if (dv.slug && dv.active !== false) {
+              const { data: vendorDrops } = await sb
+                .from('drops')
+                .select('status, launch_at, closes_at')
+                .eq('creator_id', data.creator_id)
+                .in('status', ['published', 'scheduled'])
+              vendorPageAvailable = isVendorPageAvailable({ tier: dv.tier, drops: vendorDrops || [] })
+            }
           }
         } catch {}
       }
@@ -194,13 +211,15 @@ export async function GET(request, { params }) {
         vendor_location_state: vendorLocationState,
         vendor_business_name: vendorBusinessName,
         vendor_slug: vendorSlug,
+        vendor_page_available: vendorPageAvailable,
+        vendor_tier: vendorTier,
       }, products, publish_token: publishToken })
     }
     const found = Array.from(store.drops.values()).find(l => l.handle === handle)
     if (!found) return err('not found', 404)
     if (found.status === 'draft' && !preview) return err('not found', 404)
     if (found.status === 'archived' && !preview) return err('not found', 404)
-    return json({ drop: { ...found, creator_plan_tier: 'free', vendor_category: null, vendor_location_city: null, vendor_location_state: null, vendor_business_name: null, vendor_slug: null }, products: [], publish_token: null })
+    return json({ drop: { ...found, creator_plan_tier: 'free', vendor_category: null, vendor_location_city: null, vendor_location_state: null, vendor_business_name: null, vendor_slug: null, vendor_page_available: false, vendor_tier: 'free' }, products: [], publish_token: null })
   }
 
   // GET /api/launches/[id]/reservations  (creator-scoped via RLS)

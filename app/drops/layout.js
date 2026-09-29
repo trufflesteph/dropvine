@@ -5,7 +5,7 @@
 export const metadata = {
   title: 'Browse Fresh Drops — Dropvine',
   description:
-    'Browse fresh drops from independent makers, farms, and studios using Dropvine. Filter by category, search by name, jump straight to a maker.',
+    'Browse fresh drops from independent makers, farms, and studios using Dropvine. Filter by category, search by name, jump straight to a drop.',
   openGraph: {
     title: 'Browse Fresh Drops — Dropvine',
     description:

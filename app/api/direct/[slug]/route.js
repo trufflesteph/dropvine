@@ -6,9 +6,15 @@
 //
 // Anonymous read — relies on the "Public can view active direct vendors" RLS
 // policy on direct_vendors. Returns 404 if vendor is missing or inactive.
+//
+// `page_available` (lib/vendors/visibility.js): Shop-tier vendors always have
+// a page; Free/Maker vendors only while they have an open or upcoming drop.
+// When it's false the response carries only the vendor's name + slug (no
+// profile fields, no drops) and the page shows a "Nothing live" message.
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
+import { isVendorPageAvailable } from '@/lib/vendors/visibility'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -60,6 +66,15 @@ export async function GET(request, { params }) {
     drops = [...upcoming, ...past]
   }
 
+  if (!isVendorPageAvailable({ tier: vendor.tier, drops })) {
+    return NextResponse.json({
+      vendor: { business_name: vendor.business_name, slug: vendor.slug, tier: vendor.tier },
+      page_available: false,
+      drops: [],
+      counts: { total: 0, upcoming: 0, past: 0 },
+    })
+  }
+
   // Image fallback — if the vendor has no photo_url, fall back to the
   // cover_url of their most recent PUBLISHED drop (by created_at), before
   // falling back further to logo_url on the page. `drops` above already
@@ -85,6 +100,7 @@ export async function GET(request, { params }) {
       location_city: vendor.location_city || null,
       location_state: vendor.location_state || null,
     },
+    page_available: true,
     drops,
     counts: { total: drops.length, upcoming: upcoming.length, past: past.length },
   })

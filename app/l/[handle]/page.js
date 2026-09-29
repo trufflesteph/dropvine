@@ -347,7 +347,7 @@ function PublicLaunchPageInner() {
       {/* Vendor identity row — category pill + city/state + link back to
           the maker's full profile. Surfaces the maker behind the drop
           without competing with the headline. */}
-      {(drop.vendor_category || drop.vendor_location_city || drop.vendor_slug) ? (
+      {(drop.vendor_category || drop.vendor_location_city || drop.vendor_business_name) ? (
         <div className="mt-6 flex items-center flex-wrap gap-3">
           {drop.vendor_category ? (
             <span className="text-[10px] uppercase tracking-[0.22em] px-2 py-1 bg-stone-100 text-foreground border border-border">
@@ -360,13 +360,19 @@ function PublicLaunchPageInner() {
               {[drop.vendor_location_city, drop.vendor_location_state].filter(Boolean).join(', ')}
             </span>
           ) : null}
-          {drop.vendor_slug && drop.vendor_business_name ? (
-            <Link
-              href={`/direct/${drop.vendor_slug}`}
-              className="text-sm text-muted-foreground hover:text-foreground transition inline-flex items-center gap-1 underline underline-offset-4 decoration-1"
-            >
-              by {drop.vendor_business_name}
-            </Link>
+          {/* Linked only while the vendor's page shows something (Shop tier,
+              or an open/upcoming drop); otherwise plain text. */}
+          {drop.vendor_business_name ? (
+            drop.vendor_slug && drop.vendor_page_available ? (
+              <Link
+                href={`/direct/${drop.vendor_slug}`}
+                className="text-sm text-muted-foreground hover:text-foreground transition inline-flex items-center gap-1 underline underline-offset-4 decoration-1"
+              >
+                by {drop.vendor_business_name}
+              </Link>
+            ) : (
+              <span className="text-sm text-muted-foreground" data-testid="vendor-byline">by {drop.vendor_business_name}</span>
+            )
           ) : null}
         </div>
       ) : null}
@@ -395,7 +401,7 @@ function PublicLaunchPageInner() {
       <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Pickup</div>
       <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{drop.pickup_details}</p>
     </div>
-  ) : drop.vendor_slug && drop.vendor_business_name ? (
+  ) : drop.vendor_slug && drop.vendor_business_name && drop.vendor_page_available ? (
     <Link
       href={`/direct/${drop.vendor_slug}`}
       className="group block max-w-2xl border border-border bg-background p-6 md:p-8 hover:border-foreground transition-colors"
@@ -427,7 +433,8 @@ function PublicLaunchPageInner() {
       ) : rightRail}
     </div>
   )
-  const poweredBy = drop?.creator_plan_tier !== 'shop' ? (
+  // Hidden for Shop vendors (direct_vendors.tier, from the by-handle API).
+  const poweredBy = drop?.vendor_tier !== 'shop' ? (
     <p className="mt-4 text-[11px] uppercase tracking-[0.25em] text-muted-foreground text-center">
       Powered by{' '}
       <a
