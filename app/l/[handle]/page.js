@@ -27,6 +27,13 @@ export default function PublicLaunchPage() {
 const DROPVINE_GREEN = '#4CAF50'
 const DROPVINE_GREEN_HOVER = '#43A047'
 
+// Two-column live layout. STICKY_TOP_PX is the order column's sticky gap
+// from the top of the viewport (the page header is absolute and scrolls
+// away, so nothing is pinned above it).
+// ORDER_BAR_HEIGHT_PX is the mobile "Order now" bar: h-12 button + p-3.
+const STICKY_TOP_PX = 32
+const ORDER_BAR_HEIGHT_PX = 72
+
 function money(cents) {
   if (cents == null || cents === '') return '—'
   return `$${(Number(cents) / 100).toFixed(2)}`
@@ -157,6 +164,38 @@ function PublicLaunchPageInner() {
     return () => clearTimeout(t)
   }, [closesAtMs])
   const isClosed = Number.isFinite(closesAtMs) && closesAtMs <= Date.now()
+
+  // Live drops with an order card (not announcements, not demo pages) get
+  // the two-column layout: sticky order card on desktop, "Order now" bar on
+  // mobile. Everything else keeps the original single-column layout.
+  const splitLayout = !!drop && isLive && mode !== 'announcement' && !drop.is_demo
+  const [orderCardEl, setOrderCardEl] = useState(null)
+  const [showOrderBar, setShowOrderBar] = useState(false)
+  useEffect(() => {
+    if (!splitLayout || !orderCardEl || typeof IntersectionObserver === 'undefined') { setShowOrderBar(false); return }
+    // Show the bar only while the card is still below the viewport (not once
+    // the shopper has scrolled past it). The bottom margin keeps the card
+    // from counting as "in view" while it's still hidden under the bar.
+    const io = new IntersectionObserver(([entry]) => {
+      setShowOrderBar(!entry.isIntersecting && entry.boundingClientRect.top > 0)
+    }, { rootMargin: `0px 0px -${ORDER_BAR_HEIGHT_PX}px 0px` })
+    io.observe(orderCardEl)
+    return () => io.disconnect()
+  }, [splitLayout, orderCardEl])
+  // Desktop sticky order column. When it's taller than the viewport, the
+  // sticky offset goes negative so the column scrolls normally until its
+  // bottom is in view and then sticks bottom-aligned; nothing is cut off.
+  const [orderColumnEl, setOrderColumnEl] = useState(null)
+  const [stickyTop, setStickyTop] = useState(STICKY_TOP_PX)
+  useEffect(() => {
+    if (!orderColumnEl) return
+    const check = () => setStickyTop(Math.min(STICKY_TOP_PX, window.innerHeight - orderColumnEl.offsetHeight - STICKY_TOP_PX))
+    check()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(check) : null
+    ro?.observe(orderColumnEl)
+    window.addEventListener('resize', check)
+    return () => { ro?.disconnect(); window.removeEventListener('resize', check) }
+  }, [orderColumnEl])
 
   const join = async (e) => {
     e.preventDefault()
@@ -296,8 +335,118 @@ function PublicLaunchPageInner() {
   const bannerCount = (isDraft ? 1 : 0) + (drop.is_demo ? 1 : 0)
   const headerTopClass = bannerCount === 2 ? 'top-[72px]' : bannerCount === 1 ? 'top-9' : 'top-0'
 
+  // Page pieces shared by the single-column and two-column layouts.
+  const heroText = (
+    <>
+      <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-8" data-testid="mode-eyebrow">
+        {isLive ? 'Now open' : 'Upcoming drop'} {mode !== 'waitlist' ? `· ${mode}` : ''}
+      </div>
+      <h1 className="font-serif font-light text-4xl sm:text-5xl md:text-7xl leading-[0.96] tracking-tightest text-balance">
+        {drop.title}
+      </h1>
+      {/* Vendor identity row — category pill + city/state + link back to
+          the maker's full profile. Surfaces the maker behind the drop
+          without competing with the headline. */}
+      {(drop.vendor_category || drop.vendor_location_city || drop.vendor_slug) ? (
+        <div className="mt-6 flex items-center flex-wrap gap-3">
+          {drop.vendor_category ? (
+            <span className="text-[10px] uppercase tracking-[0.22em] px-2 py-1 bg-stone-100 text-foreground border border-border">
+              {drop.vendor_category}
+            </span>
+          ) : null}
+          {drop.vendor_location_city ? (
+            <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5" />
+              {[drop.vendor_location_city, drop.vendor_location_state].filter(Boolean).join(', ')}
+            </span>
+          ) : null}
+          {drop.vendor_slug && drop.vendor_business_name ? (
+            <Link
+              href={`/direct/${drop.vendor_slug}`}
+              className="text-sm text-muted-foreground hover:text-foreground transition inline-flex items-center gap-1 underline underline-offset-4 decoration-1"
+            >
+              by {drop.vendor_business_name}
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+      {drop.tagline && (
+        <p className="mt-8 font-serif italic text-2xl md:text-3xl text-muted-foreground max-w-3xl tracking-tight">{drop.tagline}</p>
+      )}
+    </>
+  )
+  // Vendor-supplied hero photo. Falls back to first gallery image when
+  // cover_url is absent so the hero never shows blank when images exist.
+  const coverSrc = drop.cover_url || (Array.isArray(drop.photo_urls) && drop.photo_urls[0]) || null
+  const coverPhoto = (extraClass = '') => coverSrc ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={coverSrc}
+      alt={drop.title}
+      className={['mt-12 md:mt-16 w-full aspect-[16/9] object-cover border border-border', extraClass].filter(Boolean).join(' ')}
+      onError={(e) => { e.currentTarget.style.display = 'none' }}
+    />
+  ) : null
+  const descriptionEl = drop.description ? (
+    <p className="mt-8 text-lg leading-relaxed text-foreground/90 whitespace-pre-line text-pretty max-w-3xl">{drop.description}</p>
+  ) : null
+  const pickupEl = drop.pickup_details ? (
+    <div className="max-w-2xl">
+      <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Pickup</div>
+      <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{drop.pickup_details}</p>
+    </div>
+  ) : drop.vendor_slug && drop.vendor_business_name ? (
+    <Link
+      href={`/direct/${drop.vendor_slug}`}
+      className="group block max-w-2xl border border-border bg-background p-6 md:p-8 hover:border-foreground transition-colors"
+      data-testid="vendor-profile-link"
+    >
+      <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">More from this maker</div>
+      <div className="inline-flex items-center gap-2 font-serif text-xl md:text-2xl tracking-tighter group-hover:underline underline-offset-4 decoration-1">
+        See everything from {drop.vendor_business_name}
+        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+      </div>
+    </Link>
+  ) : null
+  const orderCard = (
+    <div
+      ref={setOrderCardEl}
+      className={`w-full border border-border p-8 md:p-10 bg-background${splitLayout ? ' scroll-mt-6' : ''}`}
+      data-testid={`mode-panel-${mode}`}
+    >
+      {!isLive && !isDraft ? (
+        <div data-testid="not-open-panel">
+          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Upcoming</div>
+          <div className="font-serif text-2xl md:text-3xl tracking-tighter">
+            Opens {launchAtLabel || 'soon'}.
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Orders open when the drop launches. Check back then.
+          </p>
+        </div>
+      ) : rightRail}
+    </div>
+  )
+  const poweredBy = drop?.creator_plan_tier !== 'shop' ? (
+    <p className="mt-4 text-[11px] uppercase tracking-[0.25em] text-muted-foreground text-center">
+      Powered by{' '}
+      <a
+        href="https://dropvine.pro"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline underline-offset-2 hover:text-foreground transition-colors"
+      >
+        Dropvine
+      </a>
+    </p>
+  ) : null
+  // Mobile "Order now" bar: only in the two-column layout and only while
+  // ordering is open. The page reserves room for it below lg so it never
+  // covers the footer.
+  const orderBarEnabled = splitLayout && !isClosed
+
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className={`min-h-screen bg-background text-foreground${orderBarEnabled ? ' pb-24 lg:pb-0' : ''}`}>
       {isDraft && (
         // Draft preview banner — sits at the very top so it's the first thing
         // the vendor sees when they click "Preview your drop" in their
@@ -356,118 +505,88 @@ function PublicLaunchPageInner() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="pt-36 pb-20 md:pt-48 md:pb-28">
-        <div className="container max-w-5xl">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-8" data-testid="mode-eyebrow">
-            {isLive ? 'Now open' : 'Upcoming drop'} {mode !== 'waitlist' ? `· ${mode}` : ''}
+      {splitLayout ? (
+        <>
+          {/* Hero — text only; photo + description move into the grid below. */}
+          <section className="pt-32 md:pt-28">
+            <div className="container max-w-5xl">{heroText}</div>
+          </section>
+
+          {/* Two-column body (lg+). Below lg the cells stack in DOM order:
+              photo + description, live-state band, pickup, order card. */}
+          <div
+            className="lg:container lg:max-w-5xl lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:grid-rows-[auto_1fr] lg:gap-x-12 lg:pt-12 lg:pb-16"
+            data-testid="split-layout"
+          >
+            <div className="container max-w-5xl min-w-0 pb-20 md:pb-28 lg:max-w-none lg:px-0 lg:pb-0 lg:col-start-1 lg:row-start-1">
+              {coverPhoto('lg:mt-0')}
+              {descriptionEl}
+            </div>
+            {/* Full-width band on mobile/tablet only; desktop shows the compact
+                version in the order column. */}
+            <div className="lg:hidden">
+              <StateBand drop={drop} isLive={isLive} mode={mode} isClosed={isClosed} />
+            </div>
+            <div className="container max-w-5xl min-w-0 pt-12 md:pt-16 lg:max-w-none lg:px-0 lg:pt-10 lg:col-start-1 lg:row-start-2">
+              {pickupEl}
+            </div>
+            <div className="container max-w-5xl min-w-0 mt-10 lg:mt-0 lg:max-w-none lg:px-0 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+              <div
+                ref={setOrderColumnEl}
+                className="lg:sticky"
+                style={{ top: stickyTop }}
+                data-testid="order-column"
+              >
+                <div className="hidden lg:block mb-4">
+                  <StateBandCompact drop={drop} isLive={isLive} mode={mode} isClosed={isClosed} />
+                </div>
+                {orderCard}
+              </div>
+            </div>
           </div>
-          <h1 className="font-serif font-light text-4xl sm:text-5xl md:text-7xl leading-[0.96] tracking-tightest text-balance">
-            {drop.title}
-          </h1>
-          {/* Vendor identity row — category pill + city/state + link back to
-              the maker's full profile. Surfaces the maker behind the drop
-              without competing with the headline. */}
-          {(drop.vendor_category || drop.vendor_location_city || drop.vendor_slug) ? (
-            <div className="mt-6 flex items-center flex-wrap gap-3">
-              {drop.vendor_category ? (
-                <span className="text-[10px] uppercase tracking-[0.22em] px-2 py-1 bg-stone-100 text-foreground border border-border">
-                  {drop.vendor_category}
-                </span>
-              ) : null}
-              {drop.vendor_location_city ? (
-                <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5" />
-                  {[drop.vendor_location_city, drop.vendor_location_state].filter(Boolean).join(', ')}
-                </span>
-              ) : null}
-              {drop.vendor_slug && drop.vendor_business_name ? (
-                <Link
-                  href={`/direct/${drop.vendor_slug}`}
-                  className="text-sm text-muted-foreground hover:text-foreground transition inline-flex items-center gap-1 underline underline-offset-4 decoration-1"
-                >
-                  by {drop.vendor_business_name}
-                </Link>
-              ) : null}
+
+          <div className="container max-w-5xl pb-12 md:pb-16">{poweredBy}</div>
+
+          {orderBarEnabled && showOrderBar ? (
+            <div
+              className="fixed inset-x-0 bottom-0 z-40 lg:hidden border-t border-border bg-background/95 backdrop-blur px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
+              data-testid="order-now-bar"
+            >
+              <button
+                type="button"
+                onClick={() => orderCardEl?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="w-full text-white h-12 text-sm hover:opacity-90 inline-flex items-center justify-center gap-2"
+                style={{ backgroundColor: DROPVINE_GREEN }}
+              >
+                Order now ↓
+              </button>
             </div>
           ) : null}
-          {drop.tagline && (
-            <p className="mt-8 font-serif italic text-2xl md:text-3xl text-muted-foreground max-w-3xl tracking-tight">{drop.tagline}</p>
-          )}
-          {/* Vendor-supplied hero photo. Falls back to first gallery image when
-              cover_url is absent so the hero never shows blank when images exist. */}
-          {(drop.cover_url || (Array.isArray(drop.photo_urls) && drop.photo_urls[0])) && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={drop.cover_url || drop.photo_urls[0]}
-              alt={drop.title}
-              className="mt-12 md:mt-16 w-full aspect-[16/9] object-cover border border-border"
-              onError={(e) => { e.currentTarget.style.display = 'none' }}
-            />
-          )}
-          {drop.description && (
-            <p className="mt-8 text-lg leading-relaxed text-foreground/90 whitespace-pre-line text-pretty max-w-3xl">{drop.description}</p>
-          )}
-        </div>
-      </section>
+        </>
+      ) : (
+        <>
+          {/* Hero */}
+          <section className="pt-36 pb-20 md:pt-48 md:pb-28">
+            <div className="container max-w-5xl">
+              {heroText}
+              {coverPhoto()}
+              {descriptionEl}
+            </div>
+          </section>
 
-      {/* Countdown / live state — hidden only on demo pages. */}
-      {!drop.is_demo && <StateBand drop={drop} isLive={isLive} mode={mode} isClosed={isClosed} />}
+          {/* Countdown / live state — hidden only on demo pages. */}
+          {!drop.is_demo && <StateBand drop={drop} isLive={isLive} mode={mode} isClosed={isClosed} />}
 
-      {/* Body */}
-      <section className="container max-w-5xl py-12 md:py-16">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-          <div className="min-w-0">
-            {drop.pickup_details ? (
-              <div className="max-w-2xl">
-                <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Pickup</div>
-                <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{drop.pickup_details}</p>
-              </div>
-            ) : drop.vendor_slug && drop.vendor_business_name ? (
-              <Link
-                href={`/direct/${drop.vendor_slug}`}
-                className="group block max-w-2xl border border-border bg-background p-6 md:p-8 hover:border-foreground transition-colors"
-                data-testid="vendor-profile-link"
-              >
-                <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">More from this maker</div>
-                <div className="inline-flex items-center gap-2 font-serif text-xl md:text-2xl tracking-tighter group-hover:underline underline-offset-4 decoration-1">
-                  See everything from {drop.vendor_business_name}
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                </div>
-              </Link>
-            ) : null}
-          </div>
-          <div
-            className="w-full border border-border p-8 md:p-10 bg-background"
-            data-testid={`mode-panel-${mode}`}
-          >
-            {!isLive && !isDraft ? (
-              <div data-testid="not-open-panel">
-                <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Upcoming</div>
-                <div className="font-serif text-2xl md:text-3xl tracking-tighter">
-                  Opens {launchAtLabel || 'soon'}.
-                </div>
-                <p className="mt-3 text-sm text-muted-foreground">
-                  Orders open when the drop launches. Check back then.
-                </p>
-              </div>
-            ) : rightRail}
-          </div>
-        </div>
-        {drop?.creator_plan_tier !== 'shop' ? (
-          <p className="mt-4 text-[11px] uppercase tracking-[0.25em] text-muted-foreground text-center">
-            Powered by{' '}
-            <a
-              href="https://dropvine.pro"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 hover:text-foreground transition-colors"
-            >
-              Dropvine
-            </a>
-          </p>
-        ) : null}
-      </section>
+          {/* Body */}
+          <section className="container max-w-5xl py-12 md:py-16">
+            <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+              <div className="min-w-0">{pickupEl}</div>
+              {orderCard}
+            </div>
+            {poweredBy}
+          </section>
+        </>
+      )}
     </main>
   )
 }
@@ -476,33 +595,47 @@ function PublicLaunchPageInner() {
 // Live-state band
 // --------------------------------------------------------------------------
 
-// Upcoming: "Opens in" + countdown to launch_at. Closed (closes_at passed):
-// "Orders closed". Live with a future closes_at: "Orders close in" +
-// countdown to closes_at. Live otherwise (and always for announcements):
-// the static "Open now" / "Hey there" copy.
-function StateBand({ drop, isLive, mode, isClosed }) {
+// What the live-state band shows. Upcoming: "Opens in" + countdown to
+// launch_at. Closed (closes_at passed): "Orders closed". Live with a future
+// closes_at: "Orders close in" + countdown to closes_at. Live otherwise (and
+// always for announcements): the static "Open now" / "Hey there" copy.
+function bandState({ drop, isLive, mode, isClosed }) {
   const isAnnouncement = mode === 'announcement'
-  const showClosed = isClosed && !isAnnouncement
-  const showCloseCountdown = isLive && !isAnnouncement && !isClosed && !!drop.closes_at
+  if (isLive && isAnnouncement) return { label: 'Hey there', text: 'This message is for you.', compactPad: true }
+  if (isClosed && !isAnnouncement) return { label: 'Orders closed', text: 'This drop has ended.', compactPad: true }
+  if (isLive && drop.closes_at) return { label: 'Orders close in', countdownTarget: drop.closes_at, compactPad: true }
+  if (isLive) return { label: 'Open now', text: 'Take a look below.', compactPad: true }
+  return { label: 'Opens in', countdownTarget: drop.launch_at, compactPad: false }
+}
+
+function StateBand(props) {
+  const s = bandState(props)
   return (
     <section className="border-y border-border bg-stone-100/60" data-testid="state-band">
-      <div className={`container ${isLive || showClosed ? 'py-8 md:py-12' : 'py-16 md:py-24'}`}>
-        <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-6">
-          {isLive && isAnnouncement ? 'Hey there' : showClosed ? 'Orders closed' : showCloseCountdown ? 'Orders close in' : isLive ? 'Open now' : 'Opens in'}
-        </div>
-        {showClosed ? (
-          <div className="font-serif text-5xl md:text-7xl tracking-tight">This drop has ended.</div>
-        ) : showCloseCountdown ? (
-          <Countdown target={drop.closes_at} size="lg" />
-        ) : isLive ? (
-          <div className="font-serif text-5xl md:text-7xl tracking-tight">
-            {mode === 'announcement' ? 'This message is for you.' : 'Take a look below.'}
-          </div>
+      <div className={`container ${s.compactPad ? 'py-8 md:py-12' : 'py-16 md:py-24'}`}>
+        <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-6">{s.label}</div>
+        {s.countdownTarget ? (
+          <Countdown target={s.countdownTarget} size="lg" />
         ) : (
-          <Countdown target={drop.launch_at} size="lg" />
+          <div className="font-serif text-5xl md:text-7xl tracking-tight">{s.text}</div>
         )}
       </div>
     </section>
+  )
+}
+
+// Desktop two-column layout: the same state, sized for the order column.
+function StateBandCompact(props) {
+  const s = bandState(props)
+  return (
+    <div className="border border-border bg-stone-100/60 px-6 py-5" data-testid="state-compact">
+      <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">{s.label}</div>
+      {s.countdownTarget ? (
+        <Countdown target={s.countdownTarget} size="sm" />
+      ) : (
+        <div className="font-serif text-2xl tracking-tight">{s.text}</div>
+      )}
+    </div>
   )
 }
 

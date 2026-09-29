@@ -16,10 +16,10 @@ export function Countdown({ target, size = 'md', subtle = false }) {
   const seconds = Math.floor((diff / 1000) % 60)
 
   const sizes = {
-    sm: { num: 'text-2xl md:text-3xl', label: 'text-[10px]' },
-    md: { num: 'text-4xl md:text-5xl', label: 'text-[11px]' },
-    lg: { num: 'text-5xl md:text-7xl lg:text-8xl', label: 'text-xs' },
-  }[size] || { num: 'text-4xl', label: 'text-[11px]' }
+    sm: { num: 'text-2xl md:text-3xl', label: 'text-[10px]', gap: 'gap-4 md:gap-5' },
+    md: { num: 'text-4xl md:text-5xl', label: 'text-[11px]', gap: 'gap-8 md:gap-14' },
+    lg: { num: 'text-4xl md:text-7xl lg:text-8xl', label: 'text-xs', gap: 'gap-4 md:gap-14' },
+  }[size] || { num: 'text-4xl', label: 'text-[11px]', gap: 'gap-8 md:gap-14' }
 
   const Cell = ({ value, label }) => (
     <div className="flex flex-col items-center md:items-start">
@@ -29,7 +29,7 @@ export function Countdown({ target, size = 'md', subtle = false }) {
   )
 
   return (
-    <div className="flex items-start gap-8 md:gap-14">
+    <div className={`flex items-start ${sizes.gap}`}>
       <Cell value={days} label="Days" />
       <span className={`font-serif font-extralight text-muted-foreground/40 ${sizes.num} leading-none`}> </span>
       <Cell value={hours} label="Hours" />
