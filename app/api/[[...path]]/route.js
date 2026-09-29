@@ -331,6 +331,7 @@ export async function POST(request, { params }) {
     if (!email) return err('email required')
     const drop = await getLaunch(id)
     if (!drop) return err('drop not found', 404)
+    if (drop.status === 'draft') return err('drop is not published', 400)
     const sb = getSupabaseServer()
     const baseUrl = new URL(request.url).origin
     if (sb) {
@@ -361,6 +362,7 @@ export async function POST(request, { params }) {
 
     const drop = await getLaunch(id)
     if (!drop) return err('drop not found', 404)
+    if (drop.status === 'draft') return err('drop is not published', 400)
     if (!drop.reservation_enabled) return err('reservations not enabled for this drop', 400)
     const amountCents = Number(drop.reservation_hold_cents) || 0
     if (amountCents < 50) return err('reservation amount too low', 400)

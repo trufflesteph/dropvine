@@ -14,7 +14,7 @@
 // Body:
 //   {
 //     email:      string (required),
-//     name?:      string,
+//     name:       string (required),
 //     phone?:     string,
 //     venmo_note: string (required, the unique <handle>-XXXX note the shopper
 //                        sent the payment with),
@@ -46,7 +46,9 @@ export async function POST(request, { params }) {
 
   const body = await request.json().catch(() => ({}))
   const email = normEmail(body.email)
+  const name = typeof body.name === 'string' ? body.name.trim().slice(0, 120) : ''
   const venmoNote = normNote(body.venmo_note)
+  if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 })
   if (!isValidEmail(email)) return NextResponse.json({ error: 'invalid email' }, { status: 400 })
   if (!venmoNote) return NextResponse.json({ error: 'missing venmo_note' }, { status: 400 })
 
@@ -157,7 +159,7 @@ export async function POST(request, { params }) {
   const insertPayload = {
     drop_id: drop.id,
     shopper_email: email,
-    shopper_name: typeof body.name === 'string' ? body.name.trim().slice(0, 120) : null,
+    shopper_name: name,
     shopper_phone: typeof body.phone === 'string' ? body.phone.trim().slice(0, 32) : null,
     quantity: totalQty,
     unit_price_cents: unitPrice,

@@ -140,7 +140,7 @@ function PublicLaunchPageInner() {
 
   const join = async (e) => {
     e.preventDefault()
-    if (!drop) return
+    if (!drop || drop.status === 'draft') return
     setSubmitting(true)
     try {
       const r = await fetch(`/api/drops/${drop.id}/waitlist`, {
@@ -158,6 +158,7 @@ function PublicLaunchPageInner() {
   }
 
   const reserve = async () => {
+    if (drop?.status === 'draft') return
     if (!drop || !email) return toast.error('Enter your email first.')
     setReserving(true)
     try {
@@ -175,11 +176,16 @@ function PublicLaunchPageInner() {
   }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground text-sm">Loading…</div>
-  if (!drop) return (
+  // Draft / preview gating.
+  // The API hides drafts from anyone without ?preview=true, but defense in
+  // depth: also show not-found if the drop came back as a draft and the URL
+  // is missing the preview gate. (This typically only fires for stale
+  // fetches or someone editing the response client-side.)
+  if (!drop || (drop.status === 'draft' && !isPreview)) return (
     <div className="min-h-screen flex flex-col items-center justify-center text-center px-6">
       <div className="font-serif text-3xl tracking-tighter mb-2">Not found</div>
-      <p className="text-muted-foreground text-sm">This drop page does not exist or is unpublished.</p>
-      <Link href="/" className="mt-8 underline underline-offset-4 text-sm">Back to Dropvine</Link>
+      <p className="text-muted-foreground text-sm">This drop isn&rsquo;t available.</p>
+      <Link href="/drops" className="mt-8 underline underline-offset-4 text-sm">Browse Fresh Drops</Link>
     </div>
   )
 
@@ -187,6 +193,9 @@ function PublicLaunchPageInner() {
   // Stripe card when reservation_enabled + hold are set; otherwise falls back
   // to a "reserve my spot" form that creates a waitlist entry.
   const reservationStripeAvailable = drop.reservation_enabled && drop.reservation_hold_cents > 0
+  // Draft opened with ?preview=true (the no-preview case returned not-found
+  // above). Panels render fully but their submit stays disabled.
+  const isDraft = drop.status === 'draft'
   let rightRail
   if (joined) {
     rightRail = (
@@ -210,6 +219,7 @@ function PublicLaunchPageInner() {
         setName={setName}
         submitting={submitting}
         onJoin={join}
+        preview={isDraft}
       />
     )
   } else if (mode === 'pre-order' || mode === 'deposit') {
@@ -218,6 +228,7 @@ function PublicLaunchPageInner() {
         drop={drop}
         products={products}
         isDeposit={mode === 'deposit'}
+        preview={isDraft}
       />
     )
   } else if (mode === 'reservation' && reservationStripeAvailable) {
@@ -229,6 +240,7 @@ function PublicLaunchPageInner() {
         reservationStatus={reservationStatus}
         reserving={reserving}
         onReserve={reserve}
+        preview={isDraft}
       />
     )
   } else {
@@ -242,28 +254,7 @@ function PublicLaunchPageInner() {
         setName={setName}
         submitting={submitting}
         onJoin={join}
-      />
-    )
-  }
-
-  // Draft / preview gating.
-  // The API hides drafts from anyone without ?preview=true, but defense in
-  // depth: also render NotFound here if the drop came back as a draft and
-  // the URL is missing the preview gate. (This branch typically only fires
-  // for stale fetches or someone editing the response client-side.)
-  const isDraft = drop.status === 'draft'
-  if (isDraft && !isPreview) {
-    return (
-      <NotFound
-        handle={handle}
-        title={drop.title}
-        joined={joined}
-        email={email}
-        setEmail={setEmail}
-        name={name}
-        setName={setName}
-        submitting={submitting}
-        onJoin={join}
+        preview={isDraft}
       />
     )
   }
@@ -436,9 +427,8 @@ function PublicLaunchPageInner() {
             ) : null}
           </div>
           <div
-            className={`w-full border border-border p-8 md:p-10 bg-background ${isDraft ? 'pointer-events-none opacity-60 select-none' : ''}`}
+            className="w-full border border-border p-8 md:p-10 bg-background"
             data-testid={`mode-panel-${mode}`}
-            aria-disabled={isDraft || undefined}
           >
             {!isLive && !isDraft ? (
               <div data-testid="not-open-panel">
@@ -475,7 +465,12 @@ function PublicLaunchPageInner() {
 // Right-rail panels
 // --------------------------------------------------------------------------
 
-function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoin }) {
+// Shown directly above a panel's disabled submit button on draft previews.
+function PreviewOnlyNote() {
+  return <p className="text-xs text-muted-foreground" data-testid="preview-only-note">Preview only. Ordering turns on when you publish.</p>
+}
+
+function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoin, preview }) {
   // Fix 19 — "Be present at release" copy was removed; headline now mirrors
   // the action ("Join the waitlist" / "Reserve your spot") cleanly.
   const headline = mode === 'reservation'
@@ -493,16 +488,17 @@ function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoi
     <>
       <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">{eyebrow}</div>
       <div className="font-serif text-2xl md:text-3xl tracking-tighter">{headline}</div>
-      <form onSubmit={onJoin} className="mt-8 space-y-5">
+      <form onSubmit={preview ? (e) => e.preventDefault() : onJoin} className="mt-8 space-y-5">
         <div className="space-y-2">
           <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Name</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Optional" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name (optional)" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
         </div>
         <div className="space-y-2">
           <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Email</Label>
-          <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@studio.com" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
+          <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
         </div>
-        <button disabled={submitting} className="w-full text-white h-12 text-sm hover:opacity-90 disabled:opacity-50 inline-flex items-center justify-center gap-2" style={{ backgroundColor: DROPVINE_GREEN }} data-testid="waitlist-submit">
+        {preview ? <PreviewOnlyNote /> : null}
+        <button disabled={submitting || preview} className="w-full text-white h-12 text-sm hover:opacity-90 disabled:opacity-50 inline-flex items-center justify-center gap-2" style={{ backgroundColor: DROPVINE_GREEN }} data-testid="waitlist-submit">
           {submitting ? 'Joining…' : <>{cta} <ArrowRight className="h-4 w-4" /></>}
         </button>
       </form>
@@ -510,7 +506,7 @@ function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoi
   )
 }
 
-function ReservationStripePanel({ drop, email, setEmail, reservationStatus, reserving, onReserve }) {
+function ReservationStripePanel({ drop, email, setEmail, reservationStatus, reserving, onReserve, preview }) {
   if (reservationStatus === 'held') {
     return (
       <div className="flex items-start gap-3 border border-foreground p-4 bg-foreground text-background" data-testid="reservation-held">
@@ -534,9 +530,10 @@ function ReservationStripePanel({ drop, email, setEmail, reservationStatus, rese
       </p>
       <div className="mt-6 space-y-2">
         <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Email</Label>
-        <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@studio.com" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
+        <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
       </div>
-      <button onClick={onReserve} disabled={reserving} className="mt-6 w-full h-12 text-sm text-white hover:opacity-90 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50" style={{ backgroundColor: DROPVINE_GREEN }} data-testid="reservation-stripe-submit">
+      {preview ? <div className="mt-6"><PreviewOnlyNote /></div> : null}
+      <button onClick={preview ? undefined : onReserve} disabled={reserving || preview} className={`${preview ? 'mt-2' : 'mt-6'} w-full h-12 text-sm text-white hover:opacity-90 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50`} style={{ backgroundColor: DROPVINE_GREEN }} data-testid="reservation-stripe-submit">
         <Lock className="h-3.5 w-3.5" /> {reserving ? 'Redirecting to Stripe…' : 'Reserve via Stripe'}
       </button>
       <p className="text-[11px] text-muted-foreground mt-2">Secure checkout by Stripe.</p>
@@ -550,7 +547,7 @@ function ReservationStripePanel({ drop, email, setEmail, reservationStatus, rese
 // When `products` is non-empty, renders a catalogue grid with per-product
 // quantity steppers (hard-capped by `drop_products.quantity`). When empty,
 // falls back to the legacy single-SKU flow driven by `drop.price_cents`.
-function PreorderPanel({ drop, products, isDeposit }) {
+function PreorderPanel({ drop, products, isDeposit, preview }) {
   const hasProducts = Array.isArray(products) && products.length > 0
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -625,7 +622,9 @@ function PreorderPanel({ drop, products, isDeposit }) {
 
   const proceedToVenmo = (e) => {
     e?.preventDefault?.()
-    if (!email) { toast.error('Enter your email first.'); return }
+    if (preview) return
+    if (!name.trim()) { toast.error('Enter your name first.'); return }
+    if (!email.trim()) { toast.error('Enter your email first.'); return }
     if (hasProducts && totals.totalQty <= 0) {
       toast.error('Pick at least one item to continue.')
       return
@@ -643,7 +642,7 @@ function PreorderPanel({ drop, products, isDeposit }) {
   }
 
   const confirmPayment = async () => {
-    if (!note) return
+    if (preview || !note) return
     setStep('submitting')
     try {
       // Build the request payload — multi-mode sends items[], legacy sends quantity.
@@ -754,14 +753,12 @@ function PreorderPanel({ drop, products, isDeposit }) {
   // step === 'form'
   return (
     <>
-      <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">
-        {hasDepositPercent ? 'Secure with a deposit' : 'Pre-order via Venmo'}
-      </div>
-      <div className="font-serif text-2xl md:text-3xl tracking-tighter">
+      <div className="font-serif text-2xl md:text-3xl tracking-tighter text-foreground">Your order</div>
+      <p className="mt-2 text-sm text-foreground">
         {hasDepositPercent
-          ? <>Secure your order with a <strong>{money(totals.depositCents)} deposit</strong> via Venmo.</>
-          : <>Pre-order via Venmo.</>}
-      </div>
+          ? <>You&rsquo;ll send the deposit to the maker on Venmo after you place your order.</>
+          : <>You&rsquo;ll send payment to the maker on Venmo after you place your order.</>}
+      </p>
       {hasDepositPercent && !hasProducts ? (
         <p className="mt-2 text-xs text-muted-foreground">Balance of <strong className="text-foreground">{money(totals.balanceCents)}</strong> due at pickup.</p>
       ) : null}
@@ -778,13 +775,11 @@ function PreorderPanel({ drop, products, isDeposit }) {
                 {p.photo_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={p.photo_url} alt="" className="w-16 h-16 object-cover border border-border shrink-0" />
-                ) : (
-                  <div className="w-16 h-16 bg-stone-100 border border-border shrink-0" />
-                )}
+                ) : null}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-2">
                     <div className="font-serif text-base text-foreground truncate">{p.name}</div>
-                    <div className="text-sm tabular-nums shrink-0">
+                    <div className="text-sm text-foreground tabular-nums shrink-0">
                       {hasDepositPercent
                         ? `Reserve with ${money(Math.round((p.price_cents || 0) * depositPercentNum / 100))} deposit · ${money(p.price_cents)} total`
                         : money(p.price_cents)}
@@ -798,15 +793,15 @@ function PreorderPanel({ drop, products, isDeposit }) {
                       <button type="button"
                               onClick={() => stepProductQty(p.id, -1)}
                               disabled={q <= 0}
-                              className="px-2.5 h-8 border-r border-border hover:bg-stone-50 disabled:opacity-30"
+                              className="px-2.5 h-8 border-r border-border text-foreground hover:bg-stone-50 disabled:opacity-30"
                               aria-label={`Decrease ${p.name}`}>
                         <Minus className="h-3 w-3" />
                       </button>
-                      <div className="px-4 font-mono text-xs tabular-nums" data-testid={`qty-${p.id}`}>{q}</div>
+                      <div className="px-4 font-sans text-sm text-foreground tabular-nums" data-testid={`qty-${p.id}`}>{q}</div>
                       <button type="button"
                               onClick={() => stepProductQty(p.id, 1)}
                               disabled={remaining != null && q >= remaining}
-                              className="px-2.5 h-8 border-l border-border hover:bg-stone-50 disabled:opacity-30"
+                              className="px-2.5 h-8 border-l border-border text-foreground hover:bg-stone-50 disabled:opacity-30"
                               aria-label={`Increase ${p.name}`}>
                         <Plus className="h-3 w-3" />
                       </button>
@@ -827,26 +822,26 @@ function PreorderPanel({ drop, products, isDeposit }) {
       <form onSubmit={proceedToVenmo} className="mt-8 space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Optional" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
+            <Label htmlFor="preorder-name" className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Name <span className="ml-1 normal-case tracking-normal">(required)</span></Label>
+            <Input id="preorder-name" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
           </div>
           <div className="space-y-2">
             <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Phone</Label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Your phone (optional)" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
           </div>
         </div>
         <div className="space-y-2">
-          <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Email</Label>
-          <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@studio.com" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
+          <Label htmlFor="preorder-email" className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Email <span className="ml-1 normal-case tracking-normal">(required)</span></Label>
+          <Input id="preorder-email" required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" autoComplete="email" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
         </div>
         {/* Legacy single-SKU quantity stepper — only when there's no product catalogue. */}
         {!hasProducts && drop?.capacity ? (
           <div className="space-y-2">
             <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Quantity (max {maxQty})</Label>
             <div className="inline-flex items-center border border-border">
-              <button type="button" onClick={dec} className="px-3 h-10 border-r border-border hover:bg-stone-50" aria-label="Decrease quantity"><Minus className="h-3.5 w-3.5" /></button>
-              <div className="px-5 font-mono text-sm tabular-nums" data-testid="qty">{qty}</div>
-              <button type="button" onClick={inc} className="px-3 h-10 border-l border-border hover:bg-stone-50" aria-label="Increase quantity"><Plus className="h-3.5 w-3.5" /></button>
+              <button type="button" onClick={dec} className="px-3 h-10 border-r border-border text-foreground hover:bg-stone-50" aria-label="Decrease quantity"><Minus className="h-3.5 w-3.5" /></button>
+              <div className="px-5 font-sans text-sm text-foreground tabular-nums" data-testid="qty">{qty}</div>
+              <button type="button" onClick={inc} className="px-3 h-10 border-l border-border text-foreground hover:bg-stone-50" aria-label="Increase quantity"><Plus className="h-3.5 w-3.5" /></button>
             </div>
           </div>
         ) : null}
@@ -859,9 +854,10 @@ function PreorderPanel({ drop, products, isDeposit }) {
             </>
           ) : null}
         </div>
+        {preview ? <PreviewOnlyNote /> : null}
         <button
           type="submit"
-          disabled={hasProducts && totals.totalQty <= 0}
+          disabled={preview || (hasProducts && totals.totalQty <= 0) || !name.trim() || !email.trim()}
           className="w-full text-white h-12 text-sm hover:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-2"
           style={{ backgroundColor: DROPVINE_GREEN }}
           data-testid="preorder-submit"
