@@ -138,6 +138,26 @@ function PublicLaunchPageInner() {
   const isLive = useMemo(() => drop ? new Date(drop.launch_at) <= new Date() : false, [drop])
   const mode = useMemo(() => resolveMode(drop), [drop])
 
+  // closes_at handling. A drop is closed once closes_at is set and has
+  // passed; no closes_at means open-ended. The timer only exists to
+  // re-render at the moment closes_at passes so the band + order panel flip
+  // to closed without a reload.
+  const closesAtMs = drop?.closes_at ? new Date(drop.closes_at).getTime() : NaN
+  const [, setCloseTick] = useState(0)
+  useEffect(() => {
+    if (!Number.isFinite(closesAtMs)) return
+    let t
+    const arm = () => {
+      const ms = closesAtMs - Date.now()
+      if (ms <= 0) { setCloseTick((n) => n + 1); return }
+      // setTimeout caps at ~24.8 days, so re-arm until close.
+      t = setTimeout(arm, Math.min(ms, 0x7fffffff))
+    }
+    arm()
+    return () => clearTimeout(t)
+  }, [closesAtMs])
+  const isClosed = Number.isFinite(closesAtMs) && closesAtMs <= Date.now()
+
   const join = async (e) => {
     e.preventDefault()
     if (!drop || drop.status === 'draft') return
@@ -229,6 +249,7 @@ function PublicLaunchPageInner() {
         products={products}
         isDeposit={mode === 'deposit'}
         preview={isDraft}
+        closed={isClosed}
       />
     )
   } else if (mode === 'reservation' && reservationStripeAvailable) {
@@ -241,8 +262,11 @@ function PublicLaunchPageInner() {
         reserving={reserving}
         onReserve={reserve}
         preview={isDraft}
+        closed={isClosed}
       />
     )
+  } else if (isClosed) {
+    rightRail = <OrdersClosedPanel />
   } else {
     // waitlist mode (or reservation w/o Stripe configured).
     rightRail = (
@@ -326,7 +350,9 @@ function PublicLaunchPageInner() {
           <Link href="/" className="inline-flex items-center" aria-label="Dropvine home">
             <DropvineLogo height={drop.is_demo ? 60 : 44} />
           </Link>
-          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Drop — {drop.handle}</div>
+          {drop.vendor_business_name ? (
+            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Drop — {drop.vendor_business_name}</div>
+          ) : null}
         </div>
       </header>
 
@@ -336,7 +362,7 @@ function PublicLaunchPageInner() {
           <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-8" data-testid="mode-eyebrow">
             {isLive ? 'Now open' : 'Upcoming drop'} {mode !== 'waitlist' ? `· ${mode}` : ''}
           </div>
-          <h1 className="font-serif font-light text-5xl sm:text-6xl md:text-8xl leading-[0.96] tracking-tightest text-balance">
+          <h1 className="font-serif font-light text-4xl sm:text-5xl md:text-7xl leading-[0.96] tracking-tightest text-balance">
             {drop.title}
           </h1>
           {/* Vendor identity row — category pill + city/state + link back to
@@ -386,22 +412,7 @@ function PublicLaunchPageInner() {
       </section>
 
       {/* Countdown / live state — hidden only on demo pages. */}
-      {!drop.is_demo && (
-      <section className="border-y border-border bg-stone-100/60">
-        <div className="container py-16 md:py-24">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-6">
-            {isLive && mode === 'announcement' ? 'Hey there' : isLive ? 'Open now' : 'Opens in'}
-          </div>
-          {isLive ? (
-            <div className="font-serif text-5xl md:text-7xl tracking-tight">
-              {mode === 'announcement' ? 'This message is for you.' : 'Take a look below.'}
-            </div>
-          ) : (
-            <Countdown target={drop.launch_at} size="lg" />
-          )}
-        </div>
-      </section>
-      )}
+      {!drop.is_demo && <StateBand drop={drop} isLive={isLive} mode={mode} isClosed={isClosed} />}
 
       {/* Body */}
       <section className="container max-w-5xl py-12 md:py-16">
@@ -462,12 +473,55 @@ function PublicLaunchPageInner() {
 }
 
 // --------------------------------------------------------------------------
+// Live-state band
+// --------------------------------------------------------------------------
+
+// Upcoming: "Opens in" + countdown to launch_at. Closed (closes_at passed):
+// "Orders closed". Live with a future closes_at: "Orders close in" +
+// countdown to closes_at. Live otherwise (and always for announcements):
+// the static "Open now" / "Hey there" copy.
+function StateBand({ drop, isLive, mode, isClosed }) {
+  const isAnnouncement = mode === 'announcement'
+  const showClosed = isClosed && !isAnnouncement
+  const showCloseCountdown = isLive && !isAnnouncement && !isClosed && !!drop.closes_at
+  return (
+    <section className="border-y border-border bg-stone-100/60" data-testid="state-band">
+      <div className={`container ${isLive || showClosed ? 'py-8 md:py-12' : 'py-16 md:py-24'}`}>
+        <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-6">
+          {isLive && isAnnouncement ? 'Hey there' : showClosed ? 'Orders closed' : showCloseCountdown ? 'Orders close in' : isLive ? 'Open now' : 'Opens in'}
+        </div>
+        {showClosed ? (
+          <div className="font-serif text-5xl md:text-7xl tracking-tight">This drop has ended.</div>
+        ) : showCloseCountdown ? (
+          <Countdown target={drop.closes_at} size="lg" />
+        ) : isLive ? (
+          <div className="font-serif text-5xl md:text-7xl tracking-tight">
+            {mode === 'announcement' ? 'This message is for you.' : 'Take a look below.'}
+          </div>
+        ) : (
+          <Countdown target={drop.launch_at} size="lg" />
+        )}
+      </div>
+    </section>
+  )
+}
+
+// --------------------------------------------------------------------------
 // Right-rail panels
 // --------------------------------------------------------------------------
 
 // Shown directly above a panel's disabled submit button on draft previews.
 function PreviewOnlyNote() {
   return <p className="text-xs text-muted-foreground" data-testid="preview-only-note">Preview only. Ordering turns on when you publish.</p>
+}
+
+// Replaces an order panel's form once closes_at has passed.
+function OrdersClosedPanel() {
+  return (
+    <div data-testid="orders-closed">
+      <div className="font-serif text-2xl md:text-3xl tracking-tighter text-foreground">Orders for this drop are closed.</div>
+    </div>
+  )
 }
 
 function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoin, preview }) {
@@ -506,7 +560,7 @@ function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoi
   )
 }
 
-function ReservationStripePanel({ drop, email, setEmail, reservationStatus, reserving, onReserve, preview }) {
+function ReservationStripePanel({ drop, email, setEmail, reservationStatus, reserving, onReserve, preview, closed }) {
   if (reservationStatus === 'held') {
     return (
       <div className="flex items-start gap-3 border border-foreground p-4 bg-foreground text-background" data-testid="reservation-held">
@@ -520,6 +574,7 @@ function ReservationStripePanel({ drop, email, setEmail, reservationStatus, rese
   if (reservationStatus === 'pending') {
     return <div className="border border-border p-4 text-sm text-muted-foreground" data-testid="reservation-pending">Confirming your reservation…</div>
   }
+  if (closed) return <OrdersClosedPanel />
   return (
     <>
       <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Reserve a slot</div>
@@ -547,7 +602,7 @@ function ReservationStripePanel({ drop, email, setEmail, reservationStatus, rese
 // When `products` is non-empty, renders a catalogue grid with per-product
 // quantity steppers (hard-capped by `drop_products.quantity`). When empty,
 // falls back to the legacy single-SKU flow driven by `drop.price_cents`.
-function PreorderPanel({ drop, products, isDeposit, preview }) {
+function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
   const hasProducts = Array.isArray(products) && products.length > 0
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -704,6 +759,11 @@ function PreorderPanel({ drop, products, isDeposit, preview }) {
       </div>
     )
   }
+
+  // Once closed, the form is replaced by the closed message. A shopper who
+  // already reached the Venmo step keeps it so they can still confirm (the
+  // server allows a short grace period after closes_at).
+  if (closed && step !== 'venmo' && step !== 'submitting') return <OrdersClosedPanel />
 
   if (step === 'venmo' || step === 'submitting') {
     const submitting = step === 'submitting'

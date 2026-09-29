@@ -36,6 +36,10 @@ import { sendDropOrderConfirmation } from '@/lib/email/notifications'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+// Orders are still accepted this long after closes_at, so a shopper who was
+// already on the Venmo step when the drop closed can confirm their payment.
+const CLOSE_GRACE_MS = 15 * 60 * 1000
+
 function normEmail(s) { return typeof s === 'string' ? s.trim().toLowerCase() : '' }
 function isValidEmail(s) { return typeof s === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) }
 function normNote(s) { return typeof s === 'string' ? s.trim().slice(0, 64) : '' }
@@ -59,6 +63,9 @@ export async function POST(request, { params }) {
   if (!drop) return NextResponse.json({ error: 'not found' }, { status: 404 })
   if (drop.status !== 'published') {
     return NextResponse.json({ error: 'drop is not accepting orders yet' }, { status: 422 })
+  }
+  if (drop.closes_at && new Date(drop.closes_at).getTime() + CLOSE_GRACE_MS <= Date.now()) {
+    return NextResponse.json({ error: 'drop is closed' }, { status: 400 })
   }
   const mode = (drop.collection_mode || '').toLowerCase()
   if (mode !== 'pre-order' && mode !== 'deposit') {

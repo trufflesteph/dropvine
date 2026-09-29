@@ -332,6 +332,9 @@ export async function POST(request, { params }) {
     const drop = await getLaunch(id)
     if (!drop) return err('drop not found', 404)
     if (drop.status === 'draft') return err('drop is not published', 400)
+    // Announcement signups stay open after close (the page keeps that form).
+    const isAnnouncement = (drop.collection_mode || '').toLowerCase().trim() === 'announcement'
+    if (!isAnnouncement && drop.closes_at && new Date(drop.closes_at) <= new Date()) return err('drop is closed', 400)
     const sb = getSupabaseServer()
     const baseUrl = new URL(request.url).origin
     if (sb) {
@@ -363,6 +366,7 @@ export async function POST(request, { params }) {
     const drop = await getLaunch(id)
     if (!drop) return err('drop not found', 404)
     if (drop.status === 'draft') return err('drop is not published', 400)
+    if (drop.closes_at && new Date(drop.closes_at) <= new Date()) return err('drop is closed', 400)
     if (!drop.reservation_enabled) return err('reservations not enabled for this drop', 400)
     const amountCents = Number(drop.reservation_hold_cents) || 0
     if (amountCents < 50) return err('reservation amount too low', 400)
