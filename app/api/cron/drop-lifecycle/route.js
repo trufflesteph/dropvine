@@ -24,6 +24,7 @@ import {
   sendDropCloseSummary,
 } from '@/lib/email/notifications'
 import { sendGeneric as sendSms, smsEnabled } from '@/lib/notifications/channels/sms'
+import { normalizeTier } from '@/lib/vendors/visibility'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -85,7 +86,7 @@ async function maybeBroadcastSmsOnOpen(supa, drop) {
       .eq('creator_id', drop.creator_id)
       .maybeSingle()
     if (!vendor) return { skipped: 'no direct_vendor row' }
-    if (vendor.tier !== 'shop') return { skipped: `tier=${vendor.tier} (shop only)` }
+    if (normalizeTier(vendor.tier) !== 'shop') return { skipped: `tier=${vendor.tier} (shop only)` }
     if (vendor.active === false) return { skipped: 'vendor inactive' }
 
     // Find followers with SMS opt-in and a phone on file.
@@ -213,38 +214,59 @@ async function runCron(request) {
   }
 
   // === Step 0b (Phase C): auto-archive published FREE-tier drops 5 days
-  // after closes_at. Drops on maker/shop tiers stay public indefinitely.
+  // after closes_at. Drops on maker/shop tiers stay public indefinitely, and
+  // demo drops (drops.is_demo or a demo vendor) are never archived.
   // The /api/drops/by-handle/[handle] endpoint returns 404 once status flips
   // to 'archived' (vendors can still see archived drops via preview).
   //
-  // Implementation note: we can't filter directly on profiles.plan_tier in
-  // a single Supabase query without a foreign-table join syntax, so we
-  // fetch candidate drops (closes_at < now-5d, status=published) and then
-  // batch-look-up their creator plan tiers.
+  // Tier is direct_vendors.tier (normalized; a creator with no direct_vendors
+  // row counts as free). We can't filter on it in the drops query without a
+  // foreign-table join, so we page through every candidate drop
+  // (closes_at < now-5d, status=published) and batch-look-up vendors per page.
+  // Paging is keyset on (closes_at, id) rather than offset: archived rows
+  // drop out of the result set mid-run, which would make offsets skip rows.
+  // Maker/Shop/demo drops stay published forever, so a single capped page
+  // would eventually fill up with them and never reach Free drops.
   let autoArchived = 0
   const ARCHIVE_DELAY_MS = 5 * 24 * 60 * 60 * 1000 // 5 days
+  const ARCHIVE_PAGE_SIZE = 100
+  const ARCHIVE_MAX_PAGES = 1000 // safety stop only
   try {
     const cutoff = new Date(Date.now() - ARCHIVE_DELAY_MS).toISOString()
-    const { data: candidates } = await supa
-      .from('drops')
-      .select('id, creator_id, closes_at')
-      .eq('status', 'published')
-      .not('closes_at', 'is', null)
-      .lt('closes_at', cutoff)
-      .limit(100)
-    if (candidates && candidates.length) {
-      const creatorIds = [...new Set(candidates.map((d) => d.creator_id).filter(Boolean))]
-      const tierByCreator = {}
-      if (creatorIds.length) {
-        const { data: profs } = await supa
-          .from('profiles')
-          .select('id, plan_tier')
-          .in('id', creatorIds)
-        for (const p of profs || []) tierByCreator[p.id] = p.plan_tier || 'free'
+    const vendorByCreator = new Map() // creator_id -> { tier, is_demo } | null (no row)
+    let after = null
+    for (let pageNo = 0; pageNo < ARCHIVE_MAX_PAGES; pageNo++) {
+      let query = supa
+        .from('drops')
+        .select('id, creator_id, closes_at, is_demo')
+        .eq('status', 'published')
+        .not('closes_at', 'is', null)
+        .lt('closes_at', cutoff)
+        .order('closes_at', { ascending: true })
+        .order('id', { ascending: true })
+        .limit(ARCHIVE_PAGE_SIZE)
+      if (after) {
+        query = query.or(`closes_at.gt."${after.closes_at}",and(closes_at.eq."${after.closes_at}",id.gt.${after.id})`)
       }
-      for (const d of candidates) {
-        const tier = tierByCreator[d.creator_id] || 'free'
-        if (tier !== 'free') continue
+      const { data: page, error: pErr } = await query
+      if (pErr) throw pErr
+      if (!page || !page.length) break
+
+      const newCreatorIds = [...new Set(page.map((d) => d.creator_id).filter((c) => c && !vendorByCreator.has(c)))]
+      if (newCreatorIds.length) {
+        const { data: vendors, error: vErr } = await supa
+          .from('direct_vendors')
+          .select('creator_id, tier, is_demo')
+          .in('creator_id', newCreatorIds)
+        if (vErr) throw vErr
+        for (const c of newCreatorIds) vendorByCreator.set(c, null)
+        for (const v of vendors || []) vendorByCreator.set(v.creator_id, v)
+      }
+
+      for (const d of page) {
+        const vendor = d.creator_id ? vendorByCreator.get(d.creator_id) : null
+        if (d.is_demo || vendor?.is_demo) continue
+        if (normalizeTier(vendor?.tier) !== 'free') continue
         if (dryRun) { autoArchived += 1; continue }
         const { error: aErr } = await supa
           .from('drops')
@@ -253,6 +275,10 @@ async function runCron(request) {
           .eq('status', 'published') // guard race
         if (!aErr) autoArchived += 1
       }
+
+      if (page.length < ARCHIVE_PAGE_SIZE) break
+      const last = page[page.length - 1]
+      after = { closes_at: last.closes_at, id: last.id }
     }
   } catch (e) {
     console.warn('[drop-lifecycle] auto-archive step failed (non-fatal):', e?.message || e)
