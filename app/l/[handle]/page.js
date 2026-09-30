@@ -1,5 +1,5 @@
 'use client'
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Countdown } from '@/components/dropvine/countdown'
@@ -46,12 +46,15 @@ function venmoDeepLink({ handle, amountCents, note }) {
   return `https://venmo.com/${encodeURIComponent(String(handle).replace(/^@/, ''))}?${params.toString()}`
 }
 
-// 4 uppercase alphanumeric chars (no 0/O/1/I for readability).
-function randomCode4() {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let out = ''
-  for (let i = 0; i < 4; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)]
-  return out
+// One ID per checkout, sent with the order so a repeated submit (double
+// click, retry after a dropped connection) returns the same order instead
+// of creating a second one. randomUUID needs a secure context, hence the
+// getRandomValues fallback.
+function newCheckoutRequestId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 // Decide which drop mode the page will actually render. Falls back to
@@ -755,9 +758,14 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
     for (const p of (products || [])) m[p.id] = 0
     return m
   })
-  const [step, setStep] = useState('form')   // 'form' | 'venmo' | 'submitting' | 'confirmed'
-  const [note, setNote] = useState('')
+  const [step, setStep] = useState('form')   // 'form' | 'submitting' | 'placed'
+  // Payment details returned by the server: short_code, venmo_note,
+  // venmo_handle, amount_cents, is_deposit.
   const [order, setOrder] = useState(null)
+  const [requestId] = useState(newCheckoutRequestId)
+  // Blocks a second submit before React re-renders the disabled button
+  // (fast double click). The server also dedupes by requestId.
+  const inFlight = useRef(false)
 
   // deposit_percent is the authoritative deposit calculation for deposit-mode
   // drops. When it's not configured, the drop falls back to behaving like a
@@ -813,11 +821,11 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
     return { totalCents, totalQty: qty, depositCents, balanceCents, venmoAmount }
   }, [hasProducts, products, productQty, qty, hasDepositPercent, depositPercentNum, drop?.price_cents])
 
-  const venmoUrl = venmoDeepLink({ handle: drop?.venmo_handle, amountCents: totals.venmoAmount, note })
-
-  const proceedToVenmo = (e) => {
+  // Honor system: submitting the form creates the order (pending payment);
+  // the shopper then pays on Venmo and the vendor confirms it later.
+  const placeOrder = async (e) => {
     e?.preventDefault?.()
-    if (preview) return
+    if (preview || inFlight.current) return
     if (!name.trim()) { toast.error('Enter your name first.'); return }
     if (!email.trim()) { toast.error('Enter your email first.'); return }
     if (hasProducts && totals.totalQty <= 0) {
@@ -832,16 +840,11 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
       toast.error('This drop has no price configured.')
       return
     }
-    setNote(`${drop.handle}-${randomCode4()}`)
-    setStep('venmo')
-  }
-
-  const confirmPayment = async () => {
-    if (preview || !note) return
+    inFlight.current = true
     setStep('submitting')
     try {
       // Build the request payload — multi-mode sends items[], legacy sends quantity.
-      const payload = { email, name, phone, venmo_note: note }
+      const payload = { email, name, phone, client_request_id: requestId }
       if (hasProducts) {
         payload.items = products
           .filter((p) => (productQty[p.id] || 0) > 0)
@@ -856,99 +859,54 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
       const d = await r.json()
       if (!r.ok) {
         toast.error(d?.error || 'Could not save your order')
-        setStep('venmo')
+        inFlight.current = false
+        setStep('form')
         return
       }
-      setOrder({ ...d.order, items: d.items || [] })
-      setStep('confirmed')
-      toast.success(d?.duplicate ? 'Already recorded — see your inbox.' : 'Order recorded — see your inbox.')
+      setOrder(d.order)
+      setStep('placed')
     } catch (e) {
       toast.error(e?.message || 'Network error')
-      setStep('venmo')
+      inFlight.current = false
+      setStep('form')
     }
   }
 
-  if (step === 'confirmed' && order) {
+  // Order placed: payment instructions. Stays on screen even if the drop
+  // closes while it's showing (checked before the closed message below).
+  if (step === 'placed' && order) {
+    const handle = String(order.venmo_handle || '').replace(/^@/, '')
+    const amount = money(order.amount_cents)
+    const venmoUrl = venmoDeepLink({ handle, amountCents: order.amount_cents, note: order.venmo_note })
     return (
-      <div data-testid="preorder-confirmed">
+      <div data-testid="preorder-placed">
         <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Order #{order.short_code}</div>
-        <div className="font-serif text-3xl tracking-tighter">
-          {order.deposit_cents != null ? 'Deposit recorded.' : 'Pre-order recorded.'}
-        </div>
-        <p className="mt-4 text-sm text-muted-foreground">
-          We&rsquo;ve emailed a receipt to <strong>{order.shopper_email}</strong>. The maker will mark it paid once your Venmo transfer comes through.
+        <div className="font-serif text-3xl tracking-tighter text-foreground">Your order is in.</div>
+        <p className="mt-4 text-sm text-foreground">
+          {order.is_deposit ? <>Send your <strong>{amount}</strong> deposit</> : <>Send <strong>{amount}</strong></>}{' '}
+          to <strong>@{handle}</strong> on Venmo with this note:{' '}
+          <strong className="font-mono" data-testid="venmo-note">{order.venmo_note}</strong>
         </p>
-        {Array.isArray(order.items) && order.items.length > 1 ? (
-          <div className="mt-6 pt-6 border-t border-border space-y-1 text-sm">
-            {order.items.map((it) => (
-              <div key={it.id} className="flex justify-between">
-                <span className="text-muted-foreground">{it.quantity}× {it.product_name}</span>
-                <span>{money((it.price_cents || 0) * (it.quantity || 0))}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-        <div className="mt-6 pt-6 border-t border-border space-y-1 text-sm">
-          <div className="flex justify-between"><span className="text-muted-foreground">Quantity</span><span>{order.quantity}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">{order.deposit_cents != null ? 'Deposit paid' : 'Total'}</span><span>{money(order.deposit_cents != null ? order.deposit_cents : order.total_cents)}</span></div>
-          {order.deposit_cents != null ? (
-            <div className="flex justify-between"><span className="text-muted-foreground">Balance at pickup</span><span>{money(order.balance_cents)}</span></div>
-          ) : null}
-          <div className="flex justify-between"><span className="text-muted-foreground">Note</span><span className="font-mono text-xs">{order.venmo_note}</span></div>
-        </div>
-      </div>
-    )
-  }
-
-  // Once closed, the form is replaced by the closed message. A shopper who
-  // already reached the Venmo step keeps it so they can still confirm (the
-  // server allows a short grace period after closes_at).
-  if (closed && step !== 'venmo' && step !== 'submitting') return <OrdersClosedPanel />
-
-  if (step === 'venmo' || step === 'submitting') {
-    const submitting = step === 'submitting'
-    return (
-      <div data-testid="preorder-venmo">
-        <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Send Venmo</div>
-        <div className="font-serif text-2xl md:text-3xl tracking-tighter mb-4">
-          {hasDepositPercent ? `Send the deposit of ${money(totals.venmoAmount)}.` : `Send ${money(totals.venmoAmount)} via Venmo.`}
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Pay <strong className="text-foreground">@{String(drop.venmo_handle).replace(/^@/, '')}</strong> the exact amount and include the note below in the Venmo memo.
-          {hasDepositPercent ? <> Balance of <strong className="text-foreground">{money(totals.balanceCents)}</strong> due at pickup.</> : null}
-        </p>
-        <div className="mt-6 border border-border p-4 bg-stone-50">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Venmo memo</div>
-          <div className="font-mono text-xl tracking-tight mt-1" data-testid="venmo-note">{note}</div>
-        </div>
         <a
           href={venmoUrl || '#'}
           target="_blank"
           rel="noreferrer"
-          className="mt-4 w-full inline-flex items-center justify-center gap-2 border border-foreground h-12 text-sm hover:bg-foreground hover:text-background transition-colors"
+          className="mt-6 w-full inline-flex items-center justify-center gap-2 border border-foreground h-12 text-sm hover:bg-foreground hover:text-background transition-colors"
           data-testid="open-venmo"
         >
           Open Venmo <ExternalLink className="h-3.5 w-3.5" />
         </a>
-        <button
-          onClick={confirmPayment}
-          disabled={submitting}
-          className="mt-3 w-full text-white h-12 text-sm hover:opacity-90 disabled:opacity-50 inline-flex items-center justify-center gap-2"
-          style={{ backgroundColor: DROPVINE_GREEN }}
-          data-testid="confirm-payment"
-        >
-          {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : <>I&rsquo;ve sent payment — confirm my order <ArrowRight className="h-4 w-4" /></>}
-        </button>
-        <button
-          onClick={() => setStep('form')}
-          disabled={submitting}
-          className="mt-2 w-full text-xs text-muted-foreground underline disabled:opacity-50"
-        >
-          ← Back to edit
-        </button>
+        <p className="mt-4 text-sm text-muted-foreground">We&rsquo;ve emailed you these details.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Questions? Contact {drop?.vendor_business_name || 'the maker'} directly.
+        </p>
       </div>
     )
   }
+
+  // Once closed, the form is replaced by the closed message. A submit already
+  // in flight finishes (the server allows a short grace period after closes_at).
+  if (closed && step !== 'submitting') return <OrdersClosedPanel />
 
   // step === 'form'
   return (
@@ -1019,7 +977,7 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
         </div>
       ) : null}
 
-      <form onSubmit={proceedToVenmo} className="mt-8 space-y-5">
+      <form onSubmit={placeOrder} className="mt-8 space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="preorder-name" className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Name <span className="ml-1 normal-case tracking-normal">(required)</span></Label>
@@ -1057,13 +1015,14 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
         {preview ? <PreviewOnlyNote /> : null}
         <button
           type="submit"
-          disabled={preview || (hasProducts && totals.totalQty <= 0) || !name.trim() || !email.trim()}
+          disabled={preview || step === 'submitting' || (hasProducts && totals.totalQty <= 0) || !name.trim() || !email.trim()}
           className="w-full text-white h-12 text-sm hover:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-2"
           style={{ backgroundColor: DROPVINE_GREEN }}
           data-testid="preorder-submit"
         >
-          {hasDepositPercent ? <>Send {money(totals.depositCents)} deposit via Venmo <ArrowRight className="h-4 w-4" /></>
-                     : <>Pre-order via Venmo <ArrowRight className="h-4 w-4" /></>}
+          {step === 'submitting' ? <><Loader2 className="h-4 w-4 animate-spin" /> Placing your order…</>
+            : hasDepositPercent ? <>Send {money(totals.depositCents)} deposit via Venmo <ArrowRight className="h-4 w-4" /></>
+            : <>Pre-order via Venmo <ArrowRight className="h-4 w-4" /></>}
         </button>
       </form>
     </>

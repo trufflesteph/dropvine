@@ -1,9 +1,21 @@
 // POST /api/drops/[handle]/preorder
 //
-// Creates a pre-order / deposit drop_order row with status='pending_payment'
-// and emails the shopper a Venmo-payment receipt. Used by the public
-// /l/[handle] page when collection_mode is 'pre-order' or 'deposit'.
+// Honor-system checkout. Creates a pre-order / deposit drop_order row with
+// status='pending_payment' the moment the shopper submits the form, and emails
+// them the Venmo payment details. The vendor confirms payment later (admin
+// "Mark paid"). Used by the public /l/[handle] page when collection_mode is
+// 'pre-order' or 'deposit'.
 //
+// The Venmo memo is generated here ("<handle>-XXXXXX"), unique per drop.
+//
+// Duplicate submissions: the page sends one `client_request_id` per checkout.
+// A repeat of the same id for the same drop returns the existing order's
+// code, memo, amount and Venmo handle, and never the shopper's name, email or
+// phone. Needs drop_orders.client_request_id + its unique index (see the
+// 2026-09 SQL); orders created before it have a null id and are never matched.
+//
+// Line items are required: if they can't be saved, the order row is deleted
+// and the request fails, so an order never exists without its items.
 //
 // NOTE on `launch_product_id`: this is the actual column name on the
 // `drop_order_items` table (created by 2026-06-multi-product.sql). The
@@ -13,11 +25,10 @@
 //
 // Body:
 //   {
-//     email:      string (required),
-//     name:       string (required),
-//     phone?:     string,
-//     venmo_note: string (required, the unique <handle>-XXXX note the shopper
-//                        sent the payment with),
+//     email:             string (required),
+//     name:              string (required),
+//     phone?:            string,
+//     client_request_id: string (one per checkout, e.g. crypto.randomUUID()),
 //
 //     // Multi-product mode (preferred when the drop has drop_products):
 //     items?:     [{ launch_product_id: uuid, quantity: int }],
@@ -26,9 +37,12 @@
 //     quantity?:  integer (default 1),
 //   }
 //
-// Returns 201 with the created order + its order_items, OR 400/409/422 on
-// validation errors. NEVER 500s on email failure — order row is saved first.
+// Returns 201 { order } for a new order or 200 { order, duplicate: true } for
+// a repeat, where `order` is only { short_code, venmo_note, venmo_handle,
+// amount_cents, is_deposit } — or 400/422/500 on errors. NEVER fails on email
+// failure — the order is saved first.
 
+import { randomInt } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { sendDropOrderConfirmation } from '@/lib/email/notifications'
@@ -40,9 +54,45 @@ export const dynamic = 'force-dynamic'
 // already on the Venmo step when the drop closed can confirm their payment.
 const CLOSE_GRACE_MS = 15 * 60 * 1000
 
+// Venmo memo: "<handle>-" + 6 characters (no 0/O/1/I for readability).
+const MEMO_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const MEMO_CODE_LENGTH = 6
+const MEMO_ATTEMPTS = 5
+
 function normEmail(s) { return typeof s === 'string' ? s.trim().toLowerCase() : '' }
 function isValidEmail(s) { return typeof s === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) }
-function normNote(s) { return typeof s === 'string' ? s.trim().slice(0, 64) : '' }
+function normRequestId(s) {
+  const v = typeof s === 'string' ? s.trim() : ''
+  return /^[A-Za-z0-9-]{8,64}$/.test(v) ? v : null
+}
+function newVenmoNote(handle) {
+  let code = ''
+  for (let i = 0; i < MEMO_CODE_LENGTH; i++) code += MEMO_ALPHABET[randomInt(MEMO_ALPHABET.length)]
+  return `${handle}-${code}`
+}
+function isUniqueViolation(err) {
+  return String(err?.code) === '23505' || /duplicate key value|unique constraint/i.test(err?.message || '')
+}
+function isMissingTable(err) {
+  return /relation .* does not exist|could not find the table|schema cache/i.test(err?.message || '')
+}
+// The only order fields ever returned to the browser. No name, email or phone.
+function publicOrder(o) {
+  return {
+    short_code: o.short_code,
+    venmo_note: o.venmo_note,
+    venmo_handle: o.venmo_handle,
+    amount_cents: o.deposit_cents != null ? o.deposit_cents : o.total_cents,
+    is_deposit: o.deposit_cents != null,
+  }
+}
+async function findByRequestId(supa, dropId, requestId) {
+  const { data } = await supa
+    .from('drop_orders')
+    .select('short_code, venmo_note, venmo_handle, total_cents, deposit_cents')
+    .eq('drop_id', dropId).eq('client_request_id', requestId).maybeSingle()
+  return data || null
+}
 
 export async function POST(request, { params }) {
   const supa = getSupabaseAdmin()
@@ -51,16 +101,22 @@ export async function POST(request, { params }) {
   const body = await request.json().catch(() => ({}))
   const email = normEmail(body.email)
   const name = typeof body.name === 'string' ? body.name.trim().slice(0, 120) : ''
-  const venmoNote = normNote(body.venmo_note)
+  const clientRequestId = normRequestId(body.client_request_id)
   if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 })
   if (!isValidEmail(email)) return NextResponse.json({ error: 'invalid email' }, { status: 400 })
-  if (!venmoNote) return NextResponse.json({ error: 'missing venmo_note' }, { status: 400 })
 
   // Look up the drop.
   const { data: drop, error: gErr } = await supa
     .from('drops').select('*').eq('handle', params.handle).maybeSingle()
   if (gErr) return NextResponse.json({ error: gErr.message }, { status: 500 })
   if (!drop) return NextResponse.json({ error: 'not found' }, { status: 404 })
+
+  // Repeat of a checkout that already created an order (double-click, retry
+  // after a dropped connection): hand back that order's payment details only.
+  if (clientRequestId) {
+    const existing = await findByRequestId(supa, drop.id, clientRequestId)
+    if (existing) return NextResponse.json({ ok: true, order: publicOrder(existing), duplicate: true }, { status: 200 })
+  }
   if (drop.status !== 'published') {
     return NextResponse.json({ error: 'drop is not accepting orders yet' }, { status: 422 })
   }
@@ -174,28 +230,32 @@ export async function POST(request, { params }) {
     deposit_cents: depositCents,
     balance_cents: balanceCents,
     venmo_handle: drop.venmo_handle,
-    venmo_note: venmoNote,
     collection_mode: mode,
     status: 'pending_payment',
+    client_request_id: clientRequestId,
   }
 
-  const { data: order, error: iErr } = await supa
-    .from('drop_orders').insert(insertPayload).select('*').single()
-  if (iErr) {
-    // Unique violation — client probably double-clicked. Surface the existing row.
-    if (/duplicate key value|unique constraint/i.test(iErr.message)) {
-      const { data: existing } = await supa
-        .from('drop_orders').select('*')
-        .eq('drop_id', drop.id).eq('venmo_note', venmoNote).maybeSingle()
-      if (existing) {
-        // Best-effort: return existing line items too.
-        const { data: existItems } = await supa
-          .from('order_items').select('*').eq('order_id', existing.id)
-          .order('created_at', { ascending: true })
-        return NextResponse.json({ ok: true, order: existing, items: existItems || [], duplicate: true }, { status: 200 })
+  // Insert with a fresh memo. The (drop_id, venmo_note) unique index is the
+  // real guarantee; the pre-check just avoids most wasted inserts. A unique
+  // violation is either this checkout arriving twice at once (same request
+  // id → return that order) or a memo collision (→ try a new memo).
+  let order = null
+  for (let attempt = 0; attempt < MEMO_ATTEMPTS && !order; attempt++) {
+    const venmoNote = newVenmoNote(drop.handle)
+    const { data: taken } = await supa
+      .from('drop_orders').select('id').eq('drop_id', drop.id).eq('venmo_note', venmoNote).maybeSingle()
+    if (taken) continue
+    const { data, error: iErr } = await supa
+      .from('drop_orders').insert({ ...insertPayload, venmo_note: venmoNote }).select('*').single()
+    if (!iErr) { order = data; break }
+    if (isUniqueViolation(iErr)) {
+      if (clientRequestId) {
+        const existing = await findByRequestId(supa, drop.id, clientRequestId)
+        if (existing) return NextResponse.json({ ok: true, order: publicOrder(existing), duplicate: true }, { status: 200 })
       }
+      continue
     }
-    if (/relation .* does not exist|could not find the table|schema cache/i.test(iErr.message)) {
+    if (isMissingTable(iErr)) {
       return NextResponse.json({
         error: 'orders table not provisioned yet',
         hint: 'Run supabase/migrations/2026-06-drop-orders.sql',
@@ -203,34 +263,31 @@ export async function POST(request, { params }) {
     }
     return NextResponse.json({ error: iErr.message }, { status: 500 })
   }
+  if (!order) {
+    return NextResponse.json({ error: 'could not create a unique order note, please try again' }, { status: 500 })
+  }
 
-  // Insert line items (best-effort — never blocks the order). If drop_order_items
-  // table is missing, log + continue so the legacy single-row UI keeps working.
-  let insertedItems = []
-  try {
-    const itemsPayload = orderItemRows.map((r) => ({ order_id: order.id, ...r }))
-    const { data: items, error: itErr } = await supa
-      .from('drop_order_items').insert(itemsPayload).select('*')
-    if (itErr) {
-      if (/could not find the table|relation .* does not exist|schema cache/i.test(itErr.message)) {
-        console.warn('[drops/preorder] drop_order_items table missing — run supabase/migrations/2026-06-multi-product.sql')
-      } else {
-        console.warn('[drops/preorder] drop_order_items insert failed (non-fatal):', itErr.message)
-      }
-    } else insertedItems = items || []
-  } catch (e) {
-    console.warn('[drops/preorder] drop_order_items unexpected:', e?.message)
+  // Line items are required. If they can't be saved, remove the order so it
+  // never exists without its items (drop_order_items cascades on delete).
+  const itemsPayload = orderItemRows.map((r) => ({ order_id: order.id, ...r }))
+  const { data: insertedItems, error: itErr } = await supa
+    .from('drop_order_items').insert(itemsPayload).select('*')
+  if (itErr) {
+    console.error('[drops/preorder] drop_order_items insert failed; removing order', order.id, '—', itErr.message)
+    const { error: dErr } = await supa.from('drop_orders').delete().eq('id', order.id)
+    if (dErr) console.error('[drops/preorder] could not remove order', order.id, 'after item failure:', dErr.message)
+    return NextResponse.json({ error: 'could not save your order, please try again' }, { status: 500 })
   }
 
   // Fire confirmation email — non-blocking failure.
   try {
     await sendDropOrderConfirmation({
-      order, drop, items: insertedItems, to: email,
+      order, drop, items: insertedItems || [], to: email,
       baseUrl: process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin,
     })
   } catch (e) {
     console.warn('[drops/preorder] email failed:', e?.message)
   }
 
-  return NextResponse.json({ ok: true, order, items: insertedItems }, { status: 201 })
+  return NextResponse.json({ ok: true, order: publicOrder(order) }, { status: 201 })
 }

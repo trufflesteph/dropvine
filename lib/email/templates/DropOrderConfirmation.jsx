@@ -17,14 +17,13 @@ export function DropOrderConfirmation({ order, launch, items = [], baseUrl, plan
   const isDeposit = order?.collection_mode === 'deposit'
   // deposit_cents/balance_cents are null when the vendor's drop has no
   // deposit_percent configured — order behaves like a regular pre-order
-  // (full total due, no deposit/balance split) in that case.
+  // (full total due, no deposit/balance split) in that case, so the deposit
+  // wording only appears when a deposit percentage is actually set.
   const hasDeposit = isDeposit && order.deposit_cents != null
   const subjectAmount = hasDeposit ? order.deposit_cents : order.total_cents
-  const headline = hasDeposit
-    ? 'Your deposit is in — order secured.'
-    : 'Order received.'
-  const venmoUrl = order?.venmo_handle
-    ? `https://venmo.com/${encodeURIComponent(String(order.venmo_handle).replace(/^@/, ''))}?txn=pay&amount=${(subjectAmount / 100).toFixed(2)}&note=${encodeURIComponent(order.venmo_note || '')}`
+  const handle = order?.venmo_handle ? String(order.venmo_handle).replace(/^@/, '') : null
+  const venmoUrl = handle
+    ? `https://venmo.com/${encodeURIComponent(handle)}?txn=pay&amount=${(subjectAmount / 100).toFixed(2)}&note=${encodeURIComponent(order.venmo_note || '')}`
     : null
 
   // Render items section only when we have line items AND there's more than 1,
@@ -41,7 +40,7 @@ export function DropOrderConfirmation({ order, launch, items = [], baseUrl, plan
   return (
     <EmailShell preview={`Order #${order.short_code} — ${launch?.title || 'your drop'}`} planTier={planTier}>
       <Eyebrow>{eyebrowParts.join(' · ')}</Eyebrow>
-      <H1>{headline}</H1>
+      <H1>Your order is in.</H1>
       <P>
         Thanks for your order! Check the pickup details below — we look forward to seeing you soon.
       </P>
@@ -68,19 +67,23 @@ export function DropOrderConfirmation({ order, launch, items = [], baseUrl, plan
       <Detail label="Total" value={money(order.total_cents)} />
       {hasDeposit ? (
         <>
-          <Detail label="Deposit due now" value={money(order.deposit_cents)} />
+          <Detail label="Deposit due" value={money(order.deposit_cents)} />
           <Detail label="Balance due at pickup" value={money(order.balance_cents)} />
         </>
       ) : null}
       <Divider />
-      <Detail label="Pay to" value={order.venmo_handle ? `@${order.venmo_handle}` : '—'} />
+      <Detail label="Pay to" value={handle ? `@${handle}` : '—'} />
       <Detail label="Amount" value={money(subjectAmount)} />
       <Detail label="Note (Venmo memo)" value={order.venmo_note} />
       <Divider />
 
       {venmoUrl ? (
         <>
-          <P>If you haven&rsquo;t already submitted payment, use the link below.</P>
+          <P>
+            {hasDeposit ? <>Send your {money(subjectAmount)} deposit</> : <>Send {money(subjectAmount)}</>}{' '}
+            to @{handle} on Venmo with the note <strong>{order.venmo_note}</strong>.{' '}
+            {vendorName || 'The maker'} will confirm once it arrives.
+          </P>
           <CTA href={venmoUrl}>Open Venmo</CTA>
         </>
       ) : null}
@@ -94,7 +97,6 @@ export function DropOrderConfirmation({ order, launch, items = [], baseUrl, plan
 
       <Divider />
       <P muted>
-        If you have already sent the Venmo transfer, no further action is needed.
         Questions about your order? Contact {vendorName || 'the maker'} directly.
       </P>
     </EmailShell>

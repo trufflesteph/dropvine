@@ -55,9 +55,11 @@ export async function PATCH(request, { params }) {
   }
 
   // Read current row (with the drop joined) so we can guard side-effects.
+  // creator_id lets the paid email resolve the vendor (name, sender, BCC,
+  // watermark tier) like the other shopper emails.
   const { data: order, error: gErr } = await supa
     .from('drop_orders')
-    .select('*, drops:drop_id(id, handle, title, pickup_details)')
+    .select('*, drops:drop_id(id, handle, title, pickup_details, creator_id)')
     .eq('id', params.id)
     .maybeSingle()
   if (gErr) {
@@ -78,7 +80,7 @@ export async function PATCH(request, { params }) {
   if (!alreadyAtTarget || updates[timestampField]) {
     const { data, error: uErr } = await supa
       .from('drop_orders').update(updates).eq('id', params.id)
-      .select('*, drops:drop_id(id, handle, title, pickup_details)').single()
+      .select('*, drops:drop_id(id, handle, title, pickup_details, creator_id)').single()
     if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 })
     updated = data
   }
