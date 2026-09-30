@@ -10,17 +10,19 @@
 // otherwise 404. An action whose starting status no longer matches (double
 // click, stale page) returns 409 with the current order and sends nothing.
 //
-// Auth: Supabase session cookie, verified server-side. Not the admin password.
+// Auth: Supabase session cookie, verified server-side (see
+// lib/auth/server-user.js). Not the admin password.
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
-import { getSignedInUserId, applyVendorOrderAction } from '@/lib/orders/vendor-orders'
+import { getSignedInUserId } from '@/lib/auth/server-user'
+import { applyVendorOrderAction } from '@/lib/orders/vendor-orders'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function PATCH(request, { params }) {
-  const userId = await getSignedInUserId()
+  const userId = await getSignedInUserId(request)
   if (!userId) return NextResponse.json({ error: 'not signed in' }, { status: 401 })
 
   const supa = getSupabaseAdmin()

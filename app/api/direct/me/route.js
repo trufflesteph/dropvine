@@ -6,13 +6,13 @@
 // to the right Tally form) and by the signup flow to persist tier_intent
 // before redirecting the new vendor to Tally.
 //
-// Auth model: relies on the `x-user-id` header — same convention every
-// other dashboard endpoint uses (see /api/drops?creator=me). Service-role
-// supabase client bypasses RLS so we get a predictable row regardless of
-// policy drift.
+// Auth: the signed-in user from the Supabase session (lib/auth/server-user.js);
+// 401 without one. Service-role supabase client bypasses RLS so we get a
+// predictable row regardless of policy drift.
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
+import { getSignedInUserId } from '@/lib/auth/server-user'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,8 +22,8 @@ function bad(message, status = 400) {
 }
 
 export async function GET(request) {
-  const userId = request.headers.get('x-user-id')
-  if (!userId) return bad('missing x-user-id header', 401)
+  const userId = await getSignedInUserId(request)
+  if (!userId) return bad('not signed in', 401)
 
   const supa = getSupabaseAdmin()
   if (!supa) return bad('supabase not configured', 500)
@@ -72,8 +72,8 @@ export async function GET(request) {
 // pricing tier persists on the row even if the visitor abandons the
 // subsequent Tally form. Idempotent — no-op if vendor row not yet provisioned.
 export async function POST(request) {
-  const userId = request.headers.get('x-user-id')
-  if (!userId) return bad('missing x-user-id header', 401)
+  const userId = await getSignedInUserId(request)
+  if (!userId) return bad('not signed in', 401)
 
   let body = {}
   try { body = await request.json() } catch {}

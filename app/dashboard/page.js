@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/auth-context'
+import { useAuth, mockUserHeaders } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import { ArrowUpRight, Plus, Calendar, Users, Sparkles, Loader2, Eye } from 'lucide-react'
 import { TALLY_NEW_DROP_URLS } from '@/lib/dashboard/new-drop-url'
@@ -10,14 +10,15 @@ import { DashboardSidebar, DashboardMobileNav, useUnpaidOrderCount } from '@/com
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { user, loading, signOut } = useAuth() || {}
+  const { user, loading, signOut, configured } = useAuth() || {}
+  const idHeaders = mockUserHeaders(user, configured)
   const [drops, setDrops] = useState([])
   const [fetching, setFetching] = useState(true)
   const [publishingId, setPublishingId] = useState(null)
   const [creatingDrop, setCreatingDrop] = useState(false)
   // Vendor tier drives which Tally form URL is used. Falls back to 'free'.
   const [vendorTier, setVendorTier] = useState('free')
-  const unpaidCount = useUnpaidOrderCount(user)
+  const unpaidCount = useUnpaidOrderCount(user, configured)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
@@ -27,7 +28,7 @@ export default function DashboardPage() {
     if (!user) return
     setFetching(true)
     try {
-      const r = await fetch('/api/drops?creator=me', { headers: { 'x-user-id': user.id } })
+      const r = await fetch('/api/drops?creator=me', { headers: idHeaders })
       const d = await r.json()
       setDrops(d.drops || [])
     } catch {
@@ -45,7 +46,7 @@ export default function DashboardPage() {
     let cancelled = false
     ;(async () => {
       try {
-        const r = await fetch('/api/direct/me', { headers: { 'x-user-id': user.id } })
+        const r = await fetch('/api/direct/me', { headers: idHeaders })
         if (!r.ok) return
         const d = await r.json()
         if (cancelled) return
@@ -64,7 +65,7 @@ export default function DashboardPage() {
     try {
       const r = await fetch('/api/submission-token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        headers: { 'Content-Type': 'application/json', ...idHeaders },
       })
       const d = await r.json()
       if (!r.ok || !d.token) throw new Error(d.error || 'Could not generate submission token')
@@ -84,7 +85,7 @@ export default function DashboardPage() {
     try {
       const r = await fetch(`/api/market/admin/drops/${drop.id}/publish`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        headers: { 'Content-Type': 'application/json', ...idHeaders },
         body: JSON.stringify({}),
       })
       const d = await r.json()

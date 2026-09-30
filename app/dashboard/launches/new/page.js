@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/auth-context'
+import { useAuth, mockUserHeaders } from '@/lib/auth-context'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -16,7 +16,7 @@ const STEPS = ['Identity', 'Story', 'Moment', 'Commerce', 'Review']
 
 export default function NewLaunchPage() {
   const router = useRouter()
-  const { user, loading } = useAuth() || {}
+  const { user, loading, configured } = useAuth() || {}
   const [step, setStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
 
@@ -66,7 +66,7 @@ export default function NewLaunchPage() {
     try {
       const r = await fetch('/api/launches', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        headers: { 'Content-Type': 'application/json', ...mockUserHeaders(user, configured) },
         body: JSON.stringify({
           ...form,
           launch_at: new Date(form.launch_at).toISOString(),

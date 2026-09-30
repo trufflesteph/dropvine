@@ -4,6 +4,7 @@ import { store, uuidv4 } from '@/lib/mock-store'
 import { getSupabaseServer, getSupabaseAdmin, getServerSupabaseConfig } from '@/lib/supabase/server'
 import { notifyWaitlistConfirmed } from '@/lib/notifications'
 import { isVendorPageAvailable, normalizeTier } from '@/lib/vendors/visibility'
+import { getSignedInUserId } from '@/lib/auth/server-user'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -64,42 +65,37 @@ async function updateReservationStatusIfPending(sessionId, newStatus) {
   return r
 }
 
-function getUserIdFromHeaders(req) {
-  // For mock mode: client passes X-User-Id header (we don't enforce real auth in mock)
-  return req.headers.get('x-user-id') || null
-}
+// Signed-in user from the Supabase session (x-user-id only in local mock
+// mode) — see lib/auth/server-user.js.
+const getCurrentUserId = (req) => getSignedInUserId(req)
 
-async function getCurrentUserId(req) {
-  const { configured } = getServerSupabaseConfig()
-  if (configured) {
-    const sb = getSupabaseServer()
-    if (sb) {
-      const { data } = await sb.auth.getUser()
-      return data?.user?.id || null
-    }
-  }
-  return getUserIdFromHeaders(req)
+// Public responses never include the drop owner's user id.
+function withoutCreatorId(drop) {
+  if (!drop) return drop
+  const { creator_id: _creatorId, ...rest } = drop
+  return rest
 }
 
 export async function GET(request, { params }) {
   const path = (params?.path || []).join('/')
   const url = new URL(request.url)
 
-  // GET /api/drops?creator=me  -> list current user's drops
+  // GET /api/drops?creator=me  -> list current user's drops (signed in only)
+  // GET /api/drops             -> public list (no owner ids)
   if (path === 'drops') {
     const creatorMe = url.searchParams.get('creator') === 'me'
-    const userId = await getCurrentUserId(request)
+    const userId = creatorMe ? await getCurrentUserId(request) : null
+    if (creatorMe && !userId) return err('not signed in', 401)
     const sb = getSupabaseServer()
     if (sb) {
       let q = sb.from('drops').select('*').order('created_at', { ascending: false })
-      if (creatorMe && userId) q = q.eq('creator_id', userId)
+      if (creatorMe) q = q.eq('creator_id', userId)
       const { data, error } = await q
       if (error) return err(error.message, 500)
-      return json({ drops: data || [] })
+      return json({ drops: creatorMe ? (data || []) : (data || []).map(withoutCreatorId) })
     }
     const all = Array.from(store.drops.values()).sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
-    const filtered = creatorMe && userId ? all.filter(l => l.creator_id === userId) : all
-    return json({ drops: filtered })
+    return json({ drops: creatorMe ? all.filter(l => l.creator_id === userId) : all.map(withoutCreatorId) })
   }
 
   // GET /api/launches/by-handle/[handle]
@@ -223,7 +219,7 @@ export async function GET(request, { params }) {
         } catch {}
       }
       return json({ drop: {
-        ...data,
+        ...withoutCreatorId(data),
         creator_plan_tier: creatorPlanTier,
         vendor_category: vendorCategory,
         vendor_location_city: vendorLocationCity,
@@ -239,7 +235,7 @@ export async function GET(request, { params }) {
     if (!found) return err('not found', 404)
     if (found.status === 'draft' && !preview) return err('not found', 404)
     if (found.status === 'archived' && !preview) return err('not found', 404)
-    return json({ drop: { ...found, creator_plan_tier: 'free', vendor_category: null, vendor_location_city: null, vendor_location_state: null, vendor_business_name: null, vendor_slug: null, vendor_page_available: false, vendor_tier: 'free' }, products: [], publish_token: null })
+    return json({ drop: { ...withoutCreatorId(found), creator_plan_tier: 'free', vendor_category: null, vendor_location_city: null, vendor_location_state: null, vendor_business_name: null, vendor_slug: null, vendor_page_available: false, vendor_tier: 'free' }, products: [], publish_token: null })
   }
 
   // GET /api/launches/[id]/reservations  (creator-scoped via RLS)

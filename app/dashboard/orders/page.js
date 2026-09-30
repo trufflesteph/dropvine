@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/auth-context'
+import { useAuth, mockUserHeaders } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { formatEmailDateTime } from '@/lib/email/format'
@@ -36,7 +36,9 @@ const firstName = (name) => (String(name || '').trim().split(/\s+/)[0] || 'The s
 
 export default function DashboardOrdersPage() {
   const router = useRouter()
-  const { user, loading, signOut } = useAuth() || {}
+  const { user, loading, signOut, configured } = useAuth() || {}
+  // Session cookie identifies the vendor; x-user-id only in local mock mode.
+  const idHeaders = mockUserHeaders(user, configured)
   const [data, setData] = useState({ drops: [], unpaid_count: 0 })
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState(null)
@@ -47,9 +49,10 @@ export default function DashboardOrdersPage() {
     if (!loading && !user) router.replace('/login')
   }, [loading, user, router])
 
+  const idHeader = idHeaders['x-user-id']
   const load = useCallback(async () => {
     try {
-      const r = await fetch('/api/dashboard/orders')
+      const r = await fetch('/api/dashboard/orders', { headers: idHeader ? { 'x-user-id': idHeader } : {} })
       const d = await r.json()
       if (!r.ok) throw new Error(d?.error || 'Could not load orders')
       setData({ drops: d.drops || [], unpaid_count: d.unpaid_count || 0 })
@@ -59,7 +62,7 @@ export default function DashboardOrdersPage() {
     } finally {
       setFetching(false)
     }
-  }, [])
+  }, [idHeader])
 
   useEffect(() => { if (user) load() }, [user, load])
 
@@ -68,7 +71,7 @@ export default function DashboardOrdersPage() {
     try {
       const r = await fetch(`/api/dashboard/orders/${order.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...idHeaders },
         body: JSON.stringify({ action }),
       })
       const d = await r.json()

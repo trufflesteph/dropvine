@@ -7,17 +7,18 @@
 //   ?summary=1  → { ok, unpaid_count } only (dashboard nav badge)
 //
 // Auth: Supabase session cookie, verified server-side (see
-// lib/orders/vendor-orders.js). Not the admin password.
+// lib/auth/server-user.js). Not the admin password.
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
-import { getSignedInUserId, listVendorOrders, countUnpaidOrders } from '@/lib/orders/vendor-orders'
+import { getSignedInUserId } from '@/lib/auth/server-user'
+import { listVendorOrders, countUnpaidOrders } from '@/lib/orders/vendor-orders'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request) {
-  const userId = await getSignedInUserId()
+  const userId = await getSignedInUserId(request)
   if (!userId) return NextResponse.json({ error: 'not signed in' }, { status: 401 })
 
   const supa = getSupabaseAdmin()

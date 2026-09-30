@@ -4,12 +4,13 @@
 // current profile into pending_submissions, generates a short-lived token,
 // and returns it so the dashboard can append ?token=... to the Tally URL.
 //
-// Auth: x-user-id header (service-role client bypasses RLS, same as every
-// other dashboard endpoint).
+// Auth: the signed-in user from the Supabase session (lib/auth/server-user.js);
+// 401 without one. Service-role client bypasses RLS for the reads/writes.
 
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
+import { getSignedInUserId } from '@/lib/auth/server-user'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,8 +20,8 @@ function bad(message, status = 400) {
 }
 
 export async function POST(request) {
-  const userId = request.headers.get('x-user-id')
-  if (!userId) return bad('missing x-user-id', 401)
+  const userId = await getSignedInUserId(request)
+  if (!userId) return bad('not signed in', 401)
 
   const supa = getSupabaseAdmin()
   if (!supa) return bad('supabase not configured', 500)

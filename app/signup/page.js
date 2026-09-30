@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { DropvineLogo } from '@/components/dropvine/logo'
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useAuth } from '@/lib/auth-context'
+import { useAuth, mockUserHeaders } from '@/lib/auth-context'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
@@ -83,10 +83,12 @@ function SignupPageInner() {
       // Fire-and-forget — never blocks the redirect. The trigger that
       // creates the direct_vendors row runs asynchronously so we accept a
       // "vendor row not yet provisioned" response gracefully.
+      // Identified by the new session (signIn above); x-user-id only in local
+      // mock mode.
       if (newUserId) {
         fetch('/api/direct/me', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-user-id': newUserId },
+          headers: { 'Content-Type': 'application/json', ...mockUserHeaders({ id: newUserId }, configured) },
           body: JSON.stringify({
             tier_intent: tier || 'free',
             category: category || null,

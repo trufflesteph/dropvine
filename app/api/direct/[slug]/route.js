@@ -101,7 +101,8 @@ export async function GET(request, { params }) {
       location_state: vendor.location_state || null,
     },
     page_available: true,
-    drops,
+    // Public response: no drop owner ids.
+    drops: drops.map(({ creator_id: _creatorId, ...d }) => d),
     counts: { total: drops.length, upcoming: upcoming.length, past: past.length },
   })
 }

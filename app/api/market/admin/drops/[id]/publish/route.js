@@ -9,8 +9,10 @@
 // Auth (either is enough):
 //   1. Markets admin token (Authorization: Bearer <token> or X-Admin-Token)
 //      — used by /admin/drops/[id]/preview page
-//   2. Supabase user where user.id == drop.creator_id
+//   2. Signed-in Supabase user (session cookie — lib/auth/server-user.js)
+//      where user.id == drop.creator_id
 //      — used by /dashboard "Publish" button on draft rows
+//   The emailed publish link is a different route (/api/launches/publish/[token]).
 //
 // On publish, after status becomes 'published':
 //   • notify_at is null OR ≤ now()  → run fanoutDropNotifications + stamp notified_at
@@ -20,23 +22,26 @@
 import { NextResponse } from 'next/server'
 import { requireAdminRole } from '@/lib/markets/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
+import { getSignedInUserId } from '@/lib/auth/server-user'
 import { fanoutDropNotifications } from '@/lib/notifications/drop-fanout'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function creatorIdFromRequest(request) {
-  return request.headers.get('x-user-id') || null
+// Who is asking: an admin (password) or a signed-in user. Checked before the
+// drop is looked up, so an anonymous caller learns nothing about drop ids.
+async function identify(request) {
+  const a = requireAdminRole(request)
+  if (a.ok) return { ok: true, admin: true, via: `admin:${a.role}` }
+  const userId = await getSignedInUserId(request)
+  if (userId) return { ok: true, admin: false, userId }
+  return { ok: false, status: 401, error: 'unauthorized' }
 }
 
-async function authorize(request, drop) {
-  const a = requireAdminRole(request)
-  if (a.ok) return { ok: true, via: `admin:${a.role}` }
-
-  const userId = creatorIdFromRequest(request)
-  if (userId && drop?.creator_id && userId === drop.creator_id) {
-    return { ok: true, via: 'creator' }
-  }
+// Admins may act on any drop; a signed-in user only on drops they created.
+function authorize(who, drop) {
+  if (who.admin) return { ok: true, via: who.via }
+  if (drop?.creator_id && who.userId === drop.creator_id) return { ok: true, via: 'creator' }
   return { ok: false, status: 401, error: 'unauthorized' }
 }
 
@@ -48,6 +53,9 @@ function parseDate(v) {
 }
 
 export async function PATCH(request, { params }) {
+  const who = await identify(request)
+  if (!who.ok) return NextResponse.json({ error: who.error }, { status: who.status })
+
   const supa = getSupabaseAdmin()
   if (!supa) return NextResponse.json({ error: 'supabase not configured' }, { status: 500 })
 
@@ -56,7 +64,7 @@ export async function PATCH(request, { params }) {
   if (gErr) return NextResponse.json({ error: gErr.message }, { status: 500 })
   if (!drop) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
-  const auth = await authorize(request, drop)
+  const auth = authorize(who, drop)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   if (drop.status === 'published') {

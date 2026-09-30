@@ -6,22 +6,23 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { DropvineLogo } from '@/components/dropvine/logo'
+import { mockUserHeaders } from '@/lib/auth-context'
 
 const GREEN = '#2D4A2A'
 
 // Unpaid pre-order / deposit orders across the vendor's drops. The API reads
-// the Supabase session cookie, so no user id is sent from here.
-export function useUnpaidOrderCount(user, refreshKey) {
+// the Supabase session cookie (x-user-id only in local mock mode).
+export function useUnpaidOrderCount(user, configured) {
   const [count, setCount] = useState(0)
   useEffect(() => {
     if (!user) return
     let cancelled = false
-    fetch('/api/dashboard/orders?summary=1')
+    fetch('/api/dashboard/orders?summary=1', { headers: mockUserHeaders(user, configured) })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (!cancelled && d?.ok) setCount(d.unpaid_count || 0) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [user, refreshKey])
+  }, [user, configured])
   return count
 }
 
