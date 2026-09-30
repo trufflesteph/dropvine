@@ -186,6 +186,25 @@ export async function GET(request, { params }) {
           .order('sort_order', { ascending: true })
         if (!pErr && Array.isArray(prods)) products = prods
       } catch {}
+      // Available stock, computed from orders by drop_committed_quantities()
+      // (2026-09-drop-order-stock.sql): quantity/capacity minus what pending,
+      // paid and fulfilled orders hold. null = unlimited. If the function
+      // isn't there yet, fall back to the raw quantity/capacity.
+      let committedByProduct = new Map()
+      let committedTotal = 0
+      try {
+        const { data: rows, error: cErr } = await sb.rpc('drop_committed_quantities', { p_drop_id: data.id })
+        if (cErr) console.warn('[by-handle] drop_committed_quantities failed:', cErr.message)
+        for (const r of rows || []) {
+          if (r.launch_product_id) committedByProduct.set(r.launch_product_id, Number(r.committed) || 0)
+          else committedTotal = Number(r.committed) || 0
+        }
+      } catch (e) {
+        console.warn('[by-handle] drop_committed_quantities threw:', e?.message)
+      }
+      const availableFrom = (limit, used) => (limit == null ? null : Math.max(0, Number(limit) - used))
+      products = products.map((p) => ({ ...p, available: availableFrom(p.quantity, committedByProduct.get(p.id) || 0) }))
+      const capacityAvailable = availableFrom(data.capacity, committedTotal)
       // Attach the active publish_token (only relevant for drafts in preview).
       // Skipped silently if the table doesn't exist yet.
       let publishToken = null
@@ -213,6 +232,7 @@ export async function GET(request, { params }) {
         vendor_slug: vendorSlug,
         vendor_page_available: vendorPageAvailable,
         vendor_tier: vendorTier,
+        capacity_available: capacityAvailable,
       }, products, publish_token: publishToken })
     }
     const found = Array.from(store.drops.values()).find(l => l.handle === handle)

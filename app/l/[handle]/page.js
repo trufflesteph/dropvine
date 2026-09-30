@@ -110,6 +110,19 @@ function PublicLaunchPageInner() {
     if (handle) load()
   }, [handle, isPreview])
 
+  // Refresh just the stock numbers (after the order endpoint says something
+  // sold out), leaving the rest of the page and the shopper's form alone.
+  const reloadStock = async () => {
+    try {
+      const qs = isPreview ? '?preview=true' : ''
+      const r = await fetch(`/api/drops/by-handle/${handle}${qs}`)
+      if (!r.ok) return
+      const d = await r.json()
+      if (Array.isArray(d.products)) setProducts(d.products)
+      setDrop((prev) => (prev ? { ...prev, capacity_available: d.drop?.capacity_available } : prev))
+    } catch {}
+  }
+
   // Handle return from Stripe
   useEffect(() => {
     const sessionId = searchParams.get('session_id')
@@ -292,6 +305,7 @@ function PublicLaunchPageInner() {
         isDeposit={mode === 'deposit'}
         preview={isDraft}
         closed={isClosed}
+        onStockChanged={reloadStock}
       />
     )
   } else if (mode === 'reservation' && reservationStripeAvailable) {
@@ -743,9 +757,22 @@ function ReservationStripePanel({ drop, email, setEmail, reservationStatus, rese
 // amount is the Venmo subject + adds the balance-at-pickup copy.
 //
 // When `products` is non-empty, renders a catalogue grid with per-product
-// quantity steppers (hard-capped by `drop_products.quantity`). When empty,
-// falls back to the legacy single-SKU flow driven by `drop.price_cents`.
-function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
+// quantity steppers (capped by each product's available stock). When empty,
+// falls back to the legacy single-SKU flow driven by `drop.price_cents`
+// (capped by the drop's available capacity).
+
+// Available stock from the by-handle API: quantity minus what pending, paid
+// and fulfilled orders hold; null = unlimited. Falls back to the raw
+// quantity / capacity if the API didn't send it.
+const UNLIMITED_STEPPER_MAX = 99
+function productAvailable(p) {
+  return p?.available !== undefined ? p.available : (p?.quantity ?? null)
+}
+function capacityAvailable(drop) {
+  return drop?.capacity_available !== undefined ? drop.capacity_available : (drop?.capacity ?? null)
+}
+
+function PreorderPanel({ drop, products, isDeposit, preview, closed, onStockChanged }) {
   const hasProducts = Array.isArray(products) && products.length > 0
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -774,25 +801,43 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
   const hasDepositPercent = isDeposit && Number.isFinite(depositPercentNum) && depositPercentNum > 0
 
   // -- Single-SKU helpers (legacy fallback) ---------------------------------
-  const maxQty = useMemo(() => {
-    const cap = parseInt(drop?.capacity || '0', 10)
-    return cap > 0 ? cap : 99
-  }, [drop?.capacity])
+  const legacyAvailable = capacityAvailable(drop)
+  const maxQty = legacyAvailable == null ? UNLIMITED_STEPPER_MAX : legacyAvailable
   const inc = () => setQty((q) => Math.min(q + 1, maxQty))
   const dec = () => setQty((q) => Math.max(1, q - 1))
 
   // -- Multi-SKU helpers ----------------------------------------------------
+  const productCap = (prod) => {
+    const available = productAvailable(prod)
+    return available == null ? UNLIMITED_STEPPER_MAX : available
+  }
   const stepProductQty = (productId, delta) => {
     setProductQty((m) => {
-      const cap = (() => {
-        const prod = products.find((p) => p.id === productId)
-        const q = parseInt(prod?.quantity ?? '0', 10)
-        return q > 0 ? q : 99
-      })()
+      const cap = productCap(products.find((p) => p.id === productId))
       const next = Math.max(0, Math.min((m[productId] || 0) + delta, cap))
       return { ...m, [productId]: next }
     })
   }
+
+  // When stock numbers change (e.g. reloaded after a 409), pull any stepper
+  // above the new availability down to it. The rest of the form is untouched.
+  useEffect(() => {
+    setProductQty((m) => {
+      let changed = false
+      const next = { ...m }
+      for (const p of products || []) {
+        const cap = productCap(p)
+        if ((next[p.id] || 0) > cap) { next[p.id] = cap; changed = true }
+      }
+      return changed ? next : m
+    })
+    setQty((q) => Math.max(1, Math.min(q, maxQty)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, maxQty])
+
+  const allSoldOut = hasProducts
+    ? products.every((p) => productAvailable(p) === 0)
+    : legacyAvailable === 0
 
   // -- Totals --------------------------------------------------------------
   const totals = useMemo(() => {
@@ -861,6 +906,9 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
         toast.error(d?.error || 'Could not save your order')
         inFlight.current = false
         setStep('form')
+        // Something sold out since the page loaded: refresh the stock numbers
+        // (steppers above the new limit are pulled down; nothing else resets).
+        if (r.status === 409) onStockChanged?.()
         return
       }
       setOrder(d.order)
@@ -926,8 +974,7 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
         <div className="mt-6 space-y-3" data-testid="product-catalogue">
           {products.map((p) => {
             const q = productQty[p.id] || 0
-            const cap = parseInt(p.quantity ?? '0', 10)
-            const remaining = cap > 0 ? cap : null
+            const available = productAvailable(p) // null = unlimited
             return (
               <div key={p.id} className="border border-border p-4 flex gap-4" data-testid={`product-row-${p.id}`}>
                 {p.photo_url ? (
@@ -947,26 +994,32 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2 whitespace-pre-line">{p.description}</p>
                   ) : null}
                   <div className="mt-2 flex items-center justify-between">
-                    <div className="inline-flex items-center border border-border">
-                      <button type="button"
-                              onClick={() => stepProductQty(p.id, -1)}
-                              disabled={q <= 0}
-                              className="px-2.5 h-8 border-r border-border text-foreground hover:bg-stone-50 disabled:opacity-30"
-                              aria-label={`Decrease ${p.name}`}>
-                        <Minus className="h-3 w-3" />
-                      </button>
-                      <div className="px-4 font-sans text-sm text-foreground tabular-nums" data-testid={`qty-${p.id}`}>{q}</div>
-                      <button type="button"
-                              onClick={() => stepProductQty(p.id, 1)}
-                              disabled={remaining != null && q >= remaining}
-                              className="px-2.5 h-8 border-l border-border text-foreground hover:bg-stone-50 disabled:opacity-30"
-                              aria-label={`Increase ${p.name}`}>
-                        <Plus className="h-3 w-3" />
-                      </button>
-                    </div>
-                    {remaining != null ? (
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                        {remaining - q} left
+                    {available === 0 ? (
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-foreground font-medium" data-testid={`sold-out-${p.id}`}>
+                        Sold out
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center border border-border">
+                        <button type="button"
+                                onClick={() => stepProductQty(p.id, -1)}
+                                disabled={q <= 0}
+                                className="px-2.5 h-8 border-r border-border text-foreground hover:bg-stone-50 disabled:opacity-30"
+                                aria-label={`Decrease ${p.name}`}>
+                          <Minus className="h-3 w-3" />
+                        </button>
+                        <div className="px-4 font-sans text-sm text-foreground tabular-nums" data-testid={`qty-${p.id}`}>{q}</div>
+                        <button type="button"
+                                onClick={() => stepProductQty(p.id, 1)}
+                                disabled={q >= productCap(p)}
+                                className="px-2.5 h-8 border-l border-border text-foreground hover:bg-stone-50 disabled:opacity-30"
+                                aria-label={`Increase ${p.name}`}>
+                          <Plus className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                    {available != null && available > 0 ? (
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground" data-testid={`left-${p.id}`}>
+                        {available - q} left
                       </div>
                     ) : null}
                   </div>
@@ -977,6 +1030,11 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
         </div>
       ) : null}
 
+      {allSoldOut ? (
+        <div className="mt-8 font-serif text-2xl md:text-3xl tracking-tighter text-foreground" data-testid="all-sold-out">
+          Sold out.
+        </div>
+      ) : (
       <form onSubmit={placeOrder} className="mt-8 space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -993,7 +1051,7 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
           <Input id="preorder-email" required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" autoComplete="email" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
         </div>
         {/* Legacy single-SKU quantity stepper — only when there's no product catalogue. */}
-        {!hasProducts && drop?.capacity ? (
+        {!hasProducts && legacyAvailable != null ? (
           <div className="space-y-2">
             <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Quantity (max {maxQty})</Label>
             <div className="inline-flex items-center border border-border">
@@ -1025,6 +1083,7 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed }) {
             : <>Pre-order via Venmo <ArrowRight className="h-4 w-4" /></>}
         </button>
       </form>
+      )}
     </>
   )
 }

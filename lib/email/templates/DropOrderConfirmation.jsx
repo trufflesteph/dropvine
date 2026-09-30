@@ -38,7 +38,7 @@ export function DropOrderConfirmation({ order, launch, items = [], baseUrl, plan
   const pickupText = launch?.pickup_details || null
 
   return (
-    <EmailShell preview={`Order #${order.short_code} — ${launch?.title || 'your drop'}`} planTier={planTier}>
+    <EmailShell preview={`Order #${order.short_code}: ${launch?.title || 'your drop'}`} planTier={planTier}>
       <Eyebrow>{eyebrowParts.join(' · ')}</Eyebrow>
       <H1>Your order is in.</H1>
       <P>

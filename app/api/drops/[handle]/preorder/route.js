@@ -14,8 +14,11 @@
 // phone. Needs drop_orders.client_request_id + its unique index (see the
 // 2026-09 SQL); orders created before it have a null id and are never matched.
 //
-// Line items are required: if they can't be saved, the order row is deleted
-// and the request fails, so an order never exists without its items.
+// Stock: the order and its line items are created by the create_drop_order()
+// Postgres function (2026-09-drop-order-stock.sql), which locks the drop's
+// stock, checks availability for every item and inserts everything in one
+// transaction. Short stock → 409 naming the product and how many are left,
+// with nothing inserted. An order never exists without its items.
 //
 // NOTE on `launch_product_id`: this is the actual column name on the
 // `drop_order_items` table (created by 2026-06-multi-product.sql). The
@@ -39,7 +42,8 @@
 //
 // Returns 201 { order } for a new order or 200 { order, duplicate: true } for
 // a repeat, where `order` is only { short_code, venmo_note, venmo_handle,
-// amount_cents, is_deposit } — or 400/422/500 on errors. NEVER fails on email
+// amount_cents, is_deposit } — or 400 (incl. $0 orders) / 409 (out of stock)
+// / 422 / 500 / 503 on errors. NEVER fails on email
 // failure — the order is saved first.
 
 import { randomInt } from 'node:crypto'
@@ -142,8 +146,8 @@ export async function POST(request, { params }) {
 
   // --- Resolve the line items + totals --------------------------------------
   // If the drop has products AND the client sent an items[] array, validate
-  // each line, enforce per-product hard caps from drop_products.quantity,
-  // and snapshot price into order_items.
+  // each line and snapshot price into order_items. Stock limits are enforced
+  // by create_drop_order() below, not here.
   // Else (no products OR items[] empty/missing), fall back to single-SKU mode
   // using drops.price_cents + a top-level quantity.
 
@@ -162,10 +166,8 @@ export async function POST(request, { params }) {
       const pid = typeof raw?.launch_product_id === 'string' ? raw.launch_product_id : null
       const prod = pid ? byId.get(pid) : null
       if (!prod) continue
-      let q = parseInt(raw?.quantity ?? '0', 10)
+      const q = parseInt(raw?.quantity ?? '0', 10)
       if (!Number.isFinite(q) || q <= 0) continue
-      // Hard cap per product. Quantity null = unlimited.
-      if (prod.quantity != null && prod.quantity > 0) q = Math.min(q, prod.quantity)
       orderItemRows.push({
         launch_product_id: prod.id,
         product_name: prod.name,
@@ -193,7 +195,6 @@ export async function POST(request, { params }) {
     // Legacy single-product mode.
     let quantity = parseInt(body.quantity ?? '1', 10)
     if (Number.isNaN(quantity) || quantity < 1) quantity = 1
-    if (drop.capacity && drop.capacity > 0) quantity = Math.min(quantity, drop.capacity)
     const unit = parseInt(drop.price_cents || 0, 10)
     totalQty = quantity
     totalCents = unit * quantity
@@ -219,6 +220,12 @@ export async function POST(request, { params }) {
   // when totalQty > 0, otherwise 0.
   const unitPrice = totalQty > 0 ? Math.round(totalCents / totalQty) : 0
 
+  // Nothing to pay (unpriced drop or products) — same rule as the drop page.
+  const amountDueCents = depositCents != null ? depositCents : totalCents
+  if (!(amountDueCents > 0)) {
+    return NextResponse.json({ error: 'this order has no amount due' }, { status: 400 })
+  }
+
   const insertPayload = {
     drop_id: drop.id,
     shopper_email: email,
@@ -235,48 +242,59 @@ export async function POST(request, { params }) {
     client_request_id: clientRequestId,
   }
 
-  // Insert with a fresh memo. The (drop_id, venmo_note) unique index is the
-  // real guarantee; the pre-check just avoids most wasted inserts. A unique
+  // Create the order with a fresh memo via create_drop_order(), which locks
+  // the drop's stock, checks every item and inserts the order + its items in
+  // one transaction (nothing is inserted if stock is short or anything
+  // fails). The (drop_id, venmo_note) unique index is the real memo
+  // guarantee; the pre-check just avoids most wasted attempts. A unique
   // violation is either this checkout arriving twice at once (same request
   // id → return that order) or a memo collision (→ try a new memo).
   let order = null
+  let insertedItems = []
   for (let attempt = 0; attempt < MEMO_ATTEMPTS && !order; attempt++) {
     const venmoNote = newVenmoNote(drop.handle)
     const { data: taken } = await supa
       .from('drop_orders').select('id').eq('drop_id', drop.id).eq('venmo_note', venmoNote).maybeSingle()
     if (taken) continue
-    const { data, error: iErr } = await supa
-      .from('drop_orders').insert({ ...insertPayload, venmo_note: venmoNote }).select('*').single()
-    if (!iErr) { order = data; break }
-    if (isUniqueViolation(iErr)) {
-      if (clientRequestId) {
-        const existing = await findByRequestId(supa, drop.id, clientRequestId)
-        if (existing) return NextResponse.json({ ok: true, order: publicOrder(existing), duplicate: true }, { status: 200 })
+    const { data: result, error: rpcErr } = await supa.rpc('create_drop_order', {
+      p_order: { ...insertPayload, venmo_note: venmoNote },
+      p_items: orderItemRows,
+    })
+    if (rpcErr) {
+      if (isUniqueViolation(rpcErr)) {
+        if (clientRequestId) {
+          const existing = await findByRequestId(supa, drop.id, clientRequestId)
+          if (existing) return NextResponse.json({ ok: true, order: publicOrder(existing), duplicate: true }, { status: 200 })
+        }
+        continue
       }
-      continue
+      if (isMissingTable(rpcErr) || /create_drop_order/i.test(rpcErr.message || '')) {
+        return NextResponse.json({
+          error: 'order checkout not provisioned yet',
+          hint: 'Run supabase/migrations/2026-09-drop-order-stock.sql',
+        }, { status: 503 })
+      }
+      return NextResponse.json({ error: rpcErr.message }, { status: 500 })
     }
-    if (isMissingTable(iErr)) {
+    if (result?.ok) {
+      order = result.order
+      insertedItems = result.items || []
+      break
+    }
+    if (result?.error === 'insufficient_stock') {
+      const left = Number(result.available) || 0
+      const what = result.product_name || 'this item'
       return NextResponse.json({
-        error: 'orders table not provisioned yet',
-        hint: 'Run supabase/migrations/2026-06-drop-orders.sql',
-      }, { status: 503 })
+        error: left > 0 ? `Only ${left} left of ${what}.` : `${what} is sold out.`,
+        code: 'insufficient_stock',
+        launch_product_id: result.launch_product_id || null,
+        available: left,
+      }, { status: 409 })
     }
-    return NextResponse.json({ error: iErr.message }, { status: 500 })
+    return NextResponse.json({ error: result?.error || 'could not save your order, please try again' }, { status: 400 })
   }
   if (!order) {
     return NextResponse.json({ error: 'could not create a unique order note, please try again' }, { status: 500 })
-  }
-
-  // Line items are required. If they can't be saved, remove the order so it
-  // never exists without its items (drop_order_items cascades on delete).
-  const itemsPayload = orderItemRows.map((r) => ({ order_id: order.id, ...r }))
-  const { data: insertedItems, error: itErr } = await supa
-    .from('drop_order_items').insert(itemsPayload).select('*')
-  if (itErr) {
-    console.error('[drops/preorder] drop_order_items insert failed; removing order', order.id, '—', itErr.message)
-    const { error: dErr } = await supa.from('drop_orders').delete().eq('id', order.id)
-    if (dErr) console.error('[drops/preorder] could not remove order', order.id, 'after item failure:', dErr.message)
-    return NextResponse.json({ error: 'could not save your order, please try again' }, { status: 500 })
   }
 
   // Fire confirmation email — non-blocking failure.
