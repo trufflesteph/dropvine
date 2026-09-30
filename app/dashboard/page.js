@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import { ArrowUpRight, Plus, Calendar, Users, Sparkles, Loader2, Eye } from 'lucide-react'
-import { DropvineLogo } from '@/components/dropvine/logo'
 import { TALLY_NEW_DROP_URLS } from '@/lib/dashboard/new-drop-url'
+import { DashboardSidebar, DashboardMobileNav, useUnpaidOrderCount } from '@/components/dropvine/dashboard-nav'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const [creatingDrop, setCreatingDrop] = useState(false)
   // Vendor tier drives which Tally form URL is used. Falls back to 'free'.
   const [vendorTier, setVendorTier] = useState('free')
+  const unpaidCount = useUnpaidOrderCount(user)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
@@ -107,22 +108,11 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
-      <aside className="hidden md:flex w-64 flex-col border-r border-border p-8 bg-stone-50">
-        <Link href="/" className="inline-flex items-center mb-12" aria-label="Dropvine home"><DropvineLogo height={48} /></Link>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-4">Your vine</div>
-        <nav className="space-y-1 text-sm">
-          <Link href="/dashboard" className="block py-2 px-3 -mx-3 text-background" style={{ backgroundColor: '#2D4A2A' }}>Drops</Link>
-          <a className="block py-2 px-3 -mx-3 text-muted-foreground cursor-not-allowed opacity-60">Settings</a>
-        </nav>
-        <div className="mt-auto pt-8 border-t border-border">
-          <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Account</div>
-          <div className="text-sm truncate">{user.email}</div>
-          <button onClick={() => signOut?.()} className="mt-3 text-xs text-muted-foreground hover:text-foreground">Sign out</button>
-        </div>
-      </aside>
+      <DashboardSidebar active="drops" user={user} signOut={signOut} unpaidCount={unpaidCount} />
 
       {/* Main */}
       <main className="flex-1 min-w-0">
+        <DashboardMobileNav active="drops" unpaidCount={unpaidCount} />
         <header className="border-b border-border">
           <div className="px-6 md:px-12 py-8 flex items-end justify-between gap-4 flex-wrap">
             <div>
