@@ -5,6 +5,7 @@ import { getSupabaseServer, getSupabaseAdmin, getServerSupabaseConfig } from '@/
 import { notifyWaitlistConfirmed } from '@/lib/notifications'
 import { isVendorPageAvailable, normalizeTier } from '@/lib/vendors/visibility'
 import { getSignedInUserId } from '@/lib/auth/server-user'
+import { requireAdminRole, ADMIN_ROLES } from '@/lib/markets/admin-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -261,9 +262,16 @@ export async function GET(request, { params }) {
   }
 
   // GET /api/launches/[id]/waitlist
+  // Returns shopper emails — only the drop's owner or a platform admin.
   if (path.match(/^drops\/[^/]+\/waitlist$/)) {
     const id = path.split('/')[1]
-    const sb = getSupabaseServer()
+    const isAdmin = requireAdminRole(request, [ADMIN_ROLES.PLATFORM]).ok
+    if (!isAdmin) {
+      const userId = await getCurrentUserId(request)
+      const drop = userId ? await getLaunch(id) : null
+      if (!drop || drop.creator_id !== userId) return err('unauthorized', 401)
+    }
+    const sb = getSupabaseAdmin() || getSupabaseServer()
     if (sb) {
       const { data, error } = await sb.from('waitlist_entries').select('*').eq('drop_id', id).order('created_at', { ascending: false })
       if (error) return err(error.message, 500)

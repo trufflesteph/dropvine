@@ -16,7 +16,8 @@ export const dynamic = 'force-dynamic'
 
 function isAuthorised(request) {
   const expected = process.env.CRON_SECRET
-  if (!expected) return true // Allow when no secret is configured (dev / preview)
+  // No secret: allow only in local dev; in production fail closed.
+  if (!expected) return process.env.NODE_ENV !== 'production'
   const hdr = request.headers.get('authorization') || ''
   const m = hdr.match(/^Bearer\s+(.+)$/i)
   if (!m) return false
