@@ -2,18 +2,20 @@
 // Also accepts POST for manual / external schedulers (same auth header).
 //
 // Schedule: every 10 minutes (see vercel.json). Window is forgiving — each drop is
-// only ever notified once (per kind) thanks to the reminded_at / live_notified_at /
-// sold_out_notified_at flag columns on drops.
+// only ever notified once (per kind) thanks to the reminded_at / live_notified_at
+// flag columns on drops.
 //
 // Body (POST only): { kinds?: string[], dryRun?: boolean }
-// Default kinds: ['reminders', 'live', 'soldout']
+// Default kinds: ['reminders', 'live']
+// (The old 'soldout' kind counted Stripe reservations; it was removed. The
+// vendor sold-out email now fires when an order sells a drop out — see
+// lib/orders/sold-out.js.)
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import {
   notifyLaunchReminder,
   notifyLaunchLive,
-  notifySoldOut,
 } from '@/lib/notifications'
 
 export const runtime = 'nodejs'
@@ -28,12 +30,6 @@ function isAuthed(request) {
   if (!auth.startsWith('Bearer ')) return false
   const token = auth.slice('Bearer '.length).trim()
   return token === expected
-}
-
-async function getCreatorEmail(sb, creatorId) {
-  if (!creatorId) return null
-  const { data } = await sb.from('profiles').select('email').eq('id', creatorId).maybeSingle()
-  return data?.email || null
 }
 
 async function runReminderSweep({ sb, baseUrl, dryRun }) {
@@ -93,33 +89,6 @@ async function runLiveSweep({ sb, baseUrl, dryRun }) {
   return { drops: (drops || []).length, sent, total }
 }
 
-async function runSoldOutSweep({ sb, baseUrl, dryRun }) {
-  // Launches with capacity set, sold_out_notified_at IS NULL — check held count vs capacity
-  const { data: drops } = await sb
-    .from('drops')
-    .select('*')
-    .eq('status', 'published')
-    .not('capacity', 'is', null)
-    .is('sold_out_notified_at', null)
-  let notified = 0
-  for (const drop of drops || []) {
-    const { count } = await sb
-      .from('reservations')
-      .select('id', { count: 'exact', head: true })
-      .eq('drop_id', drop.id)
-      .in('status', ['held', 'captured'])
-    if ((count || 0) < drop.capacity) continue
-    const creatorEmail = await getCreatorEmail(sb, drop.creator_id)
-    if (!creatorEmail) continue
-    if (!dryRun) {
-      await notifySoldOut({ drop, capacity: drop.capacity, creatorEmail, baseUrl })
-      await sb.from('drops').update({ sold_out_notified_at: new Date().toISOString() }).eq('id', drop.id)
-    }
-    notified += 1
-  }
-  return { drops: (drops || []).length, notified }
-}
-
 async function runAllSweeps(request, { kinds, dryRun }) {
   const sb = getSupabaseAdmin()
   if (!sb) return { error: 'supabase admin not configured', status: 500 }
@@ -127,7 +96,6 @@ async function runAllSweeps(request, { kinds, dryRun }) {
   const summary = {}
   if (kinds.includes('reminders')) summary.reminders = await runReminderSweep({ sb, baseUrl, dryRun })
   if (kinds.includes('live'))      summary.live      = await runLiveSweep({ sb, baseUrl, dryRun })
-  if (kinds.includes('soldout'))   summary.soldout   = await runSoldOutSweep({ sb, baseUrl, dryRun })
   return { summary }
 }
 
@@ -135,7 +103,7 @@ export async function GET(request) {
   if (!isAuthed(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   const url = new URL(request.url)
   const dryRun = url.searchParams.get('dryRun') === '1'
-  const kinds = (url.searchParams.get('kinds') || 'reminders,live,soldout').split(',').map(s => s.trim()).filter(Boolean)
+  const kinds = (url.searchParams.get('kinds') || 'reminders,live').split(',').map(s => s.trim()).filter(Boolean)
   const result = await runAllSweeps(request, { kinds, dryRun })
   if (result.error) return NextResponse.json({ error: result.error }, { status: result.status || 500 })
   return NextResponse.json({ ok: true, dryRun, summary: result.summary })
@@ -145,7 +113,7 @@ export async function POST(request) {
   if (!isAuthed(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   const body = await request.json().catch(() => ({}))
   const dryRun = !!body.dryRun
-  const kinds = body.kinds || ['reminders', 'live', 'soldout']
+  const kinds = body.kinds || ['reminders', 'live']
   const result = await runAllSweeps(request, { kinds, dryRun })
   if (result.error) return NextResponse.json({ error: result.error }, { status: result.status || 500 })
   return NextResponse.json({ ok: true, dryRun, summary: result.summary })

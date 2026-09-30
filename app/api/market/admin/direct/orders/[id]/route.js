@@ -19,6 +19,7 @@ import { NextResponse } from 'next/server'
 import { requireAdminRole } from '@/lib/markets/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { sendDropOrderPaidConfirmation, sendReviewRequest } from '@/lib/email/notifications'
+import { normalizeTier } from '@/lib/vendors/visibility'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -111,9 +112,10 @@ export async function PATCH(request, { params }) {
     }
   }
 
-  // Side-effect (June 2026): when an order transitions INTO 'fulfilled',
-  // insert a `vendor_reviews` row (status='pending') and email the shopper
-  // a magic link to /review/[id] so they can leave a star rating + comment.
+  // Side-effect (June 2026): when a Shop vendor's order transitions INTO
+  // 'fulfilled', insert a `vendor_reviews` row (status='pending') and email the
+  // shopper a magic link to /review/[id] so they can leave a star rating +
+  // comment. Free / Maker vendors: nothing is created or sent.
   // Best-effort, fully tolerated if the reviews tables aren't provisioned.
   // Idempotent: skipped if a review already exists for (drop_id, reviewer_email).
   let reviewResult = null
@@ -165,6 +167,8 @@ async function createPendingReview(supa, order) {
     .eq('creator_id', dropRow.creator_id)
     .maybeSingle()
   if (!vendor) return { skipped: 'no direct_vendors row for drop creator' }
+  // Reviews are Shop tier only: Free / Maker orders are just marked fulfilled.
+  if (normalizeTier(vendor.tier) !== 'shop') return { skipped: 'reviews are Shop tier only' }
 
   // 2) Idempotency check.
   let alreadyExists = null

@@ -27,6 +27,10 @@ export default function PublicLaunchPage() {
 const DROPVINE_GREEN = '#4CAF50'
 const DROPVINE_GREEN_HOVER = '#43A047'
 
+// Stripe reservations are switched off. The Stripe panel and the
+// /reserve endpoint stay in the code but are never used while this is false.
+const STRIPE_RESERVATIONS_ENABLED = false
+
 // Two-column live layout. STICKY_TOP_PX is the order column's sticky gap
 // from the top of the viewport (the page header is absolute and scrolls
 // away, so nothing is pinned above it).
@@ -264,10 +268,10 @@ function PublicLaunchPageInner() {
     </div>
   )
 
-  // Decide which right-rail panel to render. Reservation mode prefers the
-  // Stripe card when reservation_enabled + hold are set; otherwise falls back
-  // to a "reserve my spot" form that creates a waitlist entry.
-  const reservationStripeAvailable = drop.reservation_enabled && drop.reservation_hold_cents > 0
+  // Decide which right-rail panel to render. Stripe reservations are switched
+  // off: reservation mode always uses the "reserve my spot" form (a waitlist
+  // entry, no payment), whatever reservation_enabled / hold are set to.
+  const reservationStripeAvailable = STRIPE_RESERVATIONS_ENABLED && drop.reservation_enabled && drop.reservation_hold_cents > 0
   // Draft opened with ?preview=true (the no-preview case returned not-found
   // above). Panels render fully but their submit stays disabled.
   const isDraft = drop.status === 'draft'
@@ -465,9 +469,11 @@ function PublicLaunchPageInner() {
     </p>
   ) : null
   // Mobile "Order now" bar: only in the two-column layout and only while
-  // ordering is open. The page reserves room for it below lg so it never
+  // ordering is open — not once the drop is closed or the pre-order card
+  // shows "Sold out.". The page reserves room for it below lg so it never
   // covers the footer.
-  const orderBarEnabled = splitLayout && !isClosed
+  const soldOut = (mode === 'pre-order' || mode === 'deposit') && isPreorderSoldOut(drop, products)
+  const orderBarEnabled = splitLayout && !isClosed && !soldOut
 
   return (
     <main className={`min-h-screen bg-background text-foreground${orderBarEnabled ? ' pb-24 lg:pb-0' : ''}`}>
@@ -771,6 +777,13 @@ function productAvailable(p) {
 function capacityAvailable(drop) {
   return drop?.capacity_available !== undefined ? drop.capacity_available : (drop?.capacity ?? null)
 }
+// When the pre-order card shows "Sold out." instead of the form. Also hides
+// the mobile "Order now" bar.
+function isPreorderSoldOut(drop, products) {
+  return Array.isArray(products) && products.length > 0
+    ? products.every((p) => productAvailable(p) === 0)
+    : capacityAvailable(drop) === 0
+}
 
 function PreorderPanel({ drop, products, isDeposit, preview, closed, onStockChanged }) {
   const hasProducts = Array.isArray(products) && products.length > 0
@@ -835,9 +848,7 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed, onStockChan
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, maxQty])
 
-  const allSoldOut = hasProducts
-    ? products.every((p) => productAvailable(p) === 0)
-    : legacyAvailable === 0
+  const allSoldOut = isPreorderSoldOut(drop, products)
 
   // -- Totals --------------------------------------------------------------
   const totals = useMemo(() => {

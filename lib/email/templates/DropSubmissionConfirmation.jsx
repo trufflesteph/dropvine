@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { EmailShell, H1, Eyebrow, P, CTA, TextLink, Detail, Divider, Italic, ProductLine } from './_shared'
+import { EmailShell, H1, Eyebrow, P, CTA, TextLink, Detail, Divider, Italic, ProductLine, vendorFooter } from './_shared'
 import { formatCollectionMode } from '@/lib/markets/tally'
 
 // Vendor-facing email sent immediately after a Tally submission lands. Two
@@ -51,10 +51,7 @@ export function DropSubmissionConfirmation({
     <EmailShell
       preview={previewSubject}
       planTier={planTier}
-      footerLines={[
-        "You're receiving this email because you submitted a drop on Dropvine.",
-        'Dropvine — your sales engine',
-      ]}
+      footerLines={vendorFooter("You're receiving this email because you submitted a drop on Dropvine.")}
     >
       <Eyebrow>Submission received</Eyebrow>
       <H1>Your drop is ready to preview.</H1>

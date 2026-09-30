@@ -50,6 +50,7 @@ import { randomInt } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { sendDropOrderConfirmation } from '@/lib/email/notifications'
+import { notifyVendorIfSoldOut } from '@/lib/orders/sold-out'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -306,6 +307,10 @@ export async function POST(request, { params }) {
   } catch (e) {
     console.warn('[drops/preorder] email failed:', e?.message)
   }
+
+  // If this order sold the drop out, email the vendor (once per drop).
+  // Never fails the order.
+  await notifyVendorIfSoldOut(supa, drop)
 
   return NextResponse.json({ ok: true, order: publicOrder(order) }, { status: 201 })
 }

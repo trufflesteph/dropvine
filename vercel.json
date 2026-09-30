@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
-      "path": "/api/cron/send-emails?kinds=reminders,live,soldout",
+      "path": "/api/cron/send-emails?kinds=reminders,live",
       "schedule": "*/10 * * * *"
     },
     {

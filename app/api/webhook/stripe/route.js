@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { store } from '@/lib/mock-store'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
-import { notifyReservationConfirmed, notifySoldOut } from '@/lib/notifications'
+import { notifyReservationConfirmed } from '@/lib/notifications'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -32,21 +32,6 @@ async function markReservationStatus(stripeSessionId, status) {
   r.status = status
   const drop = store.drops.get(r.drop_id) || null
   return { reservation: r, drop, creatorEmail: null }
-}
-
-async function maybeSendSoldOut({ drop, baseUrl, creatorEmail }) {
-  if (!drop?.capacity || !creatorEmail) return
-  const sb = getSupabaseAdmin()
-  if (!sb) return
-  // Count held reservations for this drop
-  const { count } = await sb
-    .from('reservations')
-    .select('id', { count: 'exact', head: true })
-    .eq('drop_id', drop.id)
-    .in('status', ['held', 'captured'])
-  if (count === drop.capacity) {
-    notifySoldOut({ drop, capacity: drop.capacity, creatorEmail, baseUrl }).catch(() => {})
-  }
 }
 
 export async function POST(request) {
@@ -81,7 +66,6 @@ export async function POST(request) {
         // Fire-and-forget emails — only on first processing (idempotency)
         if (result.reservation && !result.alreadyProcessed && result.drop) {
           notifyReservationConfirmed({ drop: result.drop, reservation: result.reservation, baseUrl }).catch(() => {})
-          maybeSendSoldOut({ drop: result.drop, baseUrl, creatorEmail: result.creatorEmail }).catch(() => {})
         }
       }
     } else if (event.type === 'checkout.session.expired') {

@@ -39,7 +39,7 @@ export default function DashboardOrdersPage() {
   const { user, loading, signOut, configured } = useAuth() || {}
   // Session cookie identifies the vendor; x-user-id only in local mock mode.
   const idHeaders = mockUserHeaders(user, configured)
-  const [data, setData] = useState({ drops: [], unpaid_count: 0 })
+  const [data, setData] = useState({ drops: [], unpaid_count: 0, vendor_tier: 'free' })
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState(null)
   const [busyId, setBusyId] = useState(null)
@@ -55,7 +55,7 @@ export default function DashboardOrdersPage() {
       const r = await fetch('/api/dashboard/orders', { headers: idHeader ? { 'x-user-id': idHeader } : {} })
       const d = await r.json()
       if (!r.ok) throw new Error(d?.error || 'Could not load orders')
-      setData({ drops: d.drops || [], unpaid_count: d.unpaid_count || 0 })
+      setData({ drops: d.drops || [], unpaid_count: d.unpaid_count || 0, vendor_tier: d.vendor_tier || 'free' })
       setError(null)
     } catch (e) {
       setError(e?.message || 'Could not load orders')
@@ -119,7 +119,7 @@ export default function DashboardOrdersPage() {
             </div>
           ) : (
             data.drops.map((drop) => (
-              <DropGroup key={drop.id} drop={drop} busyId={busyId} onAction={runAction} onConfirm={setConfirm} />
+              <DropGroup key={drop.id} drop={drop} vendorTier={data.vendor_tier} busyId={busyId} onAction={runAction} onConfirm={setConfirm} />
             ))
           )}
         </section>
@@ -161,7 +161,7 @@ export default function DashboardOrdersPage() {
   )
 }
 
-function DropGroup({ drop, busyId, onAction, onConfirm }) {
+function DropGroup({ drop, vendorTier, busyId, onAction, onConfirm }) {
   const t = drop.totals
   return (
     <div data-testid={`drop-group-${drop.handle}`}>
@@ -175,7 +175,7 @@ function DropGroup({ drop, busyId, onAction, onConfirm }) {
       </div>
       <ul className="space-y-4">
         {drop.orders.map((o) => (
-          <OrderCard key={o.id} order={o} busy={busyId === o.id} onAction={onAction} onConfirm={onConfirm} />
+          <OrderCard key={o.id} order={o} vendorTier={vendorTier} busy={busyId === o.id} onAction={onAction} onConfirm={onConfirm} />
         ))}
       </ul>
     </div>
@@ -194,7 +194,7 @@ function Total({ label, value, sub }) {
   )
 }
 
-function OrderCard({ order: o, busy, onAction, onConfirm }) {
+function OrderCard({ order: o, vendorTier, busy, onAction, onConfirm }) {
   const s = STATUS[o.status] || { label: o.status, bg: '#F2F0EA', fg: '#56534D' }
   const unpaid = o.status === 'pending_payment'
   const paid = o.status === 'paid'
@@ -252,7 +252,9 @@ function OrderCard({ order: o, busy, onAction, onConfirm }) {
             <ActionRow
               label="Mark picked up" primary busy={busy}
               onClick={() => onAction(o, 'mark_picked_up')}
-              help="Marks the order complete and sends the shopper a thank-you note asking for a review."
+              help={vendorTier === 'shop'
+                ? 'Marks the order complete and sends the shopper a thank-you note asking for a review.'
+                : 'Marks the order complete.'}
               testId="mark-picked-up"
             />
           ) : null}

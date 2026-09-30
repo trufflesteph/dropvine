@@ -1,13 +1,16 @@
 import * as React from 'react'
 import { Section, Text } from '@react-email/components'
-import { EmailShell, H1, Eyebrow, P, Italic, Divider, CTA, Detail, styles } from './_shared'
+import { EmailShell, H1, Eyebrow, P, Italic, Divider, CTA, Detail, styles, vendorFooter } from './_shared'
 import { formatEmailDate } from '../format'
 
 function money(cents) { return `$${((cents || 0) / 100).toFixed(2)}` }
 
 export function MarketFulfillmentMagicLink({ order, vendor, items = [], magicUrl, marketName, marketDate }) {
   return (
-    <EmailShell preview={`New pre-order #${order.short_code} — ${money(order.total_cents)}`}>
+    <EmailShell
+      preview={`New pre-order #${order.short_code} — ${money(order.total_cents)}`}
+      footerLines={vendorFooter("You're receiving this email because a shopper placed a pre-order with you on Dropvine Markets.")}
+    >
       <Eyebrow>{marketName || 'Dropvine Markets'} · Pre-order #{order.short_code}</Eyebrow>
       <H1>You have a new pre-order.</H1>
       <P>A shopper just placed a pre-order for <Italic>{vendor.name}</Italic>.</P>

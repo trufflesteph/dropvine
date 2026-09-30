@@ -1,20 +1,22 @@
 import * as React from 'react'
-import { EmailShell, H1, Eyebrow, P, Detail, Divider, CTA, Italic } from './_shared'
+import { EmailShell, H1, P, CTA, Italic, vendorFooter } from './_shared'
 
-export function SoldOut({ launch, capacity, dashboardUrl, planTier }) {
+// Vendor-facing: sent once when a pre-order / deposit drop sells out (see
+// lib/orders/sold-out.js). orders / paid / unpaid are the drop's current
+// order counts (cancelled and refunded orders excluded).
+export function SoldOut({ launch, orders, paid, unpaid, dashboardUrl, planTier }) {
+  const title = launch?.title || 'Your drop'
   return (
-    <EmailShell preview={`${launch?.title || 'A launch'} is fully reserved.`} planTier={planTier}>
-      <Eyebrow>Studio update</Eyebrow>
+    <EmailShell
+      preview={`Sold out: ${title}`}
+      planTier={planTier}
+      footerLines={vendorFooter("You're receiving this email because your drop on Dropvine sold out.")}
+    >
       <H1><Italic>Sold out.</Italic></H1>
       <P>
-        All <strong>{capacity}</strong> reserved slots for <strong>{launch?.title}</strong> are now held.
-        New visitors will see the page in sold-out state until you adjust capacity or release holds.
+        Every item in <strong>{title}</strong> is spoken for. {orders} {orders === 1 ? 'order' : 'orders'}, {paid} paid, {unpaid} waiting on payment.
       </P>
-      <Divider />
-      <Detail label="Launch" value={launch?.title || '—'} />
-      <Detail label="Capacity" value={String(capacity)} />
-      <Detail label="Held" value={`${capacity} of ${capacity}`} />
-      {dashboardUrl && <CTA href={dashboardUrl}>Open studio</CTA>}
+      {dashboardUrl && <CTA href={dashboardUrl}>See your orders →</CTA>}
     </EmailShell>
   )
 }

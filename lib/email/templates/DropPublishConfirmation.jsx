@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Section, Text } from '@react-email/components'
-import { EmailShell, H1, Eyebrow, P, CTA, TextLink, Detail, Divider, Italic, BRAND } from './_shared'
+import { EmailShell, H1, Eyebrow, P, CTA, TextLink, Detail, Divider, Italic, BRAND, vendorFooter } from './_shared'
 import { formatCollectionMode } from '@/lib/markets/tally'
 import { formatEmailDateTime } from '../format'
 
@@ -27,10 +27,7 @@ export function DropPublishConfirmation({ launch, liveUrl, dashboardUrl, audienc
     <EmailShell
       preview={`Your drop is live — ${title}`}
       planTier={planTier}
-      footerLines={[
-        "You're receiving this email because you submitted a drop on Dropvine.",
-        'Dropvine — your sales engine',
-      ]}
+      footerLines={vendorFooter("You're receiving this email because you submitted a drop on Dropvine.")}
     >
       <Eyebrow>Drop published</Eyebrow>
       <H1>Your drop is live.</H1>

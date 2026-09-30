@@ -12,6 +12,9 @@ export const dynamic = 'force-dynamic'
 
 const stripe = new Stripe(process.env.STRIPE_API_KEY || 'sk_test_emergent', { apiVersion: '2024-06-20' })
 
+// Stripe reservations are switched off (see POST drops/<id>/reserve).
+const STRIPE_RESERVATIONS_ENABLED = false
+
 const json = (data, init = {}) => NextResponse.json(data, init)
 const err = (msg, status = 400) => NextResponse.json({ error: msg }, { status })
 
@@ -400,7 +403,10 @@ export async function POST(request, { params }) {
 
   // POST /api/launches/[id]/reserve  -> Real Stripe Checkout Session
   // body: { email, origin_url }
+  // Switched off: always 400, no Stripe session. Reservation drops use the
+  // no-payment waitlist form instead.
   if (path.match(/^drops\/[^/]+\/reserve$/)) {
+    if (!STRIPE_RESERVATIONS_ENABLED) return err('Stripe reservations are not available', 400)
     const id = path.split('/')[1]
     const { email, origin_url } = body
     if (!email) return err('email required')

@@ -210,6 +210,13 @@ const styles = {
   },
 }
 
+// Footer for every vendor-facing email: one line saying why they got it,
+// then the vendor tagline. Shopper emails keep their own footers.
+export const VENDOR_TAGLINE = 'Dropvine — your sales engine.'
+export function vendorFooter(reason) {
+  return [reason, VENDOR_TAGLINE]
+}
+
 // EmailShell accepts an optional `footerLines` array prop so each template
 // can supply its own context-appropriate footer (Round 2 Fix 9, 10, 16).
 // When omitted, we render a SAFE generic Dropvine footer so legacy callers

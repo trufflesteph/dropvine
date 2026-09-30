@@ -57,7 +57,7 @@ export async function POST(request) {
     reservation: { subject: `Reservation held — ${SAMPLE.drop.title}`, react: ReservationConfirmation({ drop: SAMPLE.drop, reservation: { ...SAMPLE.reservation, email: to }, viewUrl }) },
     reminder: { subject: `Reminder — ${SAMPLE.drop.title} opens soon`, react: LaunchReminder({ drop: SAMPLE.drop, hoursUntil: 24, viewUrl }) },
     live: { subject: `It’s open — ${SAMPLE.drop.title}`, react: LaunchLive({ drop: SAMPLE.drop, viewUrl }) },
-    soldout: { subject: `Sold out — ${SAMPLE.drop.title}`, react: SoldOut({ drop: SAMPLE.drop, capacity: SAMPLE.drop.capacity, dashboardUrl: `${baseUrl}/dashboard/reservations` }) },
+    soldout: { subject: `Sold out: ${SAMPLE.drop.title}`, react: SoldOut({ launch: SAMPLE.drop, orders: 12, paid: 9, unpaid: 3, dashboardUrl: 'https://www.dropvine.pro/dashboard/orders' }) },
   }
   const choice = map[template]
   if (!choice) return NextResponse.json({ error: 'unknown template' }, { status: 400 })
