@@ -13,7 +13,7 @@ function money(cents) {
 //
 // Itemised when `items[]` is provided (multi-product drops). Falls back to a
 // single line when items is empty (legacy single-SKU drops).
-export function DropOrderPaid({ order, launch, items = [], planTier }) {
+export function DropOrderPaid({ order, launch, items = [], planTier, vendorName }) {
   const isDeposit = order?.collection_mode === 'deposit'
   const balanceLine = isDeposit && order?.balance_cents > 0
     ? `Balance of ${money(order.balance_cents)} is due at pickup.`
@@ -61,7 +61,7 @@ export function DropOrderPaid({ order, launch, items = [], planTier }) {
 
       <Divider />
       <P muted>
-        Questions about your order? Reply to this email and the maker will get back to you.
+        Questions about your order? Contact {vendorName || 'the maker'} directly.
       </P>
     </EmailShell>
   )

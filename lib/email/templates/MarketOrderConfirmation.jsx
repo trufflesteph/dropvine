@@ -35,7 +35,7 @@ export function MarketOrderConfirmation({ order, vendor, items = [], venmoUrl, m
       <Divider />
       <P muted>
         {vendor.name} will mark your order paid once they confirm the Venmo transfer, and let you know when it’s
-        ready to pick up at <strong>Booth #{vendor.booth_number}</strong>. Reply to this email if anything looks wrong.
+        ready to pick up at <strong>Booth #{vendor.booth_number}</strong>. Questions about your order? Contact {vendor.name || 'the maker'} directly.
       </P>
     </EmailShell>
   )

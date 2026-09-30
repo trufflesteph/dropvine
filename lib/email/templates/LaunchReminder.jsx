@@ -1,8 +1,9 @@
 import * as React from 'react'
 import { EmailShell, H1, Eyebrow, P, CTA, Italic, Divider } from './_shared'
+import { formatEmailDateTime } from '../format'
 
 export function LaunchReminder({ launch, viewUrl, hoursUntil, planTier }) {
-  const opensAt = launch?.launch_at ? new Date(launch.launch_at).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }) : ''
+  const opensAt = formatEmailDateTime(launch?.launch_at) || ''
   const headline = hoursUntil && hoursUntil <= 1 ? 'Opening shortly.' : (hoursUntil && hoursUntil < 24 ? 'Opening today.' : 'Opening soon.')
   return (
     <EmailShell preview={`${launch?.title || 'A launch'} opens ${opensAt ? `on ${opensAt}` : 'soon'}.`} planTier={planTier}>

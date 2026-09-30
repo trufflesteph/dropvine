@@ -1,9 +1,46 @@
 // Shared layout + tokens for all Dropvine emails.
 // Tables-based, inline styles only. Mobile-friendly. No external fonts/images.
 import * as React from 'react'
-import { Body, Container, Head, Hr, Html, Img, Preview, Section, Text } from '@react-email/components'
+import { Body, Container, Head, Hr, Html, Img, Section, Text } from '@react-email/components'
 
-const LOGO_URL = 'https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/assets/dropvine%202%20color%20logo_transparent.png'
+// Email-only logo (public/email/): the logo flattened onto BRAND.bg with 12px
+// padding, so it stays readable when a mail app renders the email on a dark
+// background. 2x asset (210×88) displayed at 105×44 — the logo lettering is
+// the same visible size as the old transparent PNG at height 48.
+const LOGO_URL = 'https://www.dropvine.pro/email/dropvine-logo-email-2x.png'
+const LOGO_WIDTH = 105
+const LOGO_HEIGHT = 44
+
+// Hidden preview (preheader) text. Replaces @react-email's <Preview>, whose
+// filler after the text includes LRM/RLM direction marks and a U+FEFF byte
+// order mark. Pads with no-break space + zero-width non-joiner only, so the
+// inbox preview shows just our text and not the start of the body.
+const PREVIEW_MAX_LENGTH = 150
+const PREVIEW_FILLER = String.fromCharCode(0x00A0, 0x200C) // no-break space + zero-width non-joiner
+export function EmailPreview({ children }) {
+  const text = String(Array.isArray(children) ? children.join('') : children || '').slice(0, PREVIEW_MAX_LENGTH)
+  return (
+    <div
+      style={{ display: 'none', overflow: 'hidden', lineHeight: '1px', opacity: 0, maxHeight: 0, maxWidth: 0 }}
+      data-skip-in-text="true"
+    >
+      {text + PREVIEW_FILLER.repeat(PREVIEW_MAX_LENGTH - text.length)}
+    </div>
+  )
+}
+
+// Keeps mail apps that honour it in light mode (the design assumes a light
+// background). Shared by EmailShell and templates that build their own <Head>.
+export function LightOnlyHead() {
+  return (
+    <Head>
+      <meta name="color-scheme" content="light only" />
+      <meta name="supported-color-schemes" content="light only" />
+      <style>{':root { color-scheme: light only; supported-color-schemes: light only; }'}</style>
+    </Head>
+  )
+}
+export const LIGHT_ONLY_ROOT_STYLE = { colorScheme: 'light only' }
 
 export const BRAND = {
   bg: '#FAFAF7',
@@ -183,13 +220,13 @@ export function EmailShell({ preview, children, planTier, footerLines }) {
     ? footerLines
     : ['Sent by Dropvine.', 'Dropvine — fresh drops daily']
   return (
-    <Html>
-      <Head />
-      {preview ? <Preview>{preview}</Preview> : null}
+    <Html style={LIGHT_ONLY_ROOT_STYLE}>
+      <LightOnlyHead />
+      {preview ? <EmailPreview>{preview}</EmailPreview> : null}
       <Body style={styles.body}>
         <Container style={styles.container}>
           <Section style={styles.brandRow}>
-            <Img src={LOGO_URL} alt="Dropvine" height={48} style={{ width: 'auto', display: 'block' }} />
+            <Img src={LOGO_URL} alt="Dropvine" width={LOGO_WIDTH} height={LOGO_HEIGHT} style={{ display: 'block' }} />
           </Section>
           {children}
           <Section style={styles.footer}>

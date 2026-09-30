@@ -1,8 +1,9 @@
 import * as React from 'react'
 import { EmailShell, H1, Eyebrow, P, Detail, Divider, CTA, Italic } from './_shared'
+import { formatEmailDateTime } from '../format'
 
 export function ReservationConfirmation({ launch, reservation, viewUrl, planTier }) {
-  const opensAt = launch?.launch_at ? new Date(launch.launch_at).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }) : ''
+  const opensAt = formatEmailDateTime(launch?.launch_at) || ''
   const amount = reservation?.amount_cents ? `$${(reservation.amount_cents / 100).toFixed(2)}` : '—'
   const sid = reservation?.stripe_session_id ? reservation.stripe_session_id.slice(0, 16) + '…' : '—'
   return (

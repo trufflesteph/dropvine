@@ -2,6 +2,7 @@ import * as React from 'react'
 import { Section, Text } from '@react-email/components'
 import { EmailShell, H1, Eyebrow, P, CTA, TextLink, Detail, Divider, Italic, BRAND } from './_shared'
 import { formatCollectionMode } from '@/lib/markets/tally'
+import { formatEmailDateTime } from '../format'
 
 // Vendor-facing "Your drop is live" confirmation sent the moment the vendor
 // clicks "Publish my drop →" in the preview email. Fires from
@@ -17,9 +18,7 @@ import { formatCollectionMode } from '@/lib/markets/tally'
 export function DropPublishConfirmation({ launch, liveUrl, dashboardUrl, audienceCount, planTier }) {
   const title = launch?.title || 'Your drop'
   const mode = launch?.collection_mode ? formatCollectionMode(launch.collection_mode) : null
-  const closesAtLabel = launch?.closes_at
-    ? new Date(launch.closes_at).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
-    : null
+  const closesAtLabel = formatEmailDateTime(launch?.closes_at)
   const audienceLine = audienceCount > 0
     ? `We've sent the launch announcement to ${audienceCount} ${audienceCount === 1 ? 'contact' : 'contacts'} on your list.`
     : 'Notifications are rolling out to your followers and the drop link is ready for you to share everywhere!'

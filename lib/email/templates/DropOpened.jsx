@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { Img, Section } from '@react-email/components'
 import { EmailShell, H1, Eyebrow, P, Italic } from './_shared'
+import { formatEmailDateTime } from '../format'
 
 // Shopper-facing fan-out email when a drop opens. Sent by the cron at
 // `notify_at` to every drop_subscriber. NEVER sent directly from the
@@ -15,9 +16,7 @@ import { EmailShell, H1, Eyebrow, P, Italic } from './_shared'
 export function DropOpened({ launch, subscriberName, viewUrl, vendorName, planTier }) {
   const title = launch?.title || 'A drop'
   const business = vendorName || 'this maker'
-  const closesAtLabel = launch?.closes_at
-    ? new Date(launch.closes_at).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
-    : null
+  const closesAtLabel = formatEmailDateTime(launch?.closes_at)
   return (
     <EmailShell
       preview={`Just dropped — ${title}`}

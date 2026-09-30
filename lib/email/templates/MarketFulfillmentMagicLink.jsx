@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { Section, Text } from '@react-email/components'
 import { EmailShell, H1, Eyebrow, P, Italic, Divider, CTA, Detail, styles } from './_shared'
+import { formatEmailDate } from '../format'
 
 function money(cents) { return `$${((cents || 0) / 100).toFixed(2)}` }
 
@@ -16,7 +17,7 @@ export function MarketFulfillmentMagicLink({ order, vendor, items = [], magicUrl
       <Detail label="Total" value={money(order.total_cents)} />
       <Detail label="Shopper" value={`${order.shopper_name || 'Anonymous'} · ${order.shopper_email}`} />
       {order.shopper_phone ? <Detail label="Phone" value={order.shopper_phone} /> : null}
-      {marketDate ? <Detail label="For" value={new Date(marketDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} /> : null}
+      {marketDate ? <Detail label="For" value={formatEmailDate(marketDate)} /> : null}
       <Divider />
 
       <Section>

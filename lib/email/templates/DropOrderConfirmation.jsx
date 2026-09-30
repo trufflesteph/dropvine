@@ -95,7 +95,7 @@ export function DropOrderConfirmation({ order, launch, items = [], baseUrl, plan
       <Divider />
       <P muted>
         If you have already sent the Venmo transfer, no further action is needed.
-        If anything looks wrong, reply to this email.
+        Questions about your order? Contact {vendorName || 'the maker'} directly.
       </P>
     </EmailShell>
   )

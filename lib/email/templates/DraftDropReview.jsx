@@ -1,5 +1,7 @@
 import * as React from 'react'
-import { Html, Head, Preview, Body, Container, Section, Heading, Text, Hr } from '@react-email/components'
+import { Html, Body, Container, Section, Heading, Text, Hr } from '@react-email/components'
+import { EmailPreview, LightOnlyHead, LIGHT_ONLY_ROOT_STYLE } from './_shared'
+import { formatEmailDateTime } from '../format'
 
 const styles = {
   body: { backgroundColor: '#FAFAF7', fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif', padding: '32px 0' },
@@ -14,9 +16,9 @@ const styles = {
 
 export function DraftDropReview({ launch, vendorName, vendorEmail, previewUrl }) {
   return (
-    <Html>
-      <Head />
-      <Preview>New draft drop awaiting review — {launch.title}</Preview>
+    <Html style={LIGHT_ONLY_ROOT_STYLE}>
+      <LightOnlyHead />
+      <EmailPreview>{`New draft drop awaiting review — ${launch.title}`}</EmailPreview>
       <Body style={styles.body}>
         <Container style={styles.container}>
           <Text style={styles.kicker}>Draft awaiting review</Text>
@@ -29,7 +31,7 @@ export function DraftDropReview({ launch, vendorName, vendorEmail, previewUrl })
           <Text style={styles.meta}>
             <strong>Vendor:</strong> {vendorName || '—'}<br />
             <strong>Vendor email:</strong> {vendorEmail || '—'}<br />
-            <strong>Submitted:</strong> {new Date(launch.created_at || Date.now()).toLocaleString()}<br />
+            <strong>Submitted:</strong> {formatEmailDateTime(launch.created_at || Date.now())}<br />
             <strong>Handle:</strong> /l/{launch.handle}
           </Text>
         </Container>
