@@ -73,6 +73,15 @@ async function updateReservationStatusIfPending(sessionId, newStatus) {
 // mode) — see lib/auth/server-user.js.
 const getCurrentUserId = (req) => getSignedInUserId(req)
 
+// Routes that return a drop's shopper emails: the signed-in owner of the drop
+// or the platform admin token. Callers then read with the service-role client.
+async function canReadDropShoppers(request, dropId) {
+  if (requireAdminRole(request, [ADMIN_ROLES.PLATFORM]).ok) return true
+  const userId = await getCurrentUserId(request)
+  const drop = userId ? await getLaunch(dropId) : null
+  return !!drop && drop.creator_id === userId
+}
+
 // Public responses never include the drop owner's user id.
 function withoutCreatorId(drop) {
   if (!drop) return drop
@@ -242,12 +251,13 @@ export async function GET(request, { params }) {
     return json({ drop: { ...withoutCreatorId(found), creator_plan_tier: 'free', vendor_category: null, vendor_location_city: null, vendor_location_state: null, vendor_business_name: null, vendor_slug: null, vendor_page_available: false, vendor_tier: 'free' }, products: [], publish_token: null })
   }
 
-  // GET /api/launches/[id]/reservations  (creator-scoped via RLS)
+  // GET /api/launches/[id]/reservations
+  // Returns shopper emails — only the drop's owner or a platform admin.
   if (path.match(/^drops\/[^/]+\/reservations$/)) {
     const id = path.split('/')[1]
-    const sb = getSupabaseServer()
+    if (!(await canReadDropShoppers(request, id))) return err('unauthorized', 401)
+    const sb = getSupabaseAdmin() || getSupabaseServer()
     if (sb) {
-      // RLS ensures only the drop's creator can read these rows
       const { data, error } = await sb
         .from('reservations')
         .select('id,email,amount_cents,status,stripe_session_id,created_at,drop_id')
@@ -256,10 +266,6 @@ export async function GET(request, { params }) {
       if (error) return err(error.message, 500)
       return json({ reservations: data || [] })
     }
-    // Mock-mode fallback
-    const userId = await getCurrentUserId(request)
-    const drop = store.drops.get(id)
-    if (!drop || drop.creator_id !== userId) return err('forbidden', 403)
     const reservations = store.reservations.filter(r => r.drop_id === id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
     return json({ reservations })
   }
@@ -268,12 +274,7 @@ export async function GET(request, { params }) {
   // Returns shopper emails — only the drop's owner or a platform admin.
   if (path.match(/^drops\/[^/]+\/waitlist$/)) {
     const id = path.split('/')[1]
-    const isAdmin = requireAdminRole(request, [ADMIN_ROLES.PLATFORM]).ok
-    if (!isAdmin) {
-      const userId = await getCurrentUserId(request)
-      const drop = userId ? await getLaunch(id) : null
-      if (!drop || drop.creator_id !== userId) return err('unauthorized', 401)
-    }
+    if (!(await canReadDropShoppers(request, id))) return err('unauthorized', 401)
     const sb = getSupabaseAdmin() || getSupabaseServer()
     if (sb) {
       const { data, error } = await sb.from('waitlist_entries').select('*').eq('drop_id', id).order('created_at', { ascending: false })
