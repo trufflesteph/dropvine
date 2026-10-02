@@ -4,11 +4,13 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { readAdminSession, clearAdminSession } from '@/lib/markets/admin-client'
 import {
-  LayoutGrid, Store, Calendar, ShoppingCart, Inbox, Settings, QrCode, LogOut, ShieldCheck,
-  Sparkles, Users, MapPin, Trophy, BadgeCheck, ClipboardList, Package, MessageSquare,
+  Settings, LogOut, ShieldCheck, Sparkles, Users, ClipboardList, MessageSquare,
 } from 'lucide-react'
 
-// Two-section IA. Sections collapse on mobile via overflow scroll.
+// Where "/admin" (logo, role redirects, login default) lands.
+export const ADMIN_HOME = '/admin/direct/drops'
+
+// Sections collapse on mobile via overflow scroll.
 const SECTIONS = [
   {
     title: 'Dropvine Direct',
@@ -16,24 +18,8 @@ const SECTIONS = [
       { href: '/admin/direct/drops',    label: 'Drops',    Icon: Sparkles,       roles: ['platform','organiser'] },
       { href: '/admin/direct/orders',   label: 'Orders',   Icon: ClipboardList,  roles: ['platform','organiser'] },
       { href: '/admin/direct/vendors',  label: 'Vendors',  Icon: Users,          roles: ['platform','organiser'] },
+      { href: '/admin/notifications',   label: 'Notifications', Icon: MessageSquare, roles: ['platform'] },
       { href: '/admin/direct/settings', label: 'Settings', Icon: Settings, roles: ['platform'] },
-    ],
-  },
-  {
-    title: 'Dropvine Markets',
-    items: [
-      { href: '/admin',              label: 'Dashboard',   Icon: LayoutGrid,    roles: ['platform','organiser'] },
-      { href: '/admin/market-dates', label: 'Market dates', Icon: Calendar,     roles: ['platform','organiser'] },
-      { href: '/admin/vendors',      label: 'Vendors',     Icon: Store,         roles: ['platform','organiser'] },
-      { href: '/admin/attendance',   label: 'Attendance',  Icon: ClipboardList, roles: ['platform','organiser'] },
-      { href: '/admin/orders',       label: 'Orders',      Icon: ShoppingCart,  roles: ['platform','organiser'] },
-      { href: '/admin/submissions',  label: 'Submissions', Icon: Inbox,         roles: ['platform','organiser'] },
-      { href: '/admin/challenges',   label: 'Challenges',  Icon: Trophy,        roles: ['platform','organiser'] },
-      { href: '/admin/amenities',    label: 'Amenities',   Icon: MapPin,        roles: ['platform','organiser'] },
-      { href: '/admin/pop',          label: 'POP Passport', Icon: BadgeCheck,   roles: ['platform','organiser'] },
-      { href: '/admin/qr-codes',     label: 'QR codes',    Icon: QrCode,        roles: ['platform','organiser'] },
-      { href: '/admin/notifications',label: 'Notifications', Icon: MessageSquare, roles: ['platform'] },
-      { href: '/admin/settings',     label: 'Settings',    Icon: Package,       roles: ['platform'] },
     ],
   },
 ]
@@ -46,11 +32,11 @@ export default function AdminShell({ children, requireRole = null }) {
   React.useEffect(() => {
     const s = readAdminSession()
     if (!s) {
-      router.replace('/admin/login?next=' + encodeURIComponent(pathname || '/admin'))
+      router.replace('/admin/login?next=' + encodeURIComponent(pathname || ADMIN_HOME))
       return
     }
     if (requireRole && s.role !== requireRole) {
-      router.replace('/admin')
+      router.replace(ADMIN_HOME)
       return
     }
     setSession(s)
@@ -61,13 +47,13 @@ export default function AdminShell({ children, requireRole = null }) {
   }
 
   const onSignOut = () => { clearAdminSession(); router.replace('/admin/login') }
-  const isActive = (href) => pathname === href || (href !== '/admin' && pathname?.startsWith(href + '/')) || pathname === href
+  const isActive = (href) => pathname === href || pathname?.startsWith(href + '/')
 
   return (
     <div className="min-h-screen bg-stone-50">
       <header className="bg-stone-900 text-stone-100 sticky top-0 z-30 border-b border-stone-800">
         <div className="max-w-7xl mx-auto px-4 h-12 flex items-center gap-4">
-          <Link href="/admin" className="font-serif text-base shrink-0">
+          <Link href={ADMIN_HOME} className="font-serif text-base shrink-0">
             Dropvine <span className="text-stone-500">·</span> <span className="text-stone-400">Admin</span>
           </Link>
           <div className="ml-auto flex items-center gap-3 text-[11px]">

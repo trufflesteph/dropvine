@@ -179,7 +179,7 @@ export default function DirectDropsPage() {
                           <div className="inline-flex items-center gap-2">
                             {d.status === 'draft' ? (
                               <>
-                                <Link href={`/admin/drops/${d.id}/preview`} className="inline-flex items-center gap-1 text-xs text-stone-500 hover:text-stone-900">
+                                <Link href={`/l/${encodeURIComponent(d.handle)}?preview=true`} className="inline-flex items-center gap-1 text-xs text-stone-500 hover:text-stone-900">
                                   <Eye className="w-3 h-3" /> Preview
                                 </Link>
                                 <button onClick={() => publish(d)} disabled={isBusy}

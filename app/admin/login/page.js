@@ -7,7 +7,7 @@ import { writeAdminSession, readAdminSession } from '@/lib/markets/admin-client'
 function LoginInner() {
   const router = useRouter()
   const search = useSearchParams()
-  const next = search.get('next') || '/admin'
+  const next = search.get('next') || '/admin/direct/drops'
   const [pwd, setPwd] = useState('')
   const [err, setErr] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -39,7 +39,7 @@ function LoginInner() {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-stone-900 grid place-items-center text-stone-50"><Lock className="w-5 h-5" /></div>
           <div>
-            <div className="text-xs uppercase tracking-[0.22em] text-stone-500">Dropvine Markets</div>
+            <div className="text-xs uppercase tracking-[0.22em] text-stone-500">Dropvine Admin</div>
             <div className="font-serif text-xl text-stone-900">Admin sign in</div>
           </div>
         </div>
@@ -53,7 +53,7 @@ function LoginInner() {
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
           Sign in
         </button>
-        <p className="text-[11px] text-stone-500">Two roles: <strong>platform</strong> can edit market settings; <strong>organiser</strong> manages day-to-day vendors, dates and submissions.</p>
+        <p className="text-[11px] text-stone-500">Two roles: <strong>platform</strong> can also change site settings and notifications; <strong>organiser</strong> manages day-to-day drops, orders and vendors.</p>
       </form>
     </div>
   )

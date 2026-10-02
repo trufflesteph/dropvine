@@ -24,7 +24,7 @@ function StatusPill({ ok, label }) {
 
 function NotificationsInner() {
   const [status, setStatus] = useState({ email: false, sms: false, loading: true })
-  const [form, setForm] = useState({ to: '', body: 'Dropvine Markets — test SMS ✓' })
+  const [form, setForm] = useState({ to: '', body: 'Dropvine — test SMS ✓' })
   const [busy, setBusy] = useState(false)
   const [lastResult, setLastResult] = useState(null)
 
@@ -154,9 +154,8 @@ ${JSON.stringify(lastResult.body, null, 2)}`}
       <div className="rounded-2xl border border-stone-200 bg-white p-5 text-sm text-stone-600 space-y-2">
         <div className="font-serif text-base text-stone-800">Where SMS is used</div>
         <ul className="list-disc pl-5 space-y-1">
-          <li>Shopper order confirmation (when shopper has opted in on <code>/market/profile</code>)</li>
-          <li>Vendor fulfillment magic-link (when vendor has <code>sms_opt_in = true</code> + phone on file)</li>
-          <li>Market-day morning reminder (cron: <code>/api/cron/market-day-push</code>)</li>
+          <li>Drop is open: a text to each waitlist member who left a phone number, for Maker and Shop vendors (sent when the drop is published or its notify time passes; cron: <code>/api/cron/send-drop-notifications</code>)</li>
+          <li>Drop is open: a text to each follower who opted in to SMS on the vendor&apos;s page, for Shop vendors only (cron: <code>/api/cron/drop-lifecycle</code>)</li>
         </ul>
       </div>
     </div>

@@ -7,7 +7,7 @@ import { Inter, Fraunces } from 'next/font/google'
 // /admin/login itself can render without recursive guard.
 
 export const metadata = {
-  title: 'Admin — Dropvine Markets',
+  title: 'Admin — Dropvine',
   robots: { index: false, follow: false },
 }
 
