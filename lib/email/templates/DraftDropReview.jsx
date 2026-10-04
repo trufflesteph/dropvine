@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Html, Body, Container, Section, Heading, Text, Hr } from '@react-email/components'
-import { EmailPreview, LightOnlyHead, LIGHT_ONLY_ROOT_STYLE } from './_shared'
+import { EmailPreview, LightOnlyHead, LIGHT_ONLY_ROOT_STYLE, MAILING_ADDRESS } from './_shared'
 import { formatEmailDateTime } from '../format'
 
 const styles = {
@@ -34,6 +34,7 @@ export function DraftDropReview({ launch, vendorName, vendorEmail, previewUrl })
             <strong>Submitted:</strong> {formatEmailDateTime(launch.created_at || Date.now())}<br />
             <strong>Handle:</strong> /l/{launch.handle}
           </Text>
+          <Text style={styles.meta}>{MAILING_ADDRESS}</Text>
         </Container>
       </Body>
     </Html>

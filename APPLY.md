@@ -77,6 +77,7 @@ CRON_SECRET
 
 # Email
 RESEND_API_KEY
+UNSUBSCRIBE_SECRET      # signs unsubscribe links; changing it breaks links already sent
 
 # Web Push (Markets PWA notifications)
 NEXT_PUBLIC_VAPID_PUBLIC_KEY

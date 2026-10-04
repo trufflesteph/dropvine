@@ -1,14 +1,20 @@
 import * as React from 'react'
 import { Section } from '@react-email/components'
-import { EmailShell, H1, Eyebrow, P, CTA, Divider, Detail } from './_shared'
+import { EmailShell, H1, Eyebrow, P, CTA, Divider, Detail, shopperFooter, orderedFromReason } from './_shared'
 
 // Sent to the shopper right after their order is marked fulfilled.
 // Single CTA → /review/[review_id] (a lightweight web form, since rich
 // forms inside emails are unreliable across clients). The web form posts
 // the rating + comment back to /api/reviews/submit.
-export function ReviewRequest({ reviewerName, vendorName, dropTitle, reviewUrl, planTier }) {
+export function ReviewRequest({ reviewerName, vendorName, dropTitle, reviewUrl, planTier, unsubscribeUrl }) {
   return (
-    <EmailShell preview={`How was your order from ${vendorName || 'this maker'}?`} planTier={planTier}>
+    <EmailShell
+      preview={`How was your order from ${vendorName || 'this maker'}?`}
+      planTier={planTier}
+      footerLines={shopperFooter(orderedFromReason(vendorName || 'this maker'))}
+      unsubscribeUrl={unsubscribeUrl}
+      businessName={vendorName}
+    >
       <Eyebrow>Order received</Eyebrow>
       <H1>How was it?</H1>
       <P>

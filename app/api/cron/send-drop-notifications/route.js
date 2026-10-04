@@ -68,11 +68,12 @@ async function run({ dryRun = false } = {}) {
           plan_tier: r.plan_tier,
           sms_allowed: r.sms_allowed,
           sent: r.sent,
+          suppressed: r.suppressed,
           total: r.total,
           skipped: r.skipped,
         })
       } else {
-        failed.push({ id: drop.id, handle: drop.handle, error: r.error })
+        failed.push({ id: drop.id, handle: drop.handle, error: r.error, retry: r.retry })
       }
     } catch (e) {
       failed.push({ id: drop.id, handle: drop.handle, error: e?.message || 'fanout threw' })

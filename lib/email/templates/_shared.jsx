@@ -203,6 +203,10 @@ const styles = {
     lineHeight: '1.7',
     margin: 0,
   },
+  footerLink: {
+    color: BRAND.muted,
+    textDecoration: 'underline',
+  },
   italic: {
     fontStyle: 'italic',
     fontFamily: SERIF,
@@ -210,22 +214,46 @@ const styles = {
   },
 }
 
+// Postal address required on every email (CAN-SPAM). The last footer line
+// of every template; change it here only.
+export const MAILING_ADDRESS = 'Dropvine LLC · 1968 S. Coast Hwy #2166 · Laguna Beach, CA 92651'
+
 // Footer for every vendor-facing email: one line saying why they got it,
-// then the vendor tagline. Shopper emails keep their own footers.
+// then the vendor tagline.
 export const VENDOR_TAGLINE = 'Dropvine — your sales engine.'
 export function vendorFooter(reason) {
   return [reason, VENDOR_TAGLINE]
+}
+
+// Shopper emails: the reason line, then the shopper tagline.
+export const SHOPPER_TAGLINE = 'Dropvine — fresh drops daily'
+export function shopperFooter(reason) {
+  return [reason, SHOPPER_TAGLINE]
+}
+export function customerListReason(business) {
+  return `You're getting this because you're on the customer list for ${business}.`
+}
+export function waitlistReason(title) {
+  return `You're getting this because you joined the waitlist for ${title}.`
+}
+export function orderedFromReason(business) {
+  return `You're getting this because you ordered from ${business}.`
 }
 
 // EmailShell accepts an optional `footerLines` array prop so each template
 // can supply its own context-appropriate footer (Round 2 Fix 9, 10, 16).
 // When omitted, we render a SAFE generic Dropvine footer so legacy callers
 // don't ship blank emails.
-export function EmailShell({ preview, children, planTier, footerLines }) {
+//
+// Marketing emails pass `unsubscribeUrl` (the signed /unsubscribe page for
+// this recipient) and `businessName`; that adds the unsubscribe line above
+// the address. Transactional emails pass neither.
+export function EmailShell({ preview, children, planTier, footerLines, unsubscribeUrl, businessName }) {
   const showWatermark = (planTier || 'free') !== 'shop'
   const lines = Array.isArray(footerLines) && footerLines.length
     ? footerLines
-    : ['Sent by Dropvine.', 'Dropvine — fresh drops daily']
+    : ['Sent by Dropvine.', SHOPPER_TAGLINE]
+  const unsubscribeLabel = businessName ? `Unsubscribe from ${businessName} emails` : 'Unsubscribe from these emails'
   return (
     <Html style={LIGHT_ONLY_ROOT_STYLE}>
       <LightOnlyHead />
@@ -245,6 +273,14 @@ export function EmailShell({ preview, children, planTier, footerLines }) {
                 Powered by <a href="https://dropvine.pro" style={{ color: BRAND.muted, textDecoration: 'underline' }}>Dropvine</a>
               </Text>
             ) : null}
+            {unsubscribeUrl ? (
+              <Text style={{ ...styles.footerLine, margin: '12px 0 0' }}>
+                <a href={unsubscribeUrl} style={styles.footerLink}>{unsubscribeLabel}</a>
+                {' · '}
+                <a href={unsubscribeUrl} style={styles.footerLink}>Stop all Dropvine emails</a>
+              </Text>
+            ) : null}
+            <Text style={{ ...styles.footerLine, margin: unsubscribeUrl ? 0 : '12px 0 0' }}>{MAILING_ADDRESS}</Text>
           </Section>
         </Container>
       </Body>

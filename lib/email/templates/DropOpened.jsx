@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Img, Section } from '@react-email/components'
-import { EmailShell, H1, Eyebrow, P, Italic } from './_shared'
+import { EmailShell, H1, Eyebrow, P, Italic, shopperFooter, customerListReason } from './_shared'
 import { formatEmailDateTime } from '../format'
 
 // Shopper-facing fan-out email when a drop opens. Sent by the cron at
@@ -13,6 +13,7 @@ import { formatEmailDateTime } from '../format'
 //   viewUrl         — absolute URL to /l/[handle]
 //   vendorName      — vendor business_name from direct_vendors (used in copy + footer)
 //   planTier        — passed through for watermark gating
+//   unsubscribeUrl  — signed /unsubscribe link for this recipient (footer)
 
 // Button label by collection mode. Unknown or missing modes fall back to
 // waitlist, matching the drop page's own default.
@@ -36,7 +37,7 @@ export function dropOpenedPreview(launch) {
   return pickup ? `${lead} Pickup: ${pickup}` : lead
 }
 
-export function DropOpened({ launch, subscriberName, viewUrl, vendorName, planTier }) {
+export function DropOpened({ launch, subscriberName, viewUrl, vendorName, planTier, unsubscribeUrl }) {
   const title = launch?.title || 'A drop'
   const business = vendorName || 'this maker'
   const closesAtLabel = formatEmailDateTime(launch?.closes_at)
@@ -45,10 +46,9 @@ export function DropOpened({ launch, subscriberName, viewUrl, vendorName, planTi
     <EmailShell
       preview={dropOpenedPreview(launch)}
       planTier={planTier}
-      footerLines={[
-        `You're getting this because you're on the customer list for ${business}.`,
-        'Dropvine — fresh drops daily',
-      ]}
+      footerLines={shopperFooter(customerListReason(business))}
+      unsubscribeUrl={unsubscribeUrl}
+      businessName={vendorName}
     >
       {/* Eyebrow style uppercases this: "NOW OPEN · {BUSINESS NAME}". */}
       <Eyebrow>{vendorName ? `Now open · ${vendorName}` : 'Now open'}</Eyebrow>

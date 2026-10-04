@@ -65,6 +65,9 @@ async function handleOpen(supa, row) {
   // Don't fan-out for drafts/archived drops.
   if (!['published', 'live'].includes(drop.status)) return { skipped: `status=${drop.status}` }
   const result = await sendDropOpenedFanout({ drop, subscribers })
+  // Suppression lookup failed: nothing was emailed. Skip the SMS too so the
+  // retry on the next run sends both exactly once.
+  if (result.lookupFailed) return { ...result, recipients: subscribers.length }
   // Phase D: SMS broadcast to followers, Shop-tier vendors only.
   const smsResult = await maybeBroadcastSmsOnOpen(supa, drop)
   return { ...result, recipients: subscribers.length, sms: smsResult }
@@ -340,12 +343,22 @@ async function runCron(request) {
     }
     try {
       const result = await handler(supa, row)
+      // Suppression lookup failed, so nothing was sent: leave sent_at null so
+      // the next run retries this row.
+      if (result.lookupFailed) {
+        await supa
+          .from('email_schedules')
+          .update({ error: String(result.error).slice(0, 1000) })
+          .eq('id', row.id)
+        failed.push({ id: row.id, kind: row.kind, error: result.error, retry: true })
+        continue
+      }
       // Stamp sent_at regardless of skipped/sent — we don't want to keep
       // retrying a drop whose status moved out from under us. The recipients
       // count is logged so an operator can see what happened.
       await supa
         .from('email_schedules')
-        .update({ sent_at: new Date().toISOString(), recipients: result.recipients ?? result.sent ?? 0 })
+        .update({ sent_at: new Date().toISOString(), recipients: result.recipients ?? result.sent ?? 0, error: null })
         .eq('id', row.id)
       items.push({ id: row.id, drop_id: row.drop_id, kind: row.kind, ...result })
     } catch (e) {

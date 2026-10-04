@@ -44,21 +44,25 @@ async function runReminderSweep({ sb, baseUrl, dryRun }) {
     .is('reminded_at', null)
     .gte('launch_at', lo)
     .lte('launch_at', hi)
-  let total = 0, sent = 0
+  let total = 0, sent = 0, suppressed = 0, retrying = 0
   for (const drop of drops || []) {
     const { data: recipients } = await sb.from('waitlist_entries').select('email,name').eq('drop_id', drop.id)
+    total += (recipients || []).length
     if (!dryRun) {
       const results = await notifyLaunchReminder({ drop, recipients: recipients || [], hoursUntil: REMINDER_HOURS_BEFORE, baseUrl })
       const r = (results || []).find(x => x.channel === 'email')
+      // Suppression lookup failed, nothing sent: leave reminded_at null so the
+      // next run (while the drop is still in the window) retries.
+      if (r?.lookupFailed) { retrying += 1; continue }
       sent += r?.sent || 0
+      suppressed += r?.suppressed || 0
       // Set the flag so we never re-send for this drop
       await sb.from('drops').update({ reminded_at: new Date().toISOString() }).eq('id', drop.id)
     } else {
       sent += (recipients || []).length
     }
-    total += (recipients || []).length
   }
-  return { drops: (drops || []).length, sent, total }
+  return { drops: (drops || []).length, sent, suppressed, retrying, total }
 }
 
 async function runLiveSweep({ sb, baseUrl, dryRun }) {
@@ -73,20 +77,24 @@ async function runLiveSweep({ sb, baseUrl, dryRun }) {
     .is('live_notified_at', null)
     .gte('launch_at', lo)
     .lte('launch_at', hi)
-  let total = 0, sent = 0
+  let total = 0, sent = 0, suppressed = 0, retrying = 0
   for (const drop of drops || []) {
     const { data: recipients } = await sb.from('waitlist_entries').select('email,name').eq('drop_id', drop.id)
+    total += (recipients || []).length
     if (!dryRun) {
       const results = await notifyLaunchLive({ drop, recipients: recipients || [], baseUrl })
       const r = (results || []).find(x => x.channel === 'email')
+      // Suppression lookup failed, nothing sent: leave live_notified_at null
+      // so the next run (while the drop is still in the window) retries.
+      if (r?.lookupFailed) { retrying += 1; continue }
       sent += r?.sent || 0
+      suppressed += r?.suppressed || 0
       await sb.from('drops').update({ live_notified_at: new Date().toISOString() }).eq('id', drop.id)
     } else {
       sent += (recipients || []).length
     }
-    total += (recipients || []).length
   }
-  return { drops: (drops || []).length, sent, total }
+  return { drops: (drops || []).length, sent, suppressed, retrying, total }
 }
 
 async function runAllSweeps(request, { kinds, dryRun }) {
