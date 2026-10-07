@@ -192,7 +192,7 @@ function SignupPageInner() {
             <Link href="/privacy" className="underline underline-offset-2 text-foreground">Privacy Policy</Link>.
           </p>
           <p className="mt-4 text-sm text-muted-foreground">
-            Already have an account? <Link href="/login" className="underline underline-offset-4 text-foreground">Sign in</Link>
+            Already have an account? <Link href="/login" className="underline underline-offset-4 text-foreground">Log in</Link>
           </p>
         </div>
       </section>

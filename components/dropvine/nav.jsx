@@ -47,7 +47,7 @@ export function Nav({ variant = 'light' }) {
 
   // Every link is at least 44px tall. Phones (below md): logo + account
   // links / CTA on the first row, page links on a second full-width row. No
-  // menu, nothing hidden. "Sign in" sits in the page-link row on phones so
+  // menu, nothing hidden. "Log in" sits in the page-link row on phones so
   // the first row fits at 390px; it is the same link either way.
   const linkClass = 'inline-flex items-center min-h-[44px] text-muted-foreground hover:text-foreground transition-colors'
   return (
@@ -71,7 +71,7 @@ export function Nav({ variant = 'light' }) {
           <Link href="/drops" className={linkClass}>Shop drops</Link>
           <Link href="/#pricing" className={linkClass}>Pricing</Link>
           <Link href="/tools" className={linkClass}>Free tools</Link>
-          {!user ? <Link href="/login" className={`${linkClass} md:hidden`}>Sign in</Link> : null}
+          {!user ? <Link href="/login" className={`${linkClass} md:hidden`}>Log in</Link> : null}
         </nav>
         <div className="flex items-center gap-4 md:gap-5 text-sm">
           {user ? (
@@ -81,7 +81,7 @@ export function Nav({ variant = 'light' }) {
             </>
           ) : (
             <>
-              <Link href="/login" className={`${linkClass} hidden md:inline-flex`}>Sign in</Link>
+              <Link href="/login" className={`${linkClass} hidden md:inline-flex`}>Log in</Link>
               <Link href={primaryCtaHref} className="inline-flex items-center min-h-[44px] gap-2 border border-olive text-olive px-4 hover:bg-olive hover:text-background transition-colors">
                 {primaryCtaText} <span aria-hidden>→</span>
               </Link>

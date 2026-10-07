@@ -23,7 +23,7 @@ export default function LoginPage() {
       toast.success('Welcome back.')
       router.push('/dashboard')
     } catch (err) {
-      toast.error(err.message || 'Sign in failed')
+      toast.error(err.message || 'Log in failed')
     } finally { setLoading(false) }
   }
 
@@ -41,7 +41,7 @@ export default function LoginPage() {
       <section className="flex items-center justify-center p-8 md:p-12">
         <div className="w-full max-w-sm">
           <div className="md:hidden mb-12"><Link href="/" aria-label="Dropvine home"><DropvineLogo height={40} /></Link></div>
-          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Sign in</div>
+          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Log in</div>
           <h1 className="font-serif font-light text-4xl tracking-tighter">Welcome back.</h1>
           {!configured && (
             <p className="mt-4 text-xs text-muted-foreground border border-dashed border-border p-3 leading-relaxed">
@@ -58,7 +58,7 @@ export default function LoginPage() {
               <Input id="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="••••••••" />
             </div>
             <button disabled={loading} className="w-full bg-foreground text-background h-12 text-sm hover:opacity-90 disabled:opacity-50">
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? 'Logging in…' : 'Log in'}
             </button>
           </form>
           <p className="mt-8 text-sm text-muted-foreground">
