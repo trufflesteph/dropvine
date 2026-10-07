@@ -20,6 +20,7 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { sendDropPublishConfirmation } from '@/lib/email/notifications'
+import { isDemoDrop } from '@/lib/drops/demo'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -145,7 +146,8 @@ export async function GET(request, { params }) {
   //    Always send a "your drop is live" email to the vendor on a publish
   //    click. Skipped for schedule — the lifecycle cron handles the
   //    announcement at notify_at.
-  if (action === 'publish' && drop.creator_id) {
+  //    Demo drops never send anything.
+  if (action === 'publish' && drop.creator_id && !(await isDemoDrop(supa, drop))) {
     try {
       const { data: profile } = await supa
         .from('profiles')

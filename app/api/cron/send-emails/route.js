@@ -17,6 +17,7 @@ import {
   notifyLaunchReminder,
   notifyLaunchLive,
 } from '@/lib/notifications'
+import { isDemoDrop } from '@/lib/drops/demo'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -44,8 +45,10 @@ async function runReminderSweep({ sb, baseUrl, dryRun }) {
     .is('reminded_at', null)
     .gte('launch_at', lo)
     .lte('launch_at', hi)
-  let total = 0, sent = 0, suppressed = 0, retrying = 0
+  let total = 0, sent = 0, suppressed = 0, retrying = 0, demoSkipped = 0
   for (const drop of drops || []) {
+    // Demo drops never send anything.
+    if (await isDemoDrop(sb, drop)) { demoSkipped += 1; continue }
     const { data: recipients } = await sb.from('waitlist_entries').select('email,name').eq('drop_id', drop.id)
     total += (recipients || []).length
     if (!dryRun) {
@@ -62,7 +65,7 @@ async function runReminderSweep({ sb, baseUrl, dryRun }) {
       sent += (recipients || []).length
     }
   }
-  return { drops: (drops || []).length, sent, suppressed, retrying, total }
+  return { drops: (drops || []).length, sent, suppressed, retrying, demo_skipped: demoSkipped, total }
 }
 
 async function runLiveSweep({ sb, baseUrl, dryRun }) {
@@ -77,8 +80,10 @@ async function runLiveSweep({ sb, baseUrl, dryRun }) {
     .is('live_notified_at', null)
     .gte('launch_at', lo)
     .lte('launch_at', hi)
-  let total = 0, sent = 0, suppressed = 0, retrying = 0
+  let total = 0, sent = 0, suppressed = 0, retrying = 0, demoSkipped = 0
   for (const drop of drops || []) {
+    // Demo drops never send anything.
+    if (await isDemoDrop(sb, drop)) { demoSkipped += 1; continue }
     const { data: recipients } = await sb.from('waitlist_entries').select('email,name').eq('drop_id', drop.id)
     total += (recipients || []).length
     if (!dryRun) {
@@ -94,7 +99,7 @@ async function runLiveSweep({ sb, baseUrl, dryRun }) {
       sent += (recipients || []).length
     }
   }
-  return { drops: (drops || []).length, sent, suppressed, retrying, total }
+  return { drops: (drops || []).length, sent, suppressed, retrying, demo_skipped: demoSkipped, total }
 }
 
 async function runAllSweeps(request, { kinds, dryRun }) {

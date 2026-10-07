@@ -185,10 +185,14 @@ function PublicLaunchPageInner() {
   }, [closesAtMs])
   const isClosed = Number.isFinite(closesAtMs) && closesAtMs <= Date.now()
 
+  // Demo drop: drops.is_demo or the vendor's direct_vendors.is_demo. The
+  // order card renders fully but ordering is off (same as a draft preview).
+  const isDemo = !!(drop?.is_demo || drop?.vendor_is_demo)
+
   // Live drops with an order card (not announcements, not demo pages) get
   // the two-column layout: sticky order card on desktop, "Order now" bar on
   // mobile. Everything else keeps the original single-column layout.
-  const splitLayout = !!drop && isLive && mode !== 'announcement' && !drop.is_demo
+  const splitLayout = !!drop && isLive && mode !== 'announcement' && !isDemo
   const [orderCardEl, setOrderCardEl] = useState(null)
   const [showOrderBar, setShowOrderBar] = useState(false)
   useEffect(() => {
@@ -219,7 +223,7 @@ function PublicLaunchPageInner() {
 
   const join = async (e) => {
     e.preventDefault()
-    if (!drop || drop.status === 'draft') return
+    if (!drop || drop.status === 'draft' || isDemo) return
     setSubmitting(true)
     try {
       const r = await fetch(`/api/drops/${drop.id}/waitlist`, {
@@ -237,7 +241,7 @@ function PublicLaunchPageInner() {
   }
 
   const reserve = async () => {
-    if (drop?.status === 'draft') return
+    if (drop?.status === 'draft' || isDemo) return
     if (!drop || !email) return toast.error('Enter your email first.')
     setReserving(true)
     try {
@@ -273,8 +277,11 @@ function PublicLaunchPageInner() {
   // entry, no payment), whatever reservation_enabled / hold are set to.
   const reservationStripeAvailable = STRIPE_RESERVATIONS_ENABLED && drop.reservation_enabled && drop.reservation_hold_cents > 0
   // Draft opened with ?preview=true (the no-preview case returned not-found
-  // above). Panels render fully but their submit stays disabled.
+  // above). Panels render fully but their submit stays disabled. Demo drops
+  // use the same switch with their own note.
   const isDraft = drop.status === 'draft'
+  const orderingOff = isDraft || isDemo
+  const orderingOffNote = isDemo ? DEMO_NOTE : PREVIEW_NOTE
   let rightRail
   if (joined) {
     rightRail = (
@@ -298,7 +305,8 @@ function PublicLaunchPageInner() {
         setName={setName}
         submitting={submitting}
         onJoin={join}
-        preview={isDraft}
+        preview={orderingOff}
+        previewNote={orderingOffNote}
       />
     )
   } else if (mode === 'pre-order' || mode === 'deposit') {
@@ -307,7 +315,8 @@ function PublicLaunchPageInner() {
         drop={drop}
         products={products}
         isDeposit={mode === 'deposit'}
-        preview={isDraft}
+        preview={orderingOff}
+        previewNote={orderingOffNote}
         closed={isClosed}
         onStockChanged={reloadStock}
       />
@@ -321,7 +330,8 @@ function PublicLaunchPageInner() {
         reservationStatus={reservationStatus}
         reserving={reserving}
         onReserve={reserve}
-        preview={isDraft}
+        preview={orderingOff}
+        previewNote={orderingOffNote}
         closed={isClosed}
       />
     )
@@ -338,7 +348,8 @@ function PublicLaunchPageInner() {
         setName={setName}
         submitting={submitting}
         onJoin={join}
-        preview={isDraft}
+        preview={orderingOff}
+        previewNote={orderingOffNote}
       />
     )
   }
@@ -353,7 +364,7 @@ function PublicLaunchPageInner() {
     : null
   // Stack the banners: draft banner above demo banner if both apply. Header
   // top offset is computed below.
-  const bannerCount = (isDraft ? 1 : 0) + (drop.is_demo ? 1 : 0)
+  const bannerCount = (isDraft ? 1 : 0) + (isDemo ? 1 : 0)
   const headerTopClass = bannerCount === 2 ? 'top-[72px]' : bannerCount === 1 ? 'top-9' : 'top-0'
 
   // Page pieces shared by the single-column and two-column layouts.
@@ -515,9 +526,9 @@ function PublicLaunchPageInner() {
           </div>
         </div>
       )}
-      {drop.is_demo && (
-        // Non-dismissible "demo page" banner. Renders only when drops.is_demo
-        // is true. Warm amber / muted — intentionally distinct from real
+      {isDemo && (
+        // Non-dismissible "demo page" banner. Renders only on demo drops
+        // (drops.is_demo or the vendor's is_demo). Warm amber / muted — intentionally distinct from real
         // success/error UI. Pushes the floating header down by ~36px (see
         // `top-9` override on the header below).
         <div className="relative z-40 bg-amber-100/80 text-amber-900 border-b border-amber-200/60 text-[12px] leading-snug text-center py-2 px-4">
@@ -527,7 +538,7 @@ function PublicLaunchPageInner() {
       <header className={`absolute inset-x-0 z-30 ${headerTopClass}`}>
         <div className="container flex items-center justify-between py-6">
           <Link href="/" className="inline-flex items-center" aria-label="Dropvine home">
-            <DropvineLogo height={drop.is_demo ? 60 : 44} />
+            <DropvineLogo height={isDemo ? 60 : 44} />
           </Link>
           {drop.vendor_business_name ? (
             <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Drop — {drop.vendor_business_name}</div>
@@ -605,7 +616,7 @@ function PublicLaunchPageInner() {
           </section>
 
           {/* Countdown / live state — hidden only on demo pages. */}
-          {!drop.is_demo && <StateBand drop={drop} isLive={isLive} mode={mode} isClosed={isClosed} />}
+          {!isDemo && <StateBand drop={drop} isLive={isLive} mode={mode} isClosed={isClosed} />}
 
           {/* Body */}
           <section className="container max-w-5xl py-12 md:py-16">
@@ -673,9 +684,12 @@ function StateBandCompact(props) {
 // Right-rail panels
 // --------------------------------------------------------------------------
 
-// Shown directly above a panel's disabled submit button on draft previews.
-function PreviewOnlyNote() {
-  return <p className="text-xs text-muted-foreground" data-testid="preview-only-note">Preview only. Ordering turns on when you publish.</p>
+// Shown directly above a panel's disabled submit button on draft previews
+// and demo drops.
+const PREVIEW_NOTE = 'Preview only. Ordering turns on when you publish.'
+const DEMO_NOTE = 'This is a demo. Ordering is turned off.'
+function PreviewOnlyNote({ note = PREVIEW_NOTE }) {
+  return <p className="text-xs text-muted-foreground" data-testid="preview-only-note">{note}</p>
 }
 
 // Replaces an order panel's form once closes_at has passed.
@@ -687,7 +701,7 @@ function OrdersClosedPanel() {
   )
 }
 
-function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoin, preview }) {
+function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoin, preview, previewNote }) {
   // Fix 19 — "Be present at release" copy was removed; headline now mirrors
   // the action ("Join the waitlist" / "Reserve your spot") cleanly.
   const headline = mode === 'reservation'
@@ -714,7 +728,7 @@ function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoi
           <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Email</Label>
           <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
         </div>
-        {preview ? <PreviewOnlyNote /> : null}
+        {preview ? <PreviewOnlyNote note={previewNote} /> : null}
         <button disabled={submitting || preview} className="w-full text-white h-12 text-sm hover:opacity-90 disabled:opacity-50 inline-flex items-center justify-center gap-2" style={{ backgroundColor: DROPVINE_GREEN }} data-testid="waitlist-submit">
           {submitting ? 'Joining…' : <>{cta} <ArrowRight className="h-4 w-4" /></>}
         </button>
@@ -723,7 +737,7 @@ function WaitlistPanel({ mode, email, setEmail, name, setName, submitting, onJoi
   )
 }
 
-function ReservationStripePanel({ drop, email, setEmail, reservationStatus, reserving, onReserve, preview, closed }) {
+function ReservationStripePanel({ drop, email, setEmail, reservationStatus, reserving, onReserve, preview, previewNote, closed }) {
   if (reservationStatus === 'held') {
     return (
       <div className="flex items-start gap-3 border border-foreground p-4 bg-foreground text-background" data-testid="reservation-held">
@@ -750,7 +764,7 @@ function ReservationStripePanel({ drop, email, setEmail, reservationStatus, rese
         <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Email</Label>
         <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" />
       </div>
-      {preview ? <div className="mt-6"><PreviewOnlyNote /></div> : null}
+      {preview ? <div className="mt-6"><PreviewOnlyNote note={previewNote} /></div> : null}
       <button onClick={preview ? undefined : onReserve} disabled={reserving || preview} className={`${preview ? 'mt-2' : 'mt-6'} w-full h-12 text-sm text-white hover:opacity-90 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50`} style={{ backgroundColor: DROPVINE_GREEN }} data-testid="reservation-stripe-submit">
         <Lock className="h-3.5 w-3.5" /> {reserving ? 'Redirecting to Stripe…' : 'Reserve via Stripe'}
       </button>
@@ -785,7 +799,7 @@ function isPreorderSoldOut(drop, products) {
     : capacityAvailable(drop) === 0
 }
 
-function PreorderPanel({ drop, products, isDeposit, preview, closed, onStockChanged }) {
+function PreorderPanel({ drop, products, isDeposit, preview, previewNote, closed, onStockChanged }) {
   const hasProducts = Array.isArray(products) && products.length > 0
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -1081,7 +1095,7 @@ function PreorderPanel({ drop, products, isDeposit, preview, closed, onStockChan
             </>
           ) : null}
         </div>
-        {preview ? <PreviewOnlyNote /> : null}
+        {preview ? <PreviewOnlyNote note={previewNote} /> : null}
         <button
           type="submit"
           disabled={preview || step === 'submitting' || (hasProducts && totals.totalQty <= 0) || !name.trim() || !email.trim()}

@@ -45,41 +45,44 @@ export function Nav({ variant = 'light' }) {
     return () => { cancelled = true }
   }, [])
 
+  // Every link is at least 44px tall. Phones (below md): logo + account
+  // links / CTA on the first row, page links on a second full-width row. No
+  // menu, nothing hidden. "Sign in" sits in the page-link row on phones so
+  // the first row fits at 390px; it is the same link either way.
+  const linkClass = 'inline-flex items-center min-h-[44px] text-muted-foreground hover:text-foreground transition-colors'
   return (
     <header className="absolute top-0 left-0 right-0 z-30">
-      <div className="container flex items-center justify-between py-6 md:py-8">
-        <Link href="/" className="inline-flex items-center font-serif text-x1 tracking-tighter" aria-label="Dropvine home">
+      <div className="container flex flex-wrap items-center justify-between gap-x-4 py-2 md:flex-nowrap md:py-8">
+        <Link href="/" className="inline-flex items-center min-h-[44px] font-serif text-x1 tracking-tighter" aria-label="Dropvine home">
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={logoUrl}
               alt="Dropvine"
               height={40}
-              style={{ height: '60px', width: 'auto' }}
-              className="block"
+              className="block h-11 w-auto md:h-[60px]"
               onError={() => setLogoUrl(DROPVINE_LOGO_URL === logoUrl ? null : DROPVINE_LOGO_URL)}
             />
           ) : (
             <>Dropvine<span className="align-super text-[8px] ml-0.5 text-muted-foreground">®</span></>
           )}
         </Link>
-        <nav className="hidden md:flex items-center gap-10 text-sm">
-          <Link href="/#how" className="text-muted-foreground hover:text-foreground transition-colors">How it works</Link>
-          <Link href="/drops" className="text-muted-foreground hover:text-foreground transition-colors">Fresh Drops</Link>
-          <Link href="/#example" className="text-muted-foreground hover:text-foreground transition-colors">Example</Link>
-          <Link href="/tools" className="text-muted-foreground hover:text-foreground transition-colors">Tools</Link>
-          <Link href="/#pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
+        <nav className="order-last w-full flex flex-wrap items-center gap-x-5 text-sm md:order-none md:w-auto md:gap-10">
+          <Link href="/drops" className={linkClass}>Shop drops</Link>
+          <Link href="/#pricing" className={linkClass}>Pricing</Link>
+          <Link href="/tools" className={linkClass}>Free tools</Link>
+          {!user ? <Link href="/login" className={`${linkClass} md:hidden`}>Sign in</Link> : null}
         </nav>
-        <div className="flex items-center gap-2 md:gap-5 text-sm">
+        <div className="flex items-center gap-4 md:gap-5 text-sm">
           {user ? (
             <>
-              <Link href="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors hidden sm:inline">Dashboard</Link>
-              <button onClick={() => signOut?.()} className="text-muted-foreground hover:text-foreground transition-colors">Sign out</button>
+              <Link href="/dashboard" className={linkClass}>Dashboard</Link>
+              <button onClick={() => signOut?.()} className={linkClass}>Sign out</button>
             </>
           ) : (
             <>
-              <Link href="/login" className="text-muted-foreground hover:text-foreground transition-colors hidden sm:inline">Sign in</Link>
-              <Link href={primaryCtaHref} className="inline-flex items-center gap-2 border border-olive text-olive px-4 py-2 hover:bg-olive hover:text-background transition-colors">
+              <Link href="/login" className={`${linkClass} hidden md:inline-flex`}>Sign in</Link>
+              <Link href={primaryCtaHref} className="inline-flex items-center min-h-[44px] gap-2 border border-olive text-olive px-4 hover:bg-olive hover:text-background transition-colors">
                 {primaryCtaText} <span aria-hidden>→</span>
               </Link>
             </>

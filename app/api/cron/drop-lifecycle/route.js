@@ -25,6 +25,7 @@ import {
 } from '@/lib/email/notifications'
 import { sendGeneric as sendSms, smsEnabled } from '@/lib/notifications/channels/sms'
 import { normalizeTier } from '@/lib/vendors/visibility'
+import { isDemoDrop } from '@/lib/drops/demo'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -332,6 +333,20 @@ async function runCron(request) {
   const items = []
   const failed = []
   for (const row of due || []) {
+    // Demo drops never send anything (any kind). Stamp sent_at like any
+    // other skipped row so it isn't picked up again.
+    const { data: rowDrop } = await supa
+      .from('drops').select('id, creator_id, is_demo').eq('id', row.drop_id).maybeSingle()
+    if (await isDemoDrop(supa, rowDrop)) {
+      if (!dryRun) {
+        await supa
+          .from('email_schedules')
+          .update({ sent_at: new Date().toISOString(), recipients: 0, error: null })
+          .eq('id', row.id)
+      }
+      items.push({ id: row.id, drop_id: row.drop_id, kind: row.kind, skipped: 'demo drop', dryRun })
+      continue
+    }
     if (dryRun) {
       items.push({ id: row.id, drop_id: row.drop_id, kind: row.kind, dryRun: true })
       continue

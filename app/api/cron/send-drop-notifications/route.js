@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { fanoutDropNotifications } from '@/lib/notifications/drop-fanout'
+import { isDemoDrop } from '@/lib/drops/demo'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -33,7 +34,7 @@ async function run({ dryRun = false } = {}) {
   // if the columns don’t exist the query errors and we degrade to no-op.
   const { data: due, error } = await supa
     .from('drops')
-    .select('id, handle, title, creator_id, launch_at, notify_at, notified_at, status')
+    .select('id, handle, title, creator_id, launch_at, notify_at, notified_at, status, is_demo')
     .eq('status', 'published')
     .lte('notify_at', nowIso)
     .is('notified_at', null)
@@ -55,6 +56,11 @@ async function run({ dryRun = false } = {}) {
   const failed = []
 
   for (const drop of due || []) {
+    // Demo drops never send anything.
+    if (await isDemoDrop(supa, drop)) {
+      processed.push({ id: drop.id, handle: drop.handle, skipped: 'demo drop' })
+      continue
+    }
     if (dryRun) {
       processed.push({ id: drop.id, handle: drop.handle, dryRun: true })
       continue

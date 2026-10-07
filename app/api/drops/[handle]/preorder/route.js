@@ -42,7 +42,7 @@
 //
 // Returns 201 { order } for a new order or 200 { order, duplicate: true } for
 // a repeat, where `order` is only { short_code, venmo_note, venmo_handle,
-// amount_cents, is_deposit } — or 400 (incl. $0 orders) / 409 (out of stock)
+// amount_cents, is_deposit } — or 400 (incl. $0 orders and demo drops) / 409 (out of stock)
 // / 422 / 500 / 503 on errors. NEVER fails on email
 // failure — the order is saved first.
 
@@ -51,6 +51,7 @@ import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { sendDropOrderConfirmation } from '@/lib/email/notifications'
 import { notifyVendorIfSoldOut } from '@/lib/orders/sold-out'
+import { isDemoDrop, DEMO_ORDER_ERROR } from '@/lib/drops/demo'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -115,6 +116,7 @@ export async function POST(request, { params }) {
     .from('drops').select('*').eq('handle', params.handle).maybeSingle()
   if (gErr) return NextResponse.json({ error: gErr.message }, { status: 500 })
   if (!drop) return NextResponse.json({ error: 'not found' }, { status: 404 })
+  if (await isDemoDrop(supa, drop)) return NextResponse.json({ error: DEMO_ORDER_ERROR }, { status: 400 })
 
   // Repeat of a checkout that already created an order (double-click, retry
   // after a dropped connection): hand back that order's payment details only.

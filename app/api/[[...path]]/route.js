@@ -6,6 +6,7 @@ import { notifyWaitlistConfirmed } from '@/lib/notifications'
 import { isVendorPageAvailable, normalizeTier } from '@/lib/vendors/visibility'
 import { getSignedInUserId } from '@/lib/auth/server-user'
 import { requireAdminRole, ADMIN_ROLES } from '@/lib/markets/admin-auth'
+import { isDemoDrop, DEMO_ORDER_ERROR } from '@/lib/drops/demo'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -152,6 +153,9 @@ export async function GET(request, { params }) {
       // Dropvine" watermark for Shop vendors. (profiles.plan_tier can't hold
       // 'shop', so creator_plan_tier can't drive that.)
       let vendorTier = 'free'
+      // direct_vendors.is_demo — the page treats the drop as a demo (ordering
+      // off) when this or drops.is_demo is true.
+      let vendorIsDemo = false
       if (data.creator_id) {
         try {
           const { data: prof } = await sb
@@ -164,7 +168,7 @@ export async function GET(request, { params }) {
         try {
           const { data: dv } = await sb
             .from('direct_vendors')
-            .select('slug, business_name, category, location_city, location_state, tier, active')
+            .select('slug, business_name, category, location_city, location_state, tier, active, is_demo')
             .eq('creator_id', data.creator_id)
             .maybeSingle()
           if (dv) {
@@ -174,6 +178,7 @@ export async function GET(request, { params }) {
             vendorBusinessName = dv.business_name || null
             vendorSlug = dv.slug || null
             vendorTier = normalizeTier(dv.tier)
+            vendorIsDemo = !!dv.is_demo
             if (dv.slug && dv.active !== false) {
               const { data: vendorDrops } = await sb
                 .from('drops')
@@ -241,6 +246,7 @@ export async function GET(request, { params }) {
         vendor_slug: vendorSlug,
         vendor_page_available: vendorPageAvailable,
         vendor_tier: vendorTier,
+        vendor_is_demo: vendorIsDemo,
         capacity_available: capacityAvailable,
       }, products, publish_token: publishToken })
     }
@@ -248,7 +254,7 @@ export async function GET(request, { params }) {
     if (!found) return err('not found', 404)
     if (found.status === 'draft' && !preview) return err('not found', 404)
     if (found.status === 'archived' && !preview) return err('not found', 404)
-    return json({ drop: { ...withoutCreatorId(found), creator_plan_tier: 'free', vendor_category: null, vendor_location_city: null, vendor_location_state: null, vendor_business_name: null, vendor_slug: null, vendor_page_available: false, vendor_tier: 'free' }, products: [], publish_token: null })
+    return json({ drop: { ...withoutCreatorId(found), creator_plan_tier: 'free', vendor_category: null, vendor_location_city: null, vendor_location_state: null, vendor_business_name: null, vendor_slug: null, vendor_page_available: false, vendor_tier: 'free', vendor_is_demo: false }, products: [], publish_token: null })
   }
 
   // GET /api/launches/[id]/reservations
@@ -378,6 +384,7 @@ export async function POST(request, { params }) {
     if (!email) return err('email required')
     const drop = await getLaunch(id)
     if (!drop) return err('drop not found', 404)
+    if (await isDemoDrop(getSupabaseAdmin() || getSupabaseServer(), drop)) return err(DEMO_ORDER_ERROR, 400)
     if (drop.status === 'draft') return err('drop is not published', 400)
     // Announcement signups stay open after close (the page keeps that form).
     const isAnnouncement = (drop.collection_mode || '').toLowerCase().trim() === 'announcement'
@@ -405,15 +412,16 @@ export async function POST(request, { params }) {
   // POST /api/launches/[id]/reserve  -> Real Stripe Checkout Session
   // body: { email, origin_url }
   // Switched off: always 400, no Stripe session. Reservation drops use the
-  // no-payment waitlist form instead.
+  // no-payment waitlist form instead. Demo drops get the demo error first.
   if (path.match(/^drops\/[^/]+\/reserve$/)) {
-    if (!STRIPE_RESERVATIONS_ENABLED) return err('Stripe reservations are not available', 400)
     const id = path.split('/')[1]
+    const drop = await getLaunch(id)
+    if (drop && await isDemoDrop(getSupabaseAdmin() || getSupabaseServer(), drop)) return err(DEMO_ORDER_ERROR, 400)
+    if (!STRIPE_RESERVATIONS_ENABLED) return err('Stripe reservations are not available', 400)
     const { email, origin_url } = body
     if (!email) return err('email required')
     if (!origin_url) return err('origin_url required')
 
-    const drop = await getLaunch(id)
     if (!drop) return err('drop not found', 404)
     if (drop.status === 'draft') return err('drop is not published', 400)
     if (drop.closes_at && new Date(drop.closes_at) <= new Date()) return err('drop is closed', 400)

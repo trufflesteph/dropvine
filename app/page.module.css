@@ -1,0 +1,100 @@
+/* Sales page styles — translated from docs/sales-page-mockup.html. */
+
+.page {
+  font-family: var(--font-sp-sans), sans-serif;
+  color: #3B342E;
+  background: #FBF6EE;
+  width: 100%;
+  /* Undo the global body font-feature-settings (set for Inter). */
+  font-feature-settings: normal;
+}
+.page a { color: #2F5128; }
+.page a:hover { color: #1F3A1A; }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; box-sizing: border-box; }
+
+.h2 { font-family: var(--font-sp-serif), Georgia, serif; font-weight: 500; font-size: 44px; line-height: 1.1; color: #1D3461; margin: 0; letter-spacing: -0.01em; }
+.eyebrow { font-family: var(--font-sp-sans), sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #8A521C; margin: 0; }
+.body { font-family: var(--font-sp-sans), sans-serif; font-size: 18px; line-height: 1.65; color: #3B342E; margin: 0; }
+.serif { font-family: var(--font-sp-serif), Georgia, serif; }
+
+.page .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 28px; background: #2F5128; color: #FFFFFF; font-family: var(--font-sp-sans), sans-serif; font-weight: 700; font-size: 16px; border-radius: 999px; text-decoration: none; }
+.page .btn:hover { background: #1F3A1A; color: #FFFFFF; }
+.page .btnOutline { background: #FFFFFF; color: #2F5128; border: 2px solid #2F5128; }
+.page .btnOutline:hover { background: #F3F7EF; color: #1F3A1A; }
+.page .btnSmall { min-height: 44px; padding: 0 22px; font-size: 15px; }
+.page .btnCream { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 28px; background: #FBF6EE; color: #1D3461; font-weight: 700; font-size: 16px; border-radius: 999px; text-decoration: none; }
+.page .btnCream:hover { color: #1D3461; background: #FFFFFF; }
+
+.photo { background: #E6D7BE; border-radius: 20px; overflow: hidden; box-sizing: border-box; }
+.photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Header */
+.header { border-bottom: 1px solid #EADFCC; background: #FFFDF9; }
+.headerInner { display: flex; align-items: center; gap: 28px; min-height: 80px; }
+.logoLink { display: flex; align-items: center; min-height: 44px; margin-right: auto; }
+.logoLink img { height: 38px; width: auto; display: block; }
+.navLinks { display: flex; gap: 28px; align-items: center; }
+.page .navLink { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; font-size: 15px; color: #3B342E; text-decoration: none; }
+
+/* Hero */
+.hero { padding: 80px 0 96px; }
+.split { display: flex; flex-wrap: wrap; gap: 56px; align-items: center; }
+.heroCopy { flex: 1 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+.heroH1 { font-family: var(--font-sp-serif), Georgia, serif; font-weight: 500; font-size: 66px; line-height: 1.04; color: #1D3461; margin: 0; letter-spacing: -0.02em; }
+.heroActions { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
+.page .textLink { font-weight: 700; font-size: 16px; color: #1D3461; text-decoration: underline; }
+.heroVisual { flex: 1 1 420px; min-width: 0; position: relative; min-height: 560px; display: flex; align-items: center; justify-content: center; }
+.heroPhoto { position: absolute; inset: 0 0 0 40px; }
+.phone { position: relative; width: 280px; background: #1C1A18; border-radius: 40px; padding: 12px; box-shadow: 0 30px 60px rgba(60,40,20,0.25); }
+.phoneScreen { background: #FFFDF8; border-radius: 30px; overflow: hidden; display: flex; flex-direction: column; }
+.phonePhoto { height: 150px; }
+.phoneBody { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.phoneRow { display: flex; justify-content: space-between; font-size: 12px; border-bottom: 1px solid #EFE6D6; padding-bottom: 8px; }
+
+/* Sections */
+.section { padding: 104px 0; }
+.sectionTan { background: #F2E8D8; padding: 104px 0; }
+.stack { display: flex; flex-direction: column; gap: 48px; }
+.heading { display: flex; flex-direction: column; gap: 14px; }
+
+.bubble { background: #FFFFFF; padding: 14px 18px; font-size: 16px; box-shadow: 0 2px 0 #E2D4BC; }
+.bubbleIn { align-self: flex-start; border-radius: 20px 20px 20px 6px; }
+.bubbleOut { align-self: flex-end; border-radius: 20px 20px 6px 20px; }
+
+.stepCard { background: #FFFFFF; border: 1px solid #EADFCC; border-radius: 24px; padding: 32px; display: flex; flex-direction: column; gap: 14px; }
+.h3 { margin: 0; font-family: var(--font-sp-serif), Georgia, serif; font-weight: 500; color: #1D3461; }
+
+.demoBand { background: #1D3461; border-radius: 32px; padding: 56px; display: flex; flex-wrap: wrap; gap: 32px; align-items: center; justify-content: space-between; }
+
+.table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 460px; }
+.table th { padding: 16px 20px; font-weight: 700; }
+.table td { padding: 18px 20px; }
+.table tbody tr { border-top: 1px solid #EADFCC; }
+
+.priceCard { border-radius: 28px; padding: 36px; display: flex; flex-direction: column; gap: 18px; }
+.priceCard ul { margin: 0; padding-left: 20px; list-style: disc; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.5; flex-grow: 1; }
+.pill { margin: 0; align-self: flex-start; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 6px 12px; border-radius: 999px; }
+
+.faqQ { margin: 0; font-size: 18px; font-weight: 700; color: #1D3461; }
+.faqA { margin: 0; font-size: 16px; line-height: 1.6; }
+
+/* Footer */
+.footer { padding: 48px 0; }
+.footerInner { display: flex; flex-wrap: wrap; gap: 24px; align-items: center; justify-content: space-between; }
+.footerLogo { height: 30px; width: auto; display: block; }
+.footerNav { display: flex; flex-wrap: wrap; column-gap: 24px; font-size: 14px; font-weight: 600; }
+.page .footerLink { display: inline-flex; align-items: center; min-height: 44px; color: #3B342E; text-decoration: none; }
+
+@media (max-width: 760px) {
+  .h2 { font-size: 34px; }
+  .heroH1 { font-size: 46px; }
+  .wrap { padding: 0 20px; }
+
+  /* Phones: logo + trial button on the first row, nav links below. */
+  .headerInner { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'logo btn' 'links links'; column-gap: 16px; row-gap: 0; padding-top: 12px; padding-bottom: 4px; min-height: 0; }
+  .logoLink { grid-area: logo; margin-right: 0; }
+  .headerBtn { grid-area: btn; }
+  .navLinks { grid-area: links; gap: 20px; }
+  .page .navLink { font-size: 14px; }
+}

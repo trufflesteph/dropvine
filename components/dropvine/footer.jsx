@@ -41,18 +41,20 @@ export function Footer() {
         </div>
         <div>
           <div className="uppercase tracking-[0.2em] text-[11px] text-muted-foreground mb-4">Platform</div>
-          <ul className="space-y-2">
-            <li><a href="/#how" className="hover:text-foreground text-muted-foreground">How it works</a></li>
-            <li><a href="/#pricing" className="hover:text-foreground text-muted-foreground">Pricing</a></li>
-            <li><a href="/dashboard" className="hover:text-foreground text-muted-foreground">Dashboard</a></li>
+          {/* Links are 44px tall so they're tappable on phones. */}
+          <ul>
+            <li><a href="/drops" className="inline-flex items-center min-h-[44px] hover:text-foreground text-muted-foreground">Shop drops</a></li>
+            <li><a href="/#pricing" className="inline-flex items-center min-h-[44px] hover:text-foreground text-muted-foreground">Pricing</a></li>
+            <li><a href="/tools" className="inline-flex items-center min-h-[44px] hover:text-foreground text-muted-foreground">Free tools</a></li>
+            <li><a href="/dashboard" className="inline-flex items-center min-h-[44px] hover:text-foreground text-muted-foreground">Dashboard</a></li>
           </ul>
         </div>
         <div>
           <div className="uppercase tracking-[0.2em] text-[11px] text-muted-foreground mb-4">Company</div>
-          <ul className="space-y-2">
-            <li><a href="/contact" className="hover:text-foreground text-muted-foreground">Contact</a></li>
-            <li><a href="/terms" className="hover:text-foreground text-muted-foreground">Terms of Service</a></li>
-            <li><a href="/privacy" className="hover:text-foreground text-muted-foreground">Privacy Policy</a></li>
+          <ul>
+            <li><a href="mailto:hello@dropvine.pro" className="inline-flex items-center min-h-[44px] hover:text-foreground text-muted-foreground">Contact</a></li>
+            <li><a href="/terms" className="inline-flex items-center min-h-[44px] hover:text-foreground text-muted-foreground">Terms of Service</a></li>
+            <li><a href="/privacy" className="inline-flex items-center min-h-[44px] hover:text-foreground text-muted-foreground">Privacy Policy</a></li>
           </ul>
         </div>
       </div>
