@@ -6,6 +6,7 @@ import { useAuth, mockUserHeaders } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import { ArrowUpRight, Plus, Calendar, Users, Sparkles, Loader2, Eye } from 'lucide-react'
 import { TALLY_NEW_DROP_URLS } from '@/lib/dashboard/new-drop-url'
+import { formatEmailDateTime } from '@/lib/email/format'
 import { DashboardSidebar, DashboardMobileNav, useUnpaidOrderCount } from '@/components/dropvine/dashboard-nav'
 
 export default function DashboardPage() {
@@ -18,6 +19,8 @@ export default function DashboardPage() {
   const [creatingDrop, setCreatingDrop] = useState(false)
   // Vendor tier drives which Tally form URL is used. Falls back to 'free'.
   const [vendorTier, setVendorTier] = useState('free')
+  // direct_vendors.trial_ends_at; null = no trial (vendors from before trials).
+  const [trialEndsAt, setTrialEndsAt] = useState(null)
   const unpaidCount = useUnpaidOrderCount(user, configured)
 
   useEffect(() => {
@@ -40,7 +43,8 @@ export default function DashboardPage() {
 
   useEffect(() => { if (user) reload() }, [user])
 
-  // Fetch the vendor's tier so the "New drop" CTA routes to the right form.
+  // Fetch the vendor's tier so the "New drop" CTA routes to the right form,
+  // and the trial end date for the trial line.
   useEffect(() => {
     if (!user) return
     let cancelled = false
@@ -51,6 +55,7 @@ export default function DashboardPage() {
         const d = await r.json()
         if (cancelled) return
         if (d?.vendor?.tier) setVendorTier(d.vendor.tier)
+        setTrialEndsAt(d?.vendor?.trial_ends_at || null)
       } catch {}
     })()
     return () => { cancelled = true }
@@ -105,6 +110,8 @@ export default function DashboardPage() {
 
   const upcoming = drops.filter(l => new Date(l.launch_at) > new Date())
   const totalWaitlist = 0
+  const trialEndLabel = formatEmailDateTime(trialEndsAt)
+  const trialActive = !!trialEndLabel && new Date(trialEndsAt) > new Date()
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -114,6 +121,13 @@ export default function DashboardPage() {
       {/* Main */}
       <main className="flex-1 min-w-0">
         <DashboardMobileNav active="drops" unpaidCount={unpaidCount} />
+        {trialEndLabel ? (
+          <div className="px-6 md:px-12 py-3 border-b border-border text-sm text-muted-foreground" data-testid="trial-status">
+            {trialActive
+              ? `Free trial: ends ${trialEndLabel}.`
+              : "Your free trial has ended. We'll be in touch about your plan."}
+          </div>
+        ) : null}
         <header className="border-b border-border">
           <div className="px-6 md:px-12 py-8 flex items-end justify-between gap-4 flex-wrap">
             <div>

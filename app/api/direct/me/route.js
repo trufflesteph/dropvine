@@ -3,8 +3,8 @@
 //
 // Tiny "who am I" endpoint for signed-in vendors. Used by the dashboard
 // to look up the current vendor's tier (so the "New drop" CTA can route
-// to the right Tally form) and by the signup flow to persist tier_intent
-// before redirecting the new vendor to Tally.
+// to the right Tally form; trial_ends_at for the trial line) and by the
+// signup flow to save category and location.
 //
 // Auth: the signed-in user from the Supabase session (lib/auth/server-user.js);
 // 401 without one. Service-role supabase client bypasses RLS so we get a
@@ -28,17 +28,17 @@ export async function GET(request) {
   const supa = getSupabaseAdmin()
   if (!supa) return bad('supabase not configured', 500)
 
-  // Try selecting tier_intent first; fall back to the legacy columns if the
-  // 2026-06 tier-intent migration hasn't been applied to this environment.
+  // Try selecting tier_intent and trial_ends_at first; fall back to the legacy
+  // columns if either migration hasn't been applied to this environment.
   let vendor = null
   let usedFallback = false
   {
     const { data, error } = await supa
       .from('direct_vendors')
-      .select('id, slug, business_name, tier, tier_intent, active, category, location_city, location_state')
+      .select('id, slug, business_name, tier, tier_intent, trial_ends_at, active, category, location_city, location_state')
       .eq('creator_id', userId)
       .maybeSingle()
-    if (error && /column .*tier_intent.* does not exist|schema cache/i.test(error.message)) {
+    if (error && /column .*(tier_intent|trial_ends_at).* does not exist|schema cache/i.test(error.message)) {
       usedFallback = true
     } else if (error) {
       return bad(error.message, 500)
@@ -53,7 +53,7 @@ export async function GET(request) {
       .eq('creator_id', userId)
       .maybeSingle()
     if (error) return bad(error.message, 500)
-    vendor = data ? { ...data, tier_intent: null } : null
+    vendor = data ? { ...data, tier_intent: null, trial_ends_at: null } : null
   }
   // Also fetch the email so the dashboard can pass it through to Tally as a
   // hidden param. We pull from auth.users via the admin API since profiles
@@ -67,10 +67,11 @@ export async function GET(request) {
   return NextResponse.json({ ok: true, vendor: vendor || null, email })
 }
 
-// POST body: { tier_intent: 'free' | 'maker' | 'shop' | null }
-// Used by /signup right after a successful auth.signUp() so the chosen
-// pricing tier persists on the row even if the visitor abandons the
-// subsequent Tally form. Idempotent — no-op if vendor row not yet provisioned.
+// POST body: { tier_intent?: 'free' | 'maker' | 'shop' | null, category?,
+//              location_city?, location_state? }
+// Used by /signup right after a successful auth.signUp() to save category
+// and location (signup no longer sends tier_intent). Idempotent — no-op if
+// vendor row not yet provisioned.
 export async function POST(request) {
   const userId = await getSignedInUserId(request)
   if (!userId) return bad('not signed in', 401)
@@ -87,13 +88,16 @@ export async function POST(request) {
   const supa = getSupabaseAdmin()
   if (!supa) return bad('supabase not configured', 500)
 
-  const patch = { tier_intent: intent }
+  // Signup no longer sends tier_intent; only write it when the caller does.
+  const patch = {}
+  if ('tier_intent' in body) patch.tier_intent = intent
   const category = body?.category ? String(body.category).trim() : null
   const locationCity = body?.location_city ? String(body.location_city).trim() : null
   const locationState = body?.location_state ? String(body.location_state).trim() : null
   if (category) patch.category = category
   if (locationCity) patch.location_city = locationCity
   if (locationState) patch.location_state = locationState
+  if (!Object.keys(patch).length) return NextResponse.json({ ok: true, vendor_id: null, skipped: 'nothing to update' })
 
   const { data, error } = await supa
     .from('direct_vendors')

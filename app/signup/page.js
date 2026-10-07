@@ -2,39 +2,16 @@
 import Link from 'next/link'
 import { DropvineLogo } from '@/components/dropvine/logo'
 import { Suspense, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useAuth, mockUserHeaders } from '@/lib/auth-context'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { VENDOR_CATEGORIES as BUSINESS_CATEGORIES } from '@/lib/vendors/categories'
 
-// -- Tier → post-signup destination --------------------------------------
-// Free goes straight to the dashboard (no upsell). Maker and Shop get
-// routed to Tally so the operator can collect the extended onboarding
-// info before any (future) Stripe charge fires.
-//
-// Phase B: after Tally, route maker/shop through Stripe checkout
-// On Stripe success, redirect to /dashboard
-// Stripe success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?signup=complete`
-const TALLY_MAKER_URL = 'https://tally.so/r/RGbWeJ'
-const TALLY_SHOP_URL  = 'https://tally.so/r/RGbWeJ'
-
-const VALID_TIERS = new Set(['free', 'maker', 'shop'])
-
-function normaliseTier(raw) {
-  const t = (raw || '').toLowerCase().trim()
-  if (!t) return null
-  return VALID_TIERS.has(t) ? t : null
-}
-
-function tallyUrlForTier(tier, email) {
-  const base = tier === 'shop' ? TALLY_SHOP_URL : tier === 'maker' ? TALLY_MAKER_URL : null
-  if (!base) return null
-  const url = new URL(base)
-  if (email) url.searchParams.set('vendor_email', email)
-  return url.toString()
-}
+// Signup doesn't ask for a tier. Every new vendor row starts on Shop with a
+// 30-day trial, set by the handle_new_user_direct_vendor() trigger
+// (supabase/migrations/2026-10-vendor-trials.sql).
 
 export default function SignupPage() {
   return (
@@ -50,10 +27,6 @@ export default function SignupPage() {
 
 function SignupPageInner() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  // ?tier=maker | shop (free or absent = default flow). The marketing
-  // page also emits this param via `app/page.js` (see buildPlans()).
-  const tier = normaliseTier(searchParams.get('tier'))
 
   const { signUp, signIn, configured } = useAuth() || {}
   const [name, setName] = useState('')
@@ -70,7 +43,7 @@ function SignupPageInner() {
     try {
       const signUpData = await signUp(email, password, name)
       // signUp returns `{ user, session }` for real Supabase. The user.id is
-      // what we need to persist tier_intent against direct_vendors.
+      // what we need to save the profile fields against direct_vendors.
       const newUserId = signUpData?.user?.id || signUpData?.id || null
 
       // For mock mode, signUp also signs them in. For real Supabase, attempt
@@ -79,7 +52,7 @@ function SignupPageInner() {
         try { await signIn(email, password) } catch {}
       }
 
-      // Persist tier_intent on the auto-provisioned direct_vendors row.
+      // Save category and location on the auto-provisioned direct_vendors row.
       // Fire-and-forget — never blocks the redirect. The trigger that
       // creates the direct_vendors row runs asynchronously so we accept a
       // "vendor row not yet provisioned" response gracefully.
@@ -90,7 +63,6 @@ function SignupPageInner() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...mockUserHeaders({ id: newUserId }, configured) },
           body: JSON.stringify({
-            tier_intent: tier || 'free',
             category: category || null,
             location_city: city || null,
             location_state: state || null,
@@ -99,25 +71,11 @@ function SignupPageInner() {
       }
 
       toast.success('Welcome to Dropvine.')
-
-      // Route by tier. Maker/Shop go to Tally; everyone else → /dashboard.
-      // Tally URL carries the email as a hidden param so the form
-      // submission can be reconciled back to this vendor in Phase B.
-      const tallyUrl = tallyUrlForTier(tier, email)
-      if (tallyUrl) {
-        window.location.assign(tallyUrl)
-      } else {
-        router.push('/dashboard')
-      }
+      router.push('/dashboard')
     } catch (err) {
       toast.error(err.message || 'Sign up failed')
     } finally { setLoading(false) }
   }
-
-  // Small headline tweak when arriving from a paid pricing card so the
-  // visitor knows they picked the right tier. Purely cosmetic — no form
-  // changes per the spec.
-  const intentLabel = tier === 'shop' ? 'the Shop tier' : tier === 'maker' ? 'the Maker tier' : null
 
   return (
     <main className="min-h-screen grid md:grid-cols-2">
@@ -134,11 +92,6 @@ function SignupPageInner() {
         <div className="w-full max-w-sm">
           <div className="md:hidden mb-12"><Link href="/" aria-label="Dropvine home"><DropvineLogo height={40} /></Link></div>
           <h1 className="font-serif font-light text-4xl tracking-tighter">Create your account.</h1>
-          {intentLabel ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              Signing up for {intentLabel}.
-            </p>
-          ) : null}
           {!configured && (
             <p className="mt-4 text-xs text-muted-foreground border border-dashed border-border p-3 leading-relaxed">
               Mock mode — Supabase keys not yet configured. Account is held in memory for this session.
