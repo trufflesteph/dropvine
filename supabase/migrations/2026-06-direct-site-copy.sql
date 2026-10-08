@@ -1,3 +1,7 @@
+-- DO NOT RE-RUN. The site_config keys this file inserts were retired
+-- on 2026-10-07 when the homepage was rebuilt. Re-running it would
+-- re-insert unused rows.
+
 -- ===========================================================================
 -- Dropvine Direct — seed editable marketing-copy keys into `site_config`
 -- ===========================================================================

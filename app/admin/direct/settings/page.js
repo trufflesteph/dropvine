@@ -5,123 +5,74 @@ import { adminFetch } from '@/lib/markets/admin-client'
 import { toast } from 'sonner'
 import { Loader2, Save, ChevronDown, ChevronRight } from 'lucide-react'
 
-// Schema is key-value: site_config(key text unique, value text). We render a
-// curated set of fields grouped into sections. Adding a new key is a one-line
-// addition to the FIELDS map below.
+// Schema is key-value: site_config(key text unique, value text). Only keys
+// that live code reads are listed here:
+//   • hero_primary_cta, hero_primary_cta_href, logo_url → components/dropvine/nav.jsx
+//   • footer_tagline → components/dropvine/footer.jsx
+//   • logo_url and home_* → app/page.js (defaults in lib/site-config/home-copy.js)
+// Saving upserts, so a key with no row yet is created on first save.
+
+const tierFields = (tier) => [
+  { key: `home_tier_${tier}_price`,    label: 'Price',    type: 'text', help: 'e.g. $24' },
+  { key: `home_tier_${tier}_period`,   label: 'Period',   type: 'text', help: 'e.g. / month' },
+  { key: `home_tier_${tier}_tagline`,  label: 'Tagline',  type: 'text' },
+  { key: `home_tier_${tier}_features`, label: 'Features', type: 'textarea', help: 'One feature per line' },
+]
 
 const SECTIONS = [
   {
-    title: 'Brand', kicker: 'Logo, headline, footer', defaultOpen: true,
+    title: 'Site nav button', kicker: 'Shared nav on Shop drops, Free tools, vendor, review and legal pages (not the homepage)', defaultOpen: true,
     fields: [
-      { key: 'logo_url',        label: 'Logo URL',       type: 'text', help: 'PNG or SVG, square preferred' },
-      { key: 'hero_headline',   label: 'Hero headline',  type: 'text' },
-      { key: 'hero_subtext',    label: 'Hero subtext',   type: 'textarea' },
-      { key: 'hero_cta',        label: 'Hero CTA text',  type: 'text' },
-      { key: 'footer_tagline',  label: 'Footer tagline', type: 'text' },
+      { key: 'hero_primary_cta',      label: 'Button text', type: 'text', help: 'Default: Start your drop' },
+      { key: 'hero_primary_cta_href', label: 'Button link', type: 'text', help: 'Default: /signup' },
     ],
   },
   {
-    title: 'Pricing', kicker: 'Heading shown above the pricing tier cards', defaultOpen: true,
+    title: 'Logo', kicker: 'Shared nav and homepage header and footer', defaultOpen: true,
     fields: [
-      { key: 'pricing_headline', label: 'Pricing headline', type: 'text',     help: 'e.g. “Start your 30-day free trial. Grow when you’re ready.”' },
-      { key: 'pricing_subtext',  label: 'Pricing subtext',  type: 'textarea', help: 'One short paragraph; renders below the headline.' },
+      { key: 'logo_url', label: 'Logo URL', type: 'text', help: 'PNG or SVG' },
     ],
   },
   {
-    title: '30-day free trial', kicker: 'Hobbyist plan',
+    title: 'Footer tagline', kicker: 'Shared footer on the same pages as the nav (not the homepage)', defaultOpen: true,
     fields: [
-      { key: 'free_tier_name',        label: 'Tier name',          type: 'text' },
-      { key: 'free_tier_price_label', label: 'Price label',         type: 'text', help: 'Freeform — e.g. “30-day free trial” or “$0”' },
-      { key: 'free_tier_features',    label: 'Features',            type: 'textarea', help: 'One feature per line' },
-      { key: 'free_tier_cta',         label: 'CTA button text',     type: 'text' },
+      { key: 'footer_tagline', label: 'Footer tagline', type: 'text', help: 'Default: Your sales engine.' },
     ],
   },
   {
-    title: 'Maker tier', kicker: 'Mid plan',
+    title: 'Homepage hero', kicker: 'Top of the homepage',
     fields: [
-      { key: 'maker_tier_name',        label: 'Tier name',         type: 'text' },
-      { key: 'maker_tier_price_cents', label: 'Price (cents)',     type: 'number', help: 'e.g. 1900 = $19.00 /mo' },
-      { key: 'maker_tier_features',    label: 'Features',          type: 'textarea', help: 'One feature per line' },
-      { key: 'maker_tier_cta',         label: 'CTA button text',   type: 'text' },
+      { key: 'home_hero_eyebrow',    label: 'Eyebrow',             type: 'text' },
+      { key: 'home_hero_headline_1', label: 'Headline, part 1',    type: 'text', help: 'e.g. You bake.' },
+      { key: 'home_hero_headline_2', label: 'Headline, part 2 (green)', type: 'text', help: 'e.g. Dropvine handles the selling.' },
+      { key: 'home_hero_subtext',    label: 'Subtext',             type: 'textarea' },
+      { key: 'home_hero_cta',        label: 'Button text',         type: 'text' },
+      { key: 'home_hero_note',       label: 'Note under the button', type: 'text' },
     ],
   },
   {
-    title: 'Studio tier', kicker: 'Top plan',
+    title: 'Homepage pricing', kicker: 'Pricing heading and the Maker and Shop cards',
     fields: [
-      { key: 'studio_tier_name',        label: 'Tier name',          type: 'text' },
-      { key: 'studio_tier_price_cents', label: 'Price (cents)',      type: 'number' },
-      { key: 'studio_tier_features',    label: 'Features',           type: 'textarea', help: 'One feature per line' },
-      { key: 'studio_tier_cta',         label: 'CTA button text',    type: 'text' },
-      { key: 'studio_tier_popular',     label: '‘Most popular’ badge', type: 'boolean', help: 'Shows the gold ribbon on the Studio card' },
-    ],
-  },
-  // ---- Marketing copy sections (seeded by 2026-06-direct-site-copy.sql) ----
-  {
-    title: 'How it works', kicker: 'Three numbered steps below the hero',
-    fields: [
-      { key: 'how_it_works_headline',    label: 'Section headline',  type: 'text' },
-      { key: 'how_it_works_step1_title', label: 'Step 1 — title',    type: 'text' },
-      { key: 'how_it_works_step1_body',  'label': 'Step 1 — body',   type: 'textarea' },
-      { key: 'how_it_works_step2_title', label: 'Step 2 — title',    type: 'text' },
-      { key: 'how_it_works_step2_body',  label: 'Step 2 — body',     type: 'textarea' },
-      { key: 'how_it_works_step3_title', label: 'Step 3 — title',    type: 'text' },
-      { key: 'how_it_works_step3_body',  label: 'Step 3 — body',     type: 'textarea' },
+      { key: 'home_pricing_headline', label: 'Headline', type: 'text' },
+      { key: 'home_pricing_subtext',  label: 'Subtext',  type: 'textarea' },
+      ...tierFields('maker').map((f) => ({ ...f, label: `Maker — ${f.label}` })),
+      ...tierFields('shop').map((f) => ({ ...f, label: `Shop — ${f.label}` })),
     ],
   },
   {
-    title: 'Use cases', kicker: 'Three emoji cards under the section headline',
+    title: 'Premium Shop Annual', kicker: 'Third pricing card',
     fields: [
-      { key: 'use_cases_headline', label: 'Section headline', type: 'text' },
-      { key: 'use_case_1_emoji',   label: 'Card 1 — emoji',   type: 'text', help: 'Single emoji glyph' },
-      { key: 'use_case_1_title',   label: 'Card 1 — title',   type: 'text' },
-      { key: 'use_case_1_body',    label: 'Card 1 — body',    type: 'textarea' },
-      { key: 'use_case_2_emoji',   label: 'Card 2 — emoji',   type: 'text' },
-      { key: 'use_case_2_title',   label: 'Card 2 — title',   type: 'text' },
-      { key: 'use_case_2_body',    label: 'Card 2 — body',    type: 'textarea' },
-      { key: 'use_case_3_emoji',   label: 'Card 3 — emoji',   type: 'text' },
-      { key: 'use_case_3_title',   label: 'Card 3 — title',   type: 'text' },
-      { key: 'use_case_3_body',    label: 'Card 3 — body',    type: 'textarea' },
+      { key: 'home_premium_badge', label: 'Badge', type: 'text', help: 'e.g. Launch pricing · 25 spots' },
+      ...tierFields('premium'),
+      { key: 'home_premium_original_price', label: 'Original price (struck through)', type: 'text', help: 'e.g. $650' },
+      { key: 'home_premium_deadline_note',  label: 'Deadline note', type: 'text', help: 'Shown after the tagline' },
     ],
   },
   {
-    title: 'Example', kicker: 'Demo business + four stat tiles',
+    title: 'Homepage final call to action', kicker: 'Green band above the homepage footer',
     fields: [
-      { key: 'example_business_name', label: 'Business name',   type: 'text' },
-      { key: 'example_tagline',       label: 'Tagline (italic)', type: 'text' },
-      { key: 'example_description',   label: 'Description',     type: 'textarea' },
-      { key: 'example_stat_1_value',  label: 'Stat 1 — value',   type: 'text' },
-      { key: 'example_stat_1_label',  label: 'Stat 1 — label',   type: 'text' },
-      { key: 'example_stat_2_value',  label: 'Stat 2 — value',   type: 'text' },
-      { key: 'example_stat_2_label',  label: 'Stat 2 — label',   type: 'text' },
-      { key: 'example_stat_3_value',  label: 'Stat 3 — value',   type: 'text' },
-      { key: 'example_stat_3_label',  label: 'Stat 3 — label',   type: 'text' },
-      { key: 'example_stat_4_value',  label: 'Stat 4 — value',   type: 'text' },
-      { key: 'example_stat_4_label',  label: 'Stat 4 — label',   type: 'text' },
-    ],
-  },
-  {
-    title: 'Drop modes', kicker: 'Five drop-mode cards',
-    fields: [
-      { key: 'modes_headline', label: 'Section headline', type: 'text' },
-      { key: 'modes_subtext',  label: 'Section subtext',  type: 'textarea' },
-      { key: 'mode_1_name',    label: 'Mode 1 — name',    type: 'text' },
-      { key: 'mode_1_body',    label: 'Mode 1 — body',    type: 'textarea' },
-      { key: 'mode_2_name',    label: 'Mode 2 — name',    type: 'text' },
-      { key: 'mode_2_body',    label: 'Mode 2 — body',    type: 'textarea' },
-      { key: 'mode_3_name',    label: 'Mode 3 — name',    type: 'text' },
-      { key: 'mode_3_body',    label: 'Mode 3 — body',    type: 'textarea' },
-      { key: 'mode_4_name',    label: 'Mode 4 — name',    type: 'text' },
-      { key: 'mode_4_body',    label: 'Mode 4 — body',    type: 'textarea' },
-      { key: 'mode_5_name',    label: 'Mode 5 — name',    type: 'text' },
-      { key: 'mode_5_body',    label: 'Mode 5 — body',    type: 'textarea' },
-    ],
-  },
-  {
-    title: 'Bottom CTA', kicker: 'Last section above the footer',
-    fields: [
-      { key: 'bottom_cta_headline', label: 'Headline', type: 'text' },
-      { key: 'bottom_cta_subtext',  label: 'Subtext',  type: 'textarea' },
-      { key: 'bottom_cta_button',   label: 'Button text', type: 'text' },
+      { key: 'home_final_headline', label: 'Headline',    type: 'text' },
+      { key: 'home_final_cta',      label: 'Button text', type: 'text' },
     ],
   },
 ]
@@ -201,7 +152,7 @@ export default function DirectSettingsPage() {
       <div className="flex items-center justify-between mb-6 sticky top-[5.5rem] z-10 bg-stone-50 py-2">
         <div>
           <h1 className="font-serif text-3xl text-stone-900">Direct · Settings</h1>
-          <p className="text-sm text-stone-500">Drives the Dropvine Direct marketing site. Changes apply on next page load.</p>
+          <p className="text-sm text-stone-500">Nav and footer changes show on the next page load. Homepage changes show within about 10 minutes. A blank homepage field shows the original text.</p>
         </div>
         <button
           onClick={() => save()}

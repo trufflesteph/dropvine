@@ -1,3 +1,7 @@
+-- DO NOT RE-RUN. The site_config keys this file inserts were retired
+-- on 2026-10-07 when the homepage was rebuilt. Re-running it would
+-- re-insert unused rows.
+
 -- =============================================================================
 -- Dropvine \u2014 4 focused fixes (June 2026)
 -- =============================================================================

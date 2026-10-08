@@ -3,6 +3,7 @@ import { Fraunces, Manrope } from 'next/font/google'
 import { createClient } from '@supabase/supabase-js'
 import { getServerSupabaseConfig } from '@/lib/supabase/server'
 import { DROPVINE_LOGO_URL } from '@/components/dropvine/logo'
+import { HOME_COPY_DEFAULTS, HOME_COPY_KEYS, resolveHomeCopy, featureLines } from '@/lib/site-config/home-copy'
 import s from './page.module.css'
 
 // Demo drop opened by "Open the demo drop". Wildflour Cookies' pre-order drop.
@@ -40,23 +41,30 @@ export const metadata = {
   },
 }
 
-// Re-check site_config.logo_url at most every 5 minutes.
+// Re-check site_config (logo + homepage copy) at most every 5 minutes.
 export const revalidate = 300
 
-// Same logo the nav uses: site_config.logo_url, falling back to the bundled URL.
-async function getLogoUrl() {
+// Logo (site_config.logo_url, the same one the nav uses) and the editable
+// homepage copy (lib/site-config/home-copy.js), in one query. Anything missing
+// or empty falls back to the bundled logo / default copy.
+async function getSiteConfig() {
+  const fallback = { logoUrl: DROPVINE_LOGO_URL, copy: { ...HOME_COPY_DEFAULTS } }
   const { url, key, configured } = getServerSupabaseConfig()
-  if (!configured) return DROPVINE_LOGO_URL
+  if (!configured) return fallback
   try {
     const sb = createClient(url, key, {
       auth: { persistSession: false },
       global: { fetch: (input, init = {}) => fetch(input, { ...init, next: { revalidate } }) },
     })
-    const { data, error } = await sb.from('site_config').select('value').eq('key', 'logo_url').maybeSingle()
-    if (error) return DROPVINE_LOGO_URL
-    return (data?.value || '').trim() || DROPVINE_LOGO_URL
+    const { data, error } = await sb.from('site_config').select('key, value').in('key', ['logo_url', ...HOME_COPY_KEYS])
+    if (error || !Array.isArray(data)) return fallback
+    const values = Object.fromEntries(data.map((r) => [r.key, r.value]))
+    return {
+      logoUrl: (values.logo_url || '').trim() || DROPVINE_LOGO_URL,
+      copy: resolveHomeCopy(values),
+    }
   } catch {
-    return DROPVINE_LOGO_URL
+    return fallback
   }
 }
 
@@ -101,7 +109,7 @@ const FAQS = [
 ]
 
 export default async function HomePage() {
-  const logoUrl = await getLogoUrl()
+  const { logoUrl, copy } = await getSiteConfig()
 
   return (
     <div className={`${fraunces.variable} ${manrope.variable} ${s.page}`}>
@@ -126,14 +134,14 @@ export default async function HomePage() {
         <section className={s.hero}>
           <div className={`${s.wrap} ${s.split}`}>
             <div className={s.heroCopy}>
-              <p className={s.eyebrow}>For cottage bakers</p>
-              <h1 className={s.heroH1}>You bake. <span style={{ color: '#2F5128' }}>Dropvine handles the selling.</span></h1>
-              <p className={s.body} style={{ fontSize: 20, maxWidth: 520 }}>No more taking orders through DMs. Fill out one form and Dropvine builds your order page, emails your customers, and keeps every order in one place.</p>
+              <p className={s.eyebrow}>{copy.home_hero_eyebrow}</p>
+              <h1 className={s.heroH1}>{copy.home_hero_headline_1} <span style={{ color: '#2F5128' }}>{copy.home_hero_headline_2}</span></h1>
+              <p className={s.body} style={{ fontSize: 20, maxWidth: 520 }}>{copy.home_hero_subtext}</p>
               <div className={s.heroActions}>
-                <Link href="/signup" className={s.btn}>Start your 30-day free trial</Link>
+                <Link href="/signup" className={s.btn}>{copy.home_hero_cta}</Link>
                 <a href="#demo" className={s.textLink}>See a real drop →</a>
               </div>
-              <p style={{ margin: 0, fontSize: 15, color: '#5E544A' }}>Dropvine never takes a cut of your sales. No card needed to start.</p>
+              <p style={{ margin: 0, fontSize: 15, color: '#5E544A' }}>{copy.home_hero_note}</p>
             </div>
             <div className={s.heroVisual}>
               <PhotoSlot src={PHOTOS.hero} alt="Cinnamon rolls, decorated cookies, a sourdough loaf and cupcakes on a sunlit kitchen counter" className={s.heroPhoto} />
@@ -293,50 +301,36 @@ export default async function HomePage() {
           <div className={`${s.wrap} ${s.stack}`}>
             <div className={s.heading} style={{ alignItems: 'center', textAlign: 'center' }}>
               <p className={s.eyebrow}>Pricing</p>
-              <h2 className={s.h2}>Try it free for 30 days.</h2>
-              <p className={s.body}>Your trial includes everything in Shop. No card needed.</p>
+              <h2 className={s.h2}>{copy.home_pricing_headline}</h2>
+              <p className={s.body}>{copy.home_pricing_subtext}</p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24, alignItems: 'stretch' }}>
               <div className={s.priceCard} style={{ background: '#FFFFFF', border: '1px solid #EADFCC' }}>
                 <h3 className={s.h3} style={{ fontSize: 28 }}>Maker</h3>
-                <p style={{ margin: 0 }}><span className={s.serif} style={{ fontSize: 44, color: '#1D3461' }}>$10</span><span style={{ fontSize: 16, color: '#6B5F54' }}> / month</span></p>
-                <p style={{ margin: 0, fontSize: 15, color: '#5E544A' }}>For bakers who sell every week.</p>
+                <p style={{ margin: 0 }}><span className={s.serif} style={{ fontSize: 44, color: '#1D3461' }}>{copy.home_tier_maker_price}</span><span style={{ fontSize: 16, color: '#6B5F54' }}> {copy.home_tier_maker_period}</span></p>
+                <p style={{ margin: 0, fontSize: 15, color: '#5E544A' }}>{copy.home_tier_maker_tagline}</p>
                 <ul>
-                  <li>Unlimited drops</li>
-                  <li>All five ways to sell</li>
-                  <li>Custom sales page for every drop</li>
-                  <li>Automatic emails to your list</li>
-                  <li>Order list, stock limits, and sold-out alerts</li>
-                  <li>Dropvine badge</li>
+                  {featureLines(copy.home_tier_maker_features).map((f, i) => <li key={i}>{f}</li>)}
                 </ul>
                 <Link href="/signup" className={`${s.btn} ${s.btnOutline}`}>Start free trial</Link>
               </div>
               <div className={s.priceCard} style={{ background: '#FFFFFF', border: '2px solid #2F5128', position: 'relative' }}>
                 <p className={s.pill} style={{ background: '#E3EDDC', color: '#2F5128' }}>Your trial includes this</p>
                 <h3 className={s.h3} style={{ fontSize: 28 }}>Shop</h3>
-                <p style={{ margin: 0 }}><span className={s.serif} style={{ fontSize: 44, color: '#1D3461' }}>$24</span><span style={{ fontSize: 16, color: '#6B5F54' }}> / month</span></p>
-                <p style={{ margin: 0, fontSize: 15, color: '#5E544A' }}>For bakers building a following.</p>
+                <p style={{ margin: 0 }}><span className={s.serif} style={{ fontSize: 44, color: '#1D3461' }}>{copy.home_tier_shop_price}</span><span style={{ fontSize: 16, color: '#6B5F54' }}> {copy.home_tier_shop_period}</span></p>
+                <p style={{ margin: 0, fontSize: 15, color: '#5E544A' }}>{copy.home_tier_shop_tagline}</p>
                 <ul>
-                  <li>Everything in Maker</li>
-                  <li>Your own shop page, always on, even between drops</li>
-                  <li>Automatic emails + texts (coming soon)</li>
-                  <li>Follow button to organically grow your list</li>
-                  <li>Customer reviews</li>
-                  <li>No Dropvine badge</li>
+                  {featureLines(copy.home_tier_shop_features).map((f, i) => <li key={i}>{f}</li>)}
                 </ul>
                 <Link href="/signup" className={s.btn}>Start free trial</Link>
               </div>
               <div className={s.priceCard} style={{ background: '#1D3461', color: '#F3F0EA' }}>
-                <p className={s.pill} style={{ background: '#F2E8D8', color: '#8A521C' }}>Launch pricing · 25 spots</p>
+                <p className={s.pill} style={{ background: '#F2E8D8', color: '#8A521C' }}>{copy.home_premium_badge}</p>
                 <h3 className={s.h3} style={{ fontSize: 28, color: '#FBF6EE' }}>Premium Shop Annual</h3>
-                <p style={{ margin: 0 }}><span className={s.serif} style={{ fontSize: 44, color: '#FBF6EE' }}>$455</span><span style={{ fontSize: 16, color: '#C9D3E4' }}> / year</span><span style={{ fontSize: 15, color: '#C9D3E4', textDecoration: 'line-through', marginLeft: 10 }}>$650</span></p>
-                <p style={{ margin: 0, fontSize: 15, color: '#DDE3EE' }}>For bakers who want it done with them. Launch pricing through Dec 31.</p>
+                <p style={{ margin: 0 }}><span className={s.serif} style={{ fontSize: 44, color: '#FBF6EE' }}>{copy.home_tier_premium_price}</span><span style={{ fontSize: 16, color: '#C9D3E4' }}> {copy.home_tier_premium_period}</span><span style={{ fontSize: 15, color: '#C9D3E4', textDecoration: 'line-through', marginLeft: 10 }}>{copy.home_premium_original_price}</span></p>
+                <p style={{ margin: 0, fontSize: 15, color: '#DDE3EE' }}>{copy.home_tier_premium_tagline} {copy.home_premium_deadline_note}</p>
                 <ul>
-                  <li>Everything in Shop</li>
-                  <li>Help setting up your first drop</li>
-                  <li>A direct line to me, plus a monthly check-in</li>
-                  <li>Monthly product photo touch-ups</li>
-                  <li>A featured spot on Dropvine each month</li>
+                  {featureLines(copy.home_tier_premium_features).map((f, i) => <li key={i}>{f}</li>)}
                 </ul>
                 <a href="#premium-waitlist" className={s.btnCream}>Join the waitlist</a>
               </div>
@@ -378,8 +372,8 @@ export default async function HomePage() {
         {/* Final call to action */}
         <section style={{ background: '#2F5128', padding: '96px 0' }}>
           <div className={s.wrap} style={{ display: 'flex', flexDirection: 'column', gap: 24, alignItems: 'center', textAlign: 'center' }}>
-            <h2 className={s.h2} style={{ color: '#FBF6EE', maxWidth: 760 }}>Spend your week baking, not answering messages.</h2>
-            <Link href="/signup" className={s.btnCream} style={{ padding: '0 30px', color: '#2F5128' }}>Start your 30-day free trial</Link>
+            <h2 className={s.h2} style={{ color: '#FBF6EE', maxWidth: 760 }}>{copy.home_final_headline}</h2>
+            <Link href="/signup" className={s.btnCream} style={{ padding: '0 30px', color: '#2F5128' }}>{copy.home_final_cta}</Link>
             <p style={{ margin: 0, fontSize: 15, color: '#DCE7D5' }}>Dropvine never takes a cut.</p>
           </div>
         </section>
