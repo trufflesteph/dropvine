@@ -6,7 +6,7 @@ import { useAuth, mockUserHeaders } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import { ArrowUpRight, Plus, Calendar, Users, Sparkles, Loader2, Eye } from 'lucide-react'
 import { TALLY_NEW_DROP_URLS } from '@/lib/dashboard/new-drop-url'
-import { formatEmailDateTime } from '@/lib/email/format'
+import { formatEmailDate } from '@/lib/email/format'
 import { DashboardSidebar, DashboardMobileNav, useUnpaidOrderCount } from '@/components/dropvine/dashboard-nav'
 
 export default function DashboardPage() {
@@ -110,7 +110,7 @@ export default function DashboardPage() {
 
   const upcoming = drops.filter(l => new Date(l.launch_at) > new Date())
   const totalWaitlist = 0
-  const trialEndLabel = formatEmailDateTime(trialEndsAt)
+  const trialEndLabel = formatEmailDate(trialEndsAt)
   const trialActive = !!trialEndLabel && new Date(trialEndsAt) > new Date()
 
   return (

@@ -6,7 +6,7 @@ import { adminFetch } from '@/lib/markets/admin-client'
 import { toast } from 'sonner'
 import { Plus, Search, ExternalLink } from 'lucide-react'
 
-const TIERS = ['all', 'free', 'maker', 'studio']
+const TIERS = ['all', 'free', 'maker', 'shop']
 
 export default function DirectVendorsListPage() {
   const [vendors, setVendors] = useState([])

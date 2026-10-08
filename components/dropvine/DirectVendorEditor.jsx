@@ -5,7 +5,7 @@ import { adminFetch } from '@/lib/markets/admin-client'
 import { toast } from 'sonner'
 import { Loader2, Save, Trash2 } from 'lucide-react'
 
-const TIERS = ['free', 'maker', 'studio']
+const TIERS = ['free', 'maker', 'shop']
 
 function slugify(s) {
   return String(s || '').toLowerCase()
@@ -25,6 +25,9 @@ export default function DirectVendorEditor({ initialVendor = null, initialProfil
   const [busy, setBusy] = useState(false)
 
   const set = (k, val) => setV((p) => ({ ...p, [k]: val }))
+  // A saved tier outside TIERS (e.g. legacy 'studio') is listed as-is, so
+  // saving without touching the dropdown keeps it.
+  const tierOptions = v.tier && !TIERS.includes(v.tier) ? [...TIERS, v.tier] : TIERS
 
   const save = async () => {
     if (!v.business_name || !v.slug) { toast.error('Business name + slug required'); return }
@@ -94,7 +97,7 @@ export default function DirectVendorEditor({ initialVendor = null, initialProfil
           <Field label="Tier">
             <select value={v.tier || 'free'} onChange={(e) => set('tier', e.target.value)}
                     className="w-full px-3 py-2 rounded-md text-sm border border-stone-200 bg-white">
-              {TIERS.map((t) => <option key={t} value={t}>{t}</option>)}
+              {tierOptions.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </Field>
           <Field label="Active">
