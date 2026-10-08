@@ -11,9 +11,9 @@ const DEMO_DROP_HANDLE = 'wildflour-may-21'
 
 // Photo slots. An empty URL renders a plain placeholder box.
 const PHOTOS = {
-  hero: '',
-  founder: '',
-  phoneHero: '',
+  hero: 'https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/assets/home_hero.jpg',
+  founder: 'https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/assets/founder_hero.jpg',
+  phoneHero: 'https://xelxywjtkffcnkexribv.supabase.co/storage/v1/object/public/assets/phone_hero.jpg',
 }
 
 const fraunces = Fraunces({ subsets: ['latin'], axes: ['opsz'], variable: '--font-sp-serif', display: 'swap' })
@@ -144,7 +144,7 @@ export default async function HomePage() {
               <p style={{ margin: 0, fontSize: 15, color: '#5E544A' }}>{copy.home_hero_note}</p>
             </div>
             <div className={s.heroVisual}>
-              <PhotoSlot src={PHOTOS.hero} alt="Cinnamon rolls, decorated cookies, a sourdough loaf and cupcakes on a sunlit kitchen counter" className={s.heroPhoto} />
+              <PhotoSlot src={PHOTOS.hero} alt="A sunlit kitchen counter with cinnamon rolls on a cooling rack, cupcakes, frosted cookies and a mixing bowl" className={s.heroPhoto} />
               <div className={s.phone}>
                 <div className={s.phoneScreen}>
                   <PhotoSlot src={PHOTOS.phoneHero} alt="A weekend bake spread" className={s.phonePhoto} />
@@ -285,7 +285,7 @@ export default async function HomePage() {
         {/* Founder */}
         <section className={s.sectionTan}>
           <div className={`${s.wrap} ${s.split}`}>
-            <PhotoSlot src={PHOTOS.founder} alt="Stephanie at a kitchen table with chocolates and a laptop" style={{ flex: '1 1 340px', minHeight: 420 }} />
+            <PhotoSlot src={PHOTOS.founder} alt="Stephanie Baturoni in her chocolate shop" className={s.founderPhoto} style={{ flex: '1 1 340px', minHeight: 420 }} />
             <div style={{ flex: '1 1 480px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <p className={s.eyebrow}>Why Dropvine</p>
               <h2 className={s.h2}>Built by someone who's been there.</h2>
