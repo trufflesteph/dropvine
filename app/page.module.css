@@ -77,6 +77,19 @@
 
 .priceCard { border-radius: 28px; padding: 36px; display: flex; flex-direction: column; gap: 18px; }
 .priceCard ul { margin: 0; padding-left: 20px; list-style: disc; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.5; flex-grow: 1; }
+/* Premium Shop Annual waitlist form (components/dropvine/PremiumWaitlistForm.jsx),
+   on the navy card. Inputs and button are at least 44px tall; 16px text so
+   phones don't zoom on focus. */
+.page .waitlistBtn { width: 100%; border: 0; cursor: pointer; font-family: inherit; }
+.page .waitlistBtn:disabled { opacity: 0.7; cursor: default; }
+.waitlistForm { display: flex; flex-direction: column; gap: 14px; }
+.waitlistLabel { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; color: #DDE3EE; }
+.waitlistInput { box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px 14px; border: 1px solid #C9D3E4; border-radius: 12px; background: #FBF6EE; color: #1D3461; font-family: inherit; font-size: 16px; }
+.waitlistInput:focus { outline: 2px solid #F2E8D8; outline-offset: 2px; }
+/* Honeypot field: off-screen, not display:none, so bots still see and fill it. */
+.waitlistHoneypot { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+.waitlistError { margin: 0; font-size: 14px; color: #F2C9A8; }
+.waitlistDone { margin: 0; padding: 14px 16px; border-radius: 12px; background: rgba(251, 246, 238, 0.12); font-size: 16px; font-weight: 600; line-height: 1.5; color: #FBF6EE; }
 .pill { margin: 0; align-self: flex-start; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 6px 12px; border-radius: 999px; }
 
 .faqQ { margin: 0; font-size: 18px; font-weight: 700; color: #1D3461; }

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { readAdminSession, clearAdminSession } from '@/lib/markets/admin-client'
 import {
-  Settings, LogOut, ShieldCheck, Sparkles, Users, ClipboardList, MessageSquare, Hourglass,
+  Settings, LogOut, ShieldCheck, Sparkles, Users, ClipboardList, MessageSquare, Hourglass, Star,
 } from 'lucide-react'
 
 // Where "/admin" (logo, role redirects, login default) lands.
@@ -19,6 +19,7 @@ const SECTIONS = [
       { href: '/admin/direct/orders',   label: 'Orders',   Icon: ClipboardList,  roles: ['platform','organiser'] },
       { href: '/admin/direct/vendors',  label: 'Vendors',  Icon: Users,          roles: ['platform','organiser'] },
       { href: '/admin/direct/trials',   label: 'Trials',   Icon: Hourglass,      roles: ['platform','organiser'] },
+      { href: '/admin/direct/premium-waitlist', label: 'Premium waitlist', Icon: Star, roles: ['platform','organiser'] },
       { href: '/admin/notifications',   label: 'Notifications', Icon: MessageSquare, roles: ['platform'] },
       { href: '/admin/direct/settings', label: 'Settings', Icon: Settings, roles: ['platform'] },
     ],

@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getServerSupabaseConfig } from '@/lib/supabase/server'
 import { DROPVINE_LOGO_URL } from '@/components/dropvine/logo'
 import { HOME_COPY_DEFAULTS, HOME_COPY_KEYS, resolveHomeCopy, featureLines } from '@/lib/site-config/home-copy'
+import { PremiumWaitlistForm } from '@/components/dropvine/PremiumWaitlistForm'
 import s from './page.module.css'
 
 // Demo drop opened by "Open the demo drop". Wildflour Cookies' pre-order drop.
@@ -332,7 +333,7 @@ export default async function HomePage() {
                 <ul>
                   {featureLines(copy.home_tier_premium_features).map((f, i) => <li key={i}>{f}</li>)}
                 </ul>
-                <a href="#premium-waitlist" className={s.btnCream}>Join the waitlist</a>
+                <PremiumWaitlistForm />
               </div>
             </div>
             <p style={{ margin: 0, textAlign: 'center', fontSize: 15, color: '#5E544A' }}>Every plan: Dropvine never takes a cut of your sales. Cancel anytime.</p>
