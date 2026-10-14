@@ -13,6 +13,7 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { getSignedInUserId } from '@/lib/auth/server-user'
+import { normalizeLocation } from '@/lib/location'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -92,11 +93,11 @@ export async function POST(request) {
   const patch = {}
   if ('tier_intent' in body) patch.tier_intent = intent
   const category = body?.category ? String(body.category).trim() : null
-  const locationCity = body?.location_city ? String(body.location_city).trim() : null
-  const locationState = body?.location_state ? String(body.location_state).trim() : null
+  // Canonical form ("West Linn" / "OR") — see lib/location.js.
+  const location = normalizeLocation(body?.location_city, body?.location_state)
   if (category) patch.category = category
-  if (locationCity) patch.location_city = locationCity
-  if (locationState) patch.location_state = locationState
+  if (location.city) patch.location_city = location.city
+  if (location.state) patch.location_state = location.state
   if (!Object.keys(patch).length) return NextResponse.json({ ok: true, vendor_id: null, skipped: 'nothing to update' })
 
   const { data, error } = await supa
