@@ -16,8 +16,15 @@
 //   • Debounced search across drop title and vendor business name.
 //   • Horizontally scrollable category pills (vendor's category).
 //   • "Open now" toggle hides upcoming drops (URL param stays ?active=1).
-//   • All filter state is mirrored into the URL (?q=...&category=...&active=1)
-//     so directory views are shareable + back-button friendly.
+//   • Location filter (?city=...&state=...), compared via lib/location.js so
+//     "west linn" / "Or" match "West Linn" / "OR". State alone filters by
+//     state; city + state must both match. The Location select only shows
+//     with 2+ distinct locations, but URL params always apply, and an active
+//     location filter always shows a removable "Showing: ..." chip. The
+//     "City, ST" label on each card links to that filtered view.
+//   • All filter state is mirrored into the URL
+//     (?q=...&category=...&active=1&city=...&state=...) so directory views
+//     are shareable + back-button friendly, and other sites can deep-link.
 //   • Empty state when no drop matches.
 //
 // All filtering is client-side after the initial fetch.
@@ -29,6 +36,15 @@ import { Nav } from '@/components/dropvine/nav'
 import { Footer } from '@/components/dropvine/footer'
 import { ArrowRight, Search, X, MapPin, Loader2 } from 'lucide-react'
 import { VENDOR_CATEGORIES, ALL_PILL } from '@/lib/vendors/categories'
+import { normalizeLocation, locationKey, formatLocation } from '@/lib/location'
+
+function locationHref(city, state) {
+  const params = new URLSearchParams()
+  if (city) params.set('city', city)
+  if (state) params.set('state', state)
+  const qs = params.toString()
+  return qs ? `/drops?${qs}` : '/drops'
+}
 
 function fmtCountdown(targetMs) {
   const ms = targetMs - Date.now()
@@ -65,6 +81,7 @@ function DropsDirectoryInner() {
   const initialQ = searchParams.get('q') || ''
   const initialCategory = searchParams.get('category') || ALL_PILL
   const initialActive = searchParams.get('active') === '1'
+  const initialLocation = normalizeLocation(searchParams.get('city'), searchParams.get('state'))
 
   const [drops, setDrops] = useState([])
   const [loading, setLoading] = useState(true)
@@ -74,6 +91,19 @@ function DropsDirectoryInner() {
   const [debouncedQuery, setDebouncedQuery] = useState(initialQ)
   const [activeCategory, setActiveCategory] = useState(initialCategory)
   const [activeOnly, setActiveOnly] = useState(initialActive)
+  const [city, setCity] = useState(initialLocation.city)
+  const [state, setState] = useState(initialLocation.state)
+  const hasLocation = !!(city || state)
+  const locationLabel = formatLocation(city, state)
+
+  const setLocation = (c, s) => {
+    const n = normalizeLocation(c, s)
+    setCity(n.city)
+    setState(n.state)
+  }
+  const clearFilters = () => {
+    setRawQuery(''); setActiveCategory(ALL_PILL); setActiveOnly(false); setLocation('', '')
+  }
 
   // Debounce the search input by 300ms.
   useEffect(() => {
@@ -90,9 +120,11 @@ function DropsDirectoryInner() {
     if (debouncedQuery) params.set('q', debouncedQuery)
     if (activeCategory && activeCategory !== ALL_PILL) params.set('category', activeCategory)
     if (activeOnly) params.set('active', '1')
+    if (city) params.set('city', city)
+    if (state) params.set('state', state)
     const qs = params.toString()
     router.replace(qs ? `/drops?${qs}` : '/drops', { scroll: false })
-  }, [debouncedQuery, activeCategory, activeOnly, router])
+  }, [debouncedQuery, activeCategory, activeOnly, city, state, router])
 
   // Initial drops fetch.
   useEffect(() => {
@@ -112,9 +144,32 @@ function DropsDirectoryInner() {
     return () => { cancelled = true }
   }, [])
 
+  // Distinct normalized locations across the loaded drops, for the select.
+  const locationOptions = useMemo(() => {
+    const byKey = new Map()
+    for (const d of drops) {
+      const n = normalizeLocation(d.location_city, d.location_state)
+      if (!n.city && !n.state) continue
+      const key = locationKey(n.city, n.state)
+      if (!byKey.has(key)) byKey.set(key, { key, ...n, label: formatLocation(n.city, n.state) })
+    }
+    return [...byKey.values()].sort((a, b) => a.label.localeCompare(b.label))
+  }, [drops])
+
   // Apply filters in-memory.
   const filtered = useMemo(() => {
     let list = drops
+    if (city || state) {
+      // city/state state is already normalized; lower-case both sides.
+      const wantCity = city.toLowerCase()
+      const wantState = state.toLowerCase()
+      list = list.filter((d) => {
+        const n = normalizeLocation(d.location_city, d.location_state)
+        if (wantCity && n.city.toLowerCase() !== wantCity) return false
+        if (wantState && n.state.toLowerCase() !== wantState) return false
+        return true
+      })
+    }
     if (activeCategory && activeCategory !== ALL_PILL) {
       list = list.filter((d) => (d.category || '') === activeCategory)
     }
@@ -129,7 +184,7 @@ function DropsDirectoryInner() {
       })
     }
     return list
-  }, [drops, debouncedQuery, activeCategory, activeOnly])
+  }, [drops, debouncedQuery, activeCategory, activeOnly, city, state])
 
   return (
     <div className="min-h-screen bg-background">
@@ -186,7 +241,29 @@ function DropsDirectoryInner() {
               </span>
               <span className={activeOnly ? 'text-foreground' : ''}>Open now</span>
             </label>
+            <LocationSelect
+              options={locationOptions}
+              city={city}
+              state={state}
+              label={locationLabel}
+              onChange={setLocation}
+            />
           </div>
+
+          {hasLocation ? (
+            <div>
+              <button
+                type="button"
+                onClick={() => setLocation('', '')}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-[12px] tracking-wide border border-foreground bg-foreground text-background hover:opacity-90 transition"
+                aria-label={`Remove location filter ${locationLabel}`}
+              >
+                <MapPin className="h-3 w-3" />
+                Showing: {locationLabel}
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : null}
 
           {/* Category pills — horizontally scrollable on narrow viewports */}
           <div className="-mx-1 overflow-x-auto">
@@ -228,20 +305,22 @@ function DropsDirectoryInner() {
         ) : filtered.length === 0 ? (
           <div className="border border-dashed border-border p-10 md:p-16 text-center text-muted-foreground">
             <p className="max-w-md mx-auto text-sm">
-              No drops match those filters. Try clearing the search or picking a different category.
+              {hasLocation
+                ? `No open drops in ${locationLabel} right now.`
+                : 'No drops match those filters. Try clearing the search or picking a different category.'}
             </p>
             <button
               type="button"
-              onClick={() => { setRawQuery(''); setActiveCategory(ALL_PILL); setActiveOnly(false) }}
+              onClick={clearFilters}
               className="mt-6 inline-flex items-center gap-2 border border-foreground px-5 py-2 text-sm hover:bg-foreground hover:text-background transition"
             >
-              Clear filters
+              {hasLocation ? 'Show all drops' : 'Clear filters'}
             </button>
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
             {filtered.map((d) => (
-              <DropCard key={d.id} d={d} />
+              <DropCard key={d.id} d={d} onLocationClick={setLocation} />
             ))}
           </div>
         )}
@@ -252,13 +331,47 @@ function DropsDirectoryInner() {
   )
 }
 
-function DropCard({ d }) {
-  const cityState = [d.location_city, d.location_state].filter(Boolean).join(', ')
+// Location select. Hidden with fewer than two distinct locations; an active
+// filter that isn't among the options (e.g. ?state=OR alone) still gets an
+// entry so the select never misreports what's applied.
+function LocationSelect({ options, city, state, label, onChange }) {
+  if (options.length < 2) return null
+  const active = city || state ? locationKey(city, state) : ''
+  const list = active && !options.some((o) => o.key === active)
+    ? [{ key: active, city, state, label }, ...options]
+    : options
+  return (
+    <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+      <MapPin className="h-4 w-4" />
+      <span className="sr-only">Location</span>
+      <select
+        value={active}
+        onChange={(e) => {
+          const o = list.find((x) => x.key === e.target.value)
+          onChange(o?.city || '', o?.state || '')
+        }}
+        className="py-2 pl-2 pr-8 bg-background border border-border focus:border-foreground focus:outline-none text-sm text-foreground"
+        aria-label="Filter by location"
+      >
+        <option value="">All locations</option>
+        {list.map((o) => (
+          <option key={o.key} value={o.key}>{o.label}</option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+// The card is a div, not a Link, so the location label can be its own link
+// (no nested <a>). The title link stretches over the whole card via ::after;
+// the location link sits above it with z-10.
+function DropCard({ d, onLocationClick }) {
+  const loc = normalizeLocation(d.location_city, d.location_state)
+  const cityState = formatLocation(loc.city, loc.state)
   const image = d.cover_url || d.vendor_photo_url
   return (
-    <Link
-      href={`/l/${d.handle}`}
-      className="group block border border-border bg-background hover:border-foreground transition-colors"
+    <div
+      className="group relative block border border-border bg-background hover:border-foreground transition-colors"
       data-testid={`drop-card-${d.handle}`}
     >
       <div
@@ -290,15 +403,30 @@ function DropCard({ d }) {
         <div className="flex items-center gap-2 flex-wrap">
           {d.category ? <CategoryPill label={d.category} /> : null}
           {cityState ? (
-            <span className="inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+            <Link
+              href={locationHref(loc.city, loc.state)}
+              scroll={false}
+              onClick={(e) => {
+                // Plain click: filter in place. Modified clicks (new tab etc.)
+                // fall through to the href.
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+                e.preventDefault()
+                onLocationClick(loc.city, loc.state)
+              }}
+              className="relative z-10 inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground hover:underline underline-offset-4"
+              aria-label={`Show drops in ${cityState}`}
+            >
               <MapPin className="h-3 w-3" />
               {cityState}
-            </span>
+            </Link>
           ) : null}
         </div>
-        <div className="mt-3 font-serif text-2xl md:text-3xl tracking-tighter group-hover:underline underline-offset-4 decoration-1">
+        <Link
+          href={`/l/${d.handle}`}
+          className="mt-3 block font-serif text-2xl md:text-3xl tracking-tighter group-hover:underline underline-offset-4 decoration-1 after:absolute after:inset-0"
+        >
           {d.title}
-        </div>
+        </Link>
         {d.business_name ? (
           <p className="mt-2 text-sm text-muted-foreground">by {d.business_name}</p>
         ) : null}
@@ -308,7 +436,7 @@ function DropCard({ d }) {
           </span>
         </div>
       </div>
-    </Link>
+    </div>
   )
 }
 
