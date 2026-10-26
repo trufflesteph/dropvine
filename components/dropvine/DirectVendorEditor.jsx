@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { adminFetch } from '@/lib/markets/admin-client'
 import { toast } from 'sonner'
 import { Loader2, Save, Trash2 } from 'lucide-react'
+import { US_STATES } from '@/lib/location'
 
 const TIERS = ['free', 'maker', 'shop']
 
@@ -28,6 +29,8 @@ export default function DirectVendorEditor({ initialVendor = null, initialProfil
   // A saved tier outside TIERS (e.g. legacy 'studio') is listed as-is, so
   // saving without touching the dropdown keeps it.
   const tierOptions = v.tier && !TIERS.includes(v.tier) ? [...TIERS, v.tier] : TIERS
+  // Same for a saved state that isn't a US code (older free-text values).
+  const extraState = v.location_state && !US_STATES[v.location_state] ? v.location_state : null
 
   const save = async () => {
     if (!v.business_name || !v.slug) { toast.error('Business name + slug required'); return }
@@ -42,6 +45,7 @@ export default function DirectVendorEditor({ initialVendor = null, initialProfil
       if (!r.ok || j?.error) { toast.error(j?.error || 'Save failed'); return }
       toast.success(isNew ? 'Vendor created.' : 'Saved.')
       if (isNew) router.replace(`/admin/direct/vendors/${j.vendor.id}`)
+      else if (j.vendor) setV(j.vendor) // shows the normalized location
     } catch (e) { toast.error(e?.message || 'Failed') }
     finally { setBusy(false) }
   }
@@ -70,6 +74,23 @@ export default function DirectVendorEditor({ initialVendor = null, initialProfil
                     className="w-full px-3 py-2 rounded-md text-sm border border-stone-200 focus:outline-none focus:ring-2 focus:ring-stone-300" />
         </Field>
       </section>
+
+      {!isNew ? (
+        <section className="rounded-2xl border border-stone-200 bg-white p-6 grid gap-4">
+          <h2 className="font-serif text-lg text-stone-800">Location</h2>
+          <Row>
+            <F label="City" value={v.location_city || ''} onChange={(e) => set('location_city', e.target.value)} placeholder="e.g. Austin" />
+            <Field label="State" help="city and state together, or both blank">
+              <select value={v.location_state || ''} onChange={(e) => set('location_state', e.target.value)}
+                      className="w-full px-3 py-2 rounded-md text-sm border border-stone-200 bg-white">
+                <option value="">—</option>
+                {Object.entries(US_STATES).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+                {extraState ? <option value={extraState}>{extraState}</option> : null}
+              </select>
+            </Field>
+          </Row>
+        </section>
+      ) : null}
 
       <section className="rounded-2xl border border-stone-200 bg-white p-6 grid gap-4">
         <h2 className="font-serif text-lg text-stone-800">Imagery</h2>

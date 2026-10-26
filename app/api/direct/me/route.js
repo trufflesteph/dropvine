@@ -14,7 +14,7 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { getSignedInUserId } from '@/lib/auth/server-user'
-import { normalizeLocation } from '@/lib/location'
+import { normalizeLocation, normalizeLocationEdit, US_STATES } from '@/lib/location'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -120,9 +120,11 @@ async function copySignupProfile(supa, user, vendor) {
 
 // POST body: { tier_intent?: 'free' | 'maker' | 'shop' | null, category?,
 //              location_city?, location_state? }
-// /signup no longer calls this (it saves category and location in auth
-// metadata; see copySignupProfile). Idempotent — no-op if vendor row not yet
-// provisioned.
+// The dashboard's "Where you're based" section saves location here. When
+// either location field is sent, both are written: city and state must be
+// set together (US state code), or both blank to clear. /signup no longer
+// calls this (it saves category and location in auth metadata; see
+// copySignupProfile). Idempotent — no-op if vendor row not yet provisioned.
 export async function POST(request) {
   const userId = await getSignedInUserId(request)
   if (!userId) return bad('not signed in', 401)
@@ -143,20 +145,25 @@ export async function POST(request) {
   const patch = {}
   if ('tier_intent' in body) patch.tier_intent = intent
   const category = body?.category ? String(body.category).trim() : null
-  // Canonical form ("West Linn" / "OR") — see lib/location.js.
-  const location = normalizeLocation(body?.location_city, body?.location_state)
   if (category) patch.category = category
-  if (location.city) patch.location_city = location.city
-  if (location.state) patch.location_state = location.state
+  const hasLocation = 'location_city' in body || 'location_state' in body
+  if (hasLocation) {
+    // Canonical form ("West Linn" / "OR") — see lib/location.js.
+    const location = normalizeLocationEdit(body.location_city, body.location_state)
+    if (location.error) return bad(location.error, 400)
+    if (location.state && !US_STATES[location.state]) return bad('Choose a US state.', 400)
+    patch.location_city = location.city || null
+    patch.location_state = location.state || null
+  }
   if (!Object.keys(patch).length) return NextResponse.json({ ok: true, vendor_id: null, skipped: 'nothing to update' })
 
   const { data, error } = await supa
     .from('direct_vendors')
     .update(patch)
     .eq('creator_id', userId)
-    .select('id, tier_intent')
+    .select('id, tier_intent, location_city, location_state')
     .maybeSingle()
-  if (error && (patch.location_city || patch.location_state)) {
+  if (error && hasLocation) {
     console.error('[direct/me] location not saved', { vendor_id: null, user_id: userId, error: error.message })
   }
   if (error) {
@@ -175,11 +182,14 @@ export async function POST(request) {
   // the caller can decide whether to retry. The signup flow can just move
   // on — tier_intent isn't load-bearing.
   if (!data) {
-    if (patch.location_city || patch.location_state) {
+    if (hasLocation) {
       console.error('[direct/me] location not saved', { vendor_id: null, user_id: userId, error: 'vendor row not yet provisioned' })
     }
     return NextResponse.json({ ok: false, error: 'vendor row not yet provisioned', vendor_id: null })
   }
 
-  return NextResponse.json({ ok: true, vendor_id: data.id, tier_intent: data.tier_intent })
+  return NextResponse.json({
+    ok: true, vendor_id: data.id, tier_intent: data.tier_intent,
+    location_city: data.location_city, location_state: data.location_state,
+  })
 }
