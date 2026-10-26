@@ -3,11 +3,12 @@ import Link from 'next/link'
 import { DropvineLogo } from '@/components/dropvine/logo'
 import { Suspense, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth, mockUserHeaders } from '@/lib/auth-context'
+import { useAuth } from '@/lib/auth-context'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { VENDOR_CATEGORIES as BUSINESS_CATEGORIES } from '@/lib/vendors/categories'
+import { normalizeLocation, US_STATES } from '@/lib/location'
 
 // Signup doesn't ask for a tier. Every new vendor row starts on Shop with a
 // 30-day trial, set by the handle_new_user_direct_vendor() trigger
@@ -39,35 +40,24 @@ function SignupPageInner() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const location = normalizeLocation(city, state)
+    if (!location.city) { toast.error('Please enter your city.'); return }
     setLoading(true)
     try {
-      const signUpData = await signUp(email, password, name)
-      // signUp returns `{ user, session }` for real Supabase. The user.id is
-      // what we need to save the profile fields against direct_vendors.
-      const newUserId = signUpData?.user?.id || signUpData?.id || null
+      // Category and location go into the auth user's metadata as part of
+      // signUp itself, so they're saved even when there's no session yet
+      // (e.g. email confirmation on). GET /api/direct/me copies them onto the
+      // direct_vendors row the first time the vendor loads the dashboard.
+      await signUp(email, password, name, {
+        category: category || null,
+        location_city: location.city,
+        location_state: location.state || null,
+      })
 
       // For mock mode, signUp also signs them in. For real Supabase, attempt
       // sign-in (skipping email verification flow for MVP).
       if (configured) {
         try { await signIn(email, password) } catch {}
-      }
-
-      // Save category and location on the auto-provisioned direct_vendors row.
-      // Fire-and-forget — never blocks the redirect. The trigger that
-      // creates the direct_vendors row runs asynchronously so we accept a
-      // "vendor row not yet provisioned" response gracefully.
-      // Identified by the new session (signIn above); x-user-id only in local
-      // mock mode.
-      if (newUserId) {
-        fetch('/api/direct/me', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...mockUserHeaders({ id: newUserId }, configured) },
-          body: JSON.stringify({
-            category: category || null,
-            location_city: city || null,
-            location_state: state || null,
-          }),
-        }).catch(() => {})
       }
 
       toast.success('Welcome to Dropvine.')
@@ -119,13 +109,24 @@ function SignupPageInner() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">City</Label>
-                <Input value={city} onChange={e => setCity(e.target.value)} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="e.g. Austin" />
+                <Input required value={city} onChange={e => setCity(e.target.value)} onBlur={() => setCity(c => c.trim())} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="e.g. Austin" />
               </div>
               <div className="space-y-2">
                 <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">State</Label>
-                <Input value={state} onChange={e => setState(e.target.value)} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="e.g. TX" />
+                <select
+                  value={state}
+                  onChange={e => setState(e.target.value)}
+                  className="h-12 w-full rounded-none border-x-0 border-t-0 border-b border-border bg-transparent focus:outline-none focus:border-foreground text-sm text-foreground"
+                  style={{ paddingLeft: 0 }}
+                >
+                  <option value="">Select a state</option>
+                  {Object.entries(US_STATES).map(([code, stateName]) => (
+                    <option key={code} value={code}>{stateName}</option>
+                  ))}
+                </select>
               </div>
             </div>
+            <p className="-mt-3 text-xs text-muted-foreground">Shown publicly as city and state only, never your street address.</p>
             <div className="space-y-2">
               <Label className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Email</Label>
               <Input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="you@studio.com" />
