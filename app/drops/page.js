@@ -94,7 +94,6 @@ function DropsDirectoryInner() {
   const [city, setCity] = useState(initialLocation.city)
   const [state, setState] = useState(initialLocation.state)
   const hasLocation = !!(city || state)
-  const locationLabel = formatLocation(city, state)
 
   const setLocation = (c, s) => {
     const n = normalizeLocation(c, s)
@@ -144,8 +143,10 @@ function DropsDirectoryInner() {
     return () => { cancelled = true }
   }, [])
 
-  // Distinct normalized locations across the loaded drops, for the select.
-  const locationOptions = useMemo(() => {
+  // Distinct normalized locations across the loaded drops, keyed
+  // case-insensitively. Each keeps the first spelling seen ("McMinnville"
+  // vs "Mcminnville"), which the cards, the select and the chip all show.
+  const locationsByKey = useMemo(() => {
     const byKey = new Map()
     for (const d of drops) {
       const n = normalizeLocation(d.location_city, d.location_state)
@@ -153,8 +154,14 @@ function DropsDirectoryInner() {
       const key = locationKey(n.city, n.state)
       if (!byKey.has(key)) byKey.set(key, { key, ...n, label: formatLocation(n.city, n.state) })
     }
-    return [...byKey.values()].sort((a, b) => a.label.localeCompare(b.label))
+    return byKey
   }, [drops])
+  const locationOptions = useMemo(
+    () => [...locationsByKey.values()].sort((a, b) => a.label.localeCompare(b.label)),
+    [locationsByKey],
+  )
+  const shownLocation = (c, s) => locationsByKey.get(locationKey(c, s)) || normalizeLocation(c, s)
+  const locationLabel = hasLocation ? (locationsByKey.get(locationKey(city, state))?.label || formatLocation(city, state)) : ''
 
   // Apply filters in-memory.
   const filtered = useMemo(() => {
@@ -197,7 +204,7 @@ function DropsDirectoryInner() {
           Browse Fresh Drops
         </h1>
         <p className="mt-8 text-base md:text-lg text-muted-foreground leading-relaxed max-w-2xl">
-          A growing list of independent makers, farms, and studios running their drops on Dropvine. Filter by category, search by name, or jump straight to a drop.
+          A growing list of independent makers, farms, and studios running their drops on Dropvine. Filter by category or location, search by name, or jump straight to a drop.
         </p>
       </section>
 
@@ -306,7 +313,7 @@ function DropsDirectoryInner() {
           <div className="border border-dashed border-border p-10 md:p-16 text-center text-muted-foreground">
             <p className="max-w-md mx-auto text-sm">
               {hasLocation
-                ? `No open drops in ${locationLabel} right now.`
+                ? `No drops in ${locationLabel} right now.`
                 : 'No drops match those filters. Try clearing the search or picking a different category.'}
             </p>
             <button
@@ -320,7 +327,7 @@ function DropsDirectoryInner() {
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
             {filtered.map((d) => (
-              <DropCard key={d.id} d={d} onLocationClick={setLocation} />
+              <DropCard key={d.id} d={d} loc={shownLocation(d.location_city, d.location_state)} onLocationClick={setLocation} />
             ))}
           </div>
         )}
@@ -364,9 +371,9 @@ function LocationSelect({ options, city, state, label, onChange }) {
 
 // The card is a div, not a Link, so the location label can be its own link
 // (no nested <a>). The title link stretches over the whole card via ::after;
-// the location link sits above it with z-10.
-function DropCard({ d, onLocationClick }) {
-  const loc = normalizeLocation(d.location_city, d.location_state)
+// the location link sits above it with z-10. `loc` is the drop's location in
+// its shared spelling (see locationsByKey).
+function DropCard({ d, loc, onLocationClick }) {
   const cityState = formatLocation(loc.city, loc.state)
   const image = d.cover_url || d.vendor_photo_url
   return (
