@@ -3,8 +3,9 @@
 //
 // Tiny "who am I" endpoint for signed-in vendors. Used by the dashboard
 // to look up the current vendor's tier (so the "New drop" CTA can route
-// to the right Tally form; trial_ends_at for the trial line) and by the
-// signup flow to save category and location.
+// to the right Tally form; trial_ends_at for the trial line). GET also
+// copies the category and location saved in auth metadata at signup onto
+// the vendor row, the first time the vendor is seen with a session.
 //
 // Auth: the signed-in user from the Supabase session (lib/auth/server-user.js);
 // 401 without one. Service-role supabase client bypasses RLS so we get a
@@ -59,20 +60,69 @@ export async function GET(request) {
   // Also fetch the email so the dashboard can pass it through to Tally as a
   // hidden param. We pull from auth.users via the admin API since profiles
   // may not be in sync immediately after signup.
-  let email = null
+  let authUser = null
   try {
     const { data: { user } = {} } = await supa.auth.admin.getUserById(userId)
-    email = user?.email || null
+    authUser = user || null
   } catch {}
+  const email = authUser?.email || null
+
+  if (authUser) vendor = await copySignupProfile(supa, authUser, vendor)
 
   return NextResponse.json({ ok: true, vendor: vendor || null, email })
 }
 
+// /signup stores category and location in the auth user's metadata at
+// signUp, because a browser write to direct_vendors right after signUp can
+// run before there's a session (401) and get lost. Copy them onto the vendor
+// row once: fill only empty columns, then stamp app_metadata (which users
+// can't edit) so a later change to the row is never overwritten.
+async function copySignupProfile(supa, user, vendor) {
+  if (user.app_metadata?.signup_profile_copied_at) return vendor
+  const meta = user.user_metadata || {}
+  // Canonical form ("West Linn" / "OR") — see lib/location.js.
+  const location = normalizeLocation(meta.location_city, meta.location_state)
+  const category = meta.category ? String(meta.category).trim() : ''
+  if (!location.city && !location.state && !category) return vendor
+
+  if (!vendor) {
+    // Still safe in metadata; copied on a later load once the row exists.
+    console.error('[direct/me] signup location not saved', { vendor_id: null, user_id: user.id, error: 'no direct_vendors row for user' })
+    return vendor
+  }
+
+  const patch = {}
+  if (!vendor.location_city && location.city) patch.location_city = location.city
+  if (!vendor.location_state && location.state) patch.location_state = location.state
+  if (!vendor.category && category) patch.category = category
+
+  try {
+    if (Object.keys(patch).length) {
+      const { error } = await supa.from('direct_vendors').update(patch).eq('id', vendor.id)
+      if (error) {
+        console.error('[direct/me] signup location not saved', { vendor_id: vendor.id, user_id: user.id, error: error.message })
+        return vendor
+      }
+    }
+    // Spread the existing app_metadata so nothing in it is replaced.
+    const { error: stampError } = await supa.auth.admin.updateUserById(user.id, {
+      app_metadata: { ...(user.app_metadata || {}), signup_profile_copied_at: new Date().toISOString() },
+    })
+    // Not data loss — the next load just finds the columns filled and skips them.
+    if (stampError) console.warn('[direct/me] could not mark signup profile copied', { vendor_id: vendor.id, user_id: user.id, error: stampError.message })
+  } catch (e) {
+    console.error('[direct/me] signup location not saved', { vendor_id: vendor.id, user_id: user.id, error: e?.message || String(e) })
+    return vendor
+  }
+
+  return { ...vendor, ...patch }
+}
+
 // POST body: { tier_intent?: 'free' | 'maker' | 'shop' | null, category?,
 //              location_city?, location_state? }
-// Used by /signup right after a successful auth.signUp() to save category
-// and location (signup no longer sends tier_intent). Idempotent — no-op if
-// vendor row not yet provisioned.
+// /signup no longer calls this (it saves category and location in auth
+// metadata; see copySignupProfile). Idempotent — no-op if vendor row not yet
+// provisioned.
 export async function POST(request) {
   const userId = await getSignedInUserId(request)
   if (!userId) return bad('not signed in', 401)
@@ -106,6 +156,9 @@ export async function POST(request) {
     .eq('creator_id', userId)
     .select('id, tier_intent')
     .maybeSingle()
+  if (error && (patch.location_city || patch.location_state)) {
+    console.error('[direct/me] location not saved', { vendor_id: null, user_id: userId, error: error.message })
+  }
   if (error) {
     // If tier_intent column missing, surface a hint rather than a 500.
     if (/column .*tier_intent.* does not exist|schema cache/i.test(error.message)) {
@@ -121,7 +174,12 @@ export async function POST(request) {
   // If no row matched (vendor trigger hasn't fired yet), return ok:false so
   // the caller can decide whether to retry. The signup flow can just move
   // on — tier_intent isn't load-bearing.
-  if (!data) return NextResponse.json({ ok: false, error: 'vendor row not yet provisioned', vendor_id: null })
+  if (!data) {
+    if (patch.location_city || patch.location_state) {
+      console.error('[direct/me] location not saved', { vendor_id: null, user_id: userId, error: 'vendor row not yet provisioned' })
+    }
+    return NextResponse.json({ ok: false, error: 'vendor row not yet provisioned', vendor_id: null })
+  }
 
   return NextResponse.json({ ok: true, vendor_id: data.id, tier_intent: data.tier_intent })
 }
