@@ -42,7 +42,7 @@ function CountBadge({ count, inverted }) {
 }
 
 const LINKS = [
-  { key: 'drops', href: '/dashboard', label: 'Drops' },
+  { key: 'dashboard', href: '/dashboard', label: 'Dashboard' },
   { key: 'orders', href: '/dashboard/orders', label: 'Orders' },
   { key: 'settings', href: '/dashboard/settings', label: 'Settings' },
 ]

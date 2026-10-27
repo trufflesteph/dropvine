@@ -28,6 +28,8 @@ export default function DashboardPage() {
   // Saved direct_vendors location, normalized. Null until /api/direct/me
   // returns a vendor row (no row = no notice). Edited on /dashboard/settings.
   const [savedLocation, setSavedLocation] = useState(null)
+  // /api/direct/me's error, e.g. when the vendor row couldn't be created.
+  const [profileError, setProfileError] = useState(null)
   // Starts true so the notice doesn't flash before localStorage is read.
   const [noticeDismissed, setNoticeDismissed] = useState(true)
   const unpaidCount = useUnpaidOrderCount(user, configured)
@@ -71,9 +73,10 @@ export default function DashboardPage() {
     ;(async () => {
       try {
         const r = await fetch('/api/direct/me', { headers: idHeaders })
-        if (!r.ok) return
-        const d = await r.json()
+        const d = await r.json().catch(() => ({}))
         if (cancelled) return
+        if (!r.ok) { setProfileError(d?.error || 'Could not load your vendor profile.'); return }
+        setProfileError(null)
         if (d?.vendor?.tier) setVendorTier(d.vendor.tier)
         setTrialEndsAt(d?.vendor?.trial_ends_at || null)
         if (d?.vendor) setSavedLocation(normalizeLocation(d.vendor.location_city, d.vendor.location_state))
@@ -138,11 +141,16 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
-      <DashboardSidebar active="drops" user={user} signOut={signOut} unpaidCount={unpaidCount} />
+      <DashboardSidebar active="dashboard" user={user} signOut={signOut} unpaidCount={unpaidCount} />
 
       {/* Main */}
       <main className="flex-1 min-w-0">
-        <DashboardMobileNav active="drops" unpaidCount={unpaidCount} />
+        <DashboardMobileNav active="dashboard" unpaidCount={unpaidCount} />
+        {profileError ? (
+          <div role="alert" className="px-6 md:px-12 py-3 border-b border-border text-sm text-red-700" data-testid="profile-error">
+            {profileError}
+          </div>
+        ) : null}
         {showLocationNotice ? (
           <div className="px-6 md:px-12 py-3 border-b border-border text-sm flex items-start justify-between gap-4" style={{ background: '#F3F6F1' }} data-testid="location-notice">
             <Link href="/dashboard/settings#location" className="underline underline-offset-4">Add where you're based so shoppers can find you by location.</Link>

@@ -3,9 +3,10 @@
 //
 // Tiny "who am I" endpoint for signed-in vendors. Used by the dashboard
 // to look up the current vendor's tier (so the "New drop" CTA can route
-// to the right Tally form; trial_ends_at for the trial line). GET also
-// copies the category and location saved in auth metadata at signup onto
-// the vendor row, the first time the vendor is seen with a session.
+// to the right Tally form; trial_ends_at for the trial line). GET creates
+// the vendor's direct_vendors row if it's missing (lib/vendors/provision.js),
+// and copies the category and location saved in auth metadata at signup
+// onto the row, the first time the vendor is seen with a session.
 //
 // Auth: the signed-in user from the Supabase session (lib/auth/server-user.js);
 // 401 without one. Service-role supabase client bypasses RLS so we get a
@@ -16,6 +17,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { getSignedInUserId } from '@/lib/auth/server-user'
 import { normalizeLocation, normalizeLocationEdit, US_STATES } from '@/lib/location'
 import { PROFILE_FIELDS, isMissingPhoneColumn } from '@/lib/vendors/profile'
+import { createVendorRow } from '@/lib/vendors/provision'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,6 +26,7 @@ export const dynamic = 'force-dynamic'
 // is handled separately: it doesn't exist until
 // supabase/migrations/2026-10-direct-vendors-phone.sql is applied.
 const PROFILE_COLUMNS = 'bio, photo_url, logo_url, instagram_url, website_url, venmo_handle'
+const VENDOR_COLUMNS = `id, slug, business_name, tier, tier_intent, trial_ends_at, active, category, location_city, location_state, ${PROFILE_COLUMNS}`
 
 function bad(message, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status })
@@ -43,7 +46,7 @@ export async function GET(request) {
   {
     const { data, error } = await supa
       .from('direct_vendors')
-      .select(`id, slug, business_name, tier, tier_intent, trial_ends_at, active, category, location_city, location_state, ${PROFILE_COLUMNS}`)
+      .select(VENDOR_COLUMNS)
       .eq('creator_id', userId)
       .maybeSingle()
     if (error && /column .*(tier_intent|trial_ends_at).* does not exist|schema cache/i.test(error.message)) {
@@ -63,21 +66,37 @@ export async function GET(request) {
     if (error) return bad(error.message, 500)
     vendor = data ? { ...data, tier_intent: null, trial_ends_at: null } : null
   }
-  // Read on its own so a database without the phone column still returns
-  // the rest of the row.
-  if (vendor) {
-    const { data, error } = await supa.from('direct_vendors').select('phone').eq('id', vendor.id).maybeSingle()
-    vendor = { ...vendor, phone: error ? null : (data?.phone ?? null) }
-  }
   // Also fetch the email so the dashboard can pass it through to Tally as a
   // hidden param. We pull from auth.users via the admin API since profiles
   // may not be in sync immediately after signup.
   let authUser = null
+  let authError = null
   try {
-    const { data: { user } = {} } = await supa.auth.admin.getUserById(userId)
+    const { data: { user } = {}, error } = await supa.auth.admin.getUserById(userId)
     authUser = user || null
-  } catch {}
+    authError = error?.message || null
+  } catch (e) {
+    authError = e?.message || String(e)
+  }
   const email = authUser?.email || null
+
+  // No row: create it now, so the dashboard and settings work.
+  if (!vendor) {
+    const { vendor: created, error } = authUser
+      ? await createVendorRow(supa, authUser, VENDOR_COLUMNS)
+      : { vendor: null, error: `could not load the signed-in user: ${authError || 'not found'}` }
+    if (error) {
+      console.error('[direct/me] vendor row not created', { user_id: userId, error })
+      return bad(`We couldn’t set up your vendor profile: ${error}`, 500)
+    }
+    vendor = created
+  }
+  // Read on its own so a database without the phone column still returns
+  // the rest of the row.
+  {
+    const { data, error } = await supa.from('direct_vendors').select('phone').eq('id', vendor.id).maybeSingle()
+    vendor = { ...vendor, phone: error ? null : (data?.phone ?? null) }
+  }
 
   if (authUser) vendor = await copySignupProfile(supa, authUser, vendor)
 
