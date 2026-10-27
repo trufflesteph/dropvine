@@ -264,7 +264,49 @@ function PhotosSection({ vendor, idHeaders }) {
 }
 
 const ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif'
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+// Matches the server limit in /api/direct/me/image (under Vercel's 4.5 MB
+// request cap).
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+const MAX_SIDE = 2000
+
+// Scales the image so its longest side is at most MAX_SIDE and re-encodes it:
+// JPEG (quality 0.85), or PNG when it has transparent pixels (logos). A file
+// the browser can't decode (HEIC outside Safari) is returned as-is for the
+// server to convert or reject.
+async function prepareImage(file) {
+  if (typeof createImageBitmap !== 'function') return file
+  let bitmap
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+  } catch {
+    return file
+  }
+  try {
+    const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    // Only PNG and WebP can carry transparency.
+    let transparent = false
+    if (/png|webp/i.test(file.type)) {
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      for (let i = 3; i < data.length; i += 4) {
+        if (data[i] < 255) { transparent = true; break }
+      }
+    }
+    const type = transparent ? 'image/png' : 'image/jpeg'
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, type, 0.85))
+    if (!blob) return file
+    const name = `${file.name.replace(/\.[^.]*$/, '') || 'image'}.${transparent ? 'png' : 'jpg'}`
+    return new File([blob], name, { type })
+  } catch {
+    return file
+  } finally {
+    bitmap.close?.()
+  }
+}
 
 // One image: saved as soon as a file is picked (POST /api/direct/me/image),
 // removed with DELETE. The picked file previews beside the current one while
@@ -285,17 +327,18 @@ function ImageField({ kind, label, help, initialUrl, fit, idHeaders }) {
   }
 
   const upload = async (e) => {
-    const file = e.target.files?.[0]
+    const picked = e.target.files?.[0]
     e.target.value = '' // so picking the same file again still fires
-    if (!file) return
+    if (!picked) return
     setMessage(null)
-    if (file.size > MAX_UPLOAD_BYTES) {
-      report(false, `That image is ${(file.size / 1024 / 1024).toFixed(1)} MB. Please choose one under 5 MB.`)
-      return
-    }
-    setChosen(URL.createObjectURL(file))
+    setChosen(null)
     setBusy('upload')
     try {
+      const file = await prepareImage(picked)
+      if (file.size > MAX_UPLOAD_BYTES) {
+        throw new Error(`That image is ${(file.size / 1024 / 1024).toFixed(1)} MB. Please choose one under 4 MB.`)
+      }
+      setChosen(URL.createObjectURL(file))
       const body = new FormData()
       body.append('kind', kind)
       body.append('file', file)
@@ -432,7 +475,6 @@ function LocationSection({ saved, onSaved, idHeaders }) {
 
   return (
     <section id="location" className="px-6 md:px-12 py-12 border-t border-border scroll-mt-6">
-      <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Your profile</div>
       <h2 className="font-serif font-light text-3xl tracking-tighter">Where you're based</h2>
       <form onSubmit={save} className="mt-6 max-w-md space-y-4">
         <div className="grid grid-cols-2 gap-4">

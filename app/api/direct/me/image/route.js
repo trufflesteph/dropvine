@@ -4,10 +4,11 @@
 // The signed-in vendor's profile photo and logo, from /dashboard/settings.
 // POST stores the file in the public `vendor-photos` bucket at
 // vendors/<vendor_id>/<kind>-<timestamp>.<ext> and saves its public URL to
-// direct_vendors.photo_url or logo_url. DELETE sets the column to null (the
-// file stays in storage).
+// direct_vendors.photo_url or logo_url. DELETE sets the column to null. After
+// either, the previous file is deleted from storage if this route stored it
+// (see removeOldImage) — never drop covers, Tally uploads or pasted URLs.
 //
-// JPG, PNG and WebP up to 5 MB, checked from the file's bytes rather than its
+// JPG, PNG and WebP up to 4 MB, checked from the file's bytes rather than its
 // name or reported type. HEIC/HEIF (iPhone) is converted to JPEG with the same
 // converter the Tally drop photos use.
 //
@@ -23,7 +24,9 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const BUCKET = 'vendor-photos'
-const MAX_BYTES = 5 * 1024 * 1024
+// The settings page resizes before uploading, so this is rarely hit. Under
+// Vercel's 4.5 MB request body cap.
+const MAX_BYTES = 4 * 1024 * 1024
 const COLUMNS = { photo: 'photo_url', logo: 'logo_url' }
 const TYPES = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }
 const WRONG_TYPE = 'Please upload a JPG, PNG or WebP image.'
@@ -43,6 +46,25 @@ function sniffType(buf) {
   return null
 }
 
+// Deletes a replaced or removed image, called only after the new value is
+// saved. Only a file this route stored for this vendor qualifies: its URL must
+// be this bucket's public URL for vendors/<vendorId>/photo-… or logo-…, and
+// neither column may still point at it. Failures are logged, never shown.
+async function removeOldImage(supa, vendorId, oldUrl, savedRow) {
+  if (!oldUrl || oldUrl === savedRow?.photo_url || oldUrl === savedRow?.logo_url) return
+  const folder = `vendors/${vendorId}/`
+  const prefix = supa.storage.from(BUCKET).getPublicUrl(folder).data?.publicUrl
+  if (!prefix || !oldUrl.startsWith(prefix)) return
+  const name = oldUrl.slice(prefix.length)
+  if (!/^(photo|logo)-\d+\.(jpg|png|webp)$/.test(name)) return
+  try {
+    const { error } = await supa.storage.from(BUCKET).remove([folder + name])
+    if (error) throw error
+  } catch (e) {
+    console.error('[direct/me/image] old image not deleted', { vendor_id: vendorId, path: folder + name, error: e?.message || String(e) })
+  }
+}
+
 export async function POST(request) {
   const userId = await getSignedInUserId(request)
   if (!userId) return bad('not signed in', 401)
@@ -55,7 +77,7 @@ export async function POST(request) {
   const file = form.get('file')
   if (!file || typeof file.arrayBuffer !== 'function' || !file.size) return bad('Choose an image to upload.')
   if (file.size > MAX_BYTES) {
-    return bad(`That image is ${(file.size / 1024 / 1024).toFixed(1)} MB. Please choose one under 5 MB.`)
+    return bad(`That image is ${(file.size / 1024 / 1024).toFixed(1)} MB. Please choose one under 4 MB.`)
   }
 
   let buf = Buffer.from(await file.arrayBuffer())
@@ -74,7 +96,7 @@ export async function POST(request) {
   const supa = getSupabaseAdmin()
   if (!supa) return bad('supabase not configured', 500)
   const { data: vendor, error: vErr } = await supa.from('direct_vendors')
-    .select('id').eq('creator_id', userId).maybeSingle()
+    .select('id, photo_url, logo_url').eq('creator_id', userId).maybeSingle()
   if (vErr) return bad(vErr.message, 500)
   if (!vendor) return bad('vendor row not yet provisioned', 404)
 
@@ -102,6 +124,7 @@ export async function POST(request) {
     await supa.storage.from(BUCKET).remove([path]).catch(() => {})
     return bad('Could not save that image. Please try again.', 500)
   }
+  await removeOldImage(supa, vendor.id, vendor[column], data)
   return NextResponse.json({ ok: true, photo_url: data.photo_url, logo_url: data.logo_url })
 }
 
@@ -114,12 +137,18 @@ export async function DELETE(request) {
 
   const supa = getSupabaseAdmin()
   if (!supa) return bad('supabase not configured', 500)
+  const { data: vendor, error: vErr } = await supa.from('direct_vendors')
+    .select('id, photo_url, logo_url').eq('creator_id', userId).maybeSingle()
+  if (vErr) return bad(vErr.message, 500)
+  if (!vendor) return bad('vendor row not yet provisioned', 404)
   const { data, error } = await supa.from('direct_vendors')
     .update({ [column]: null })
+    .eq('id', vendor.id)
     .eq('creator_id', userId)
     .select('photo_url, logo_url')
     .maybeSingle()
   if (error) return bad(error.message, 500)
   if (!data) return bad('vendor row not yet provisioned', 404)
+  await removeOldImage(supa, vendor.id, vendor[column], data)
   return NextResponse.json({ ok: true, photo_url: data.photo_url, logo_url: data.logo_url })
 }

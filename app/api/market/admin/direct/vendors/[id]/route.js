@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAdminRole } from '@/lib/markets/admin-auth'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { normalizeLocationEdit, locationKey } from '@/lib/location'
+import { normalizePhone, isMissingPhoneColumn } from '@/lib/vendors/profile'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -40,6 +41,12 @@ export async function PATCH(request, { params }) {
       else updates[k] = v
     }
   }
+  // Phone: same rule as the vendor's own settings page; '' clears it.
+  if ('phone' in body) {
+    const phone = normalizePhone(body.phone)
+    if (phone.error) return NextResponse.json({ error: phone.error }, { status: 400 })
+    updates.phone = phone.value
+  }
   // Location, normalized like every other write (lib/location.js). The
   // editor sends the whole row on every save, so it's only validated and
   // written when it differs from what's stored; a missing field keeps its
@@ -66,8 +73,20 @@ export async function PATCH(request, { params }) {
     updates.creator_id = p?.id || null
   }
   if (!Object.keys(updates).length) return NextResponse.json({ error: 'no fields' }, { status: 400 })
-  const { data, error } = await supa.from('direct_vendors')
-    .update(updates).eq('id', params.id).select('*').single()
+  const update = (u) => supa.from('direct_vendors')
+    .update(u).eq('id', params.id).select('*').single()
+  let { data, error } = await update(updates)
+  // No phone column yet (like /api/direct/me): save everything else and
+  // report phone on its own.
+  if (error && 'phone' in updates && isMissingPhoneColumn(error)) {
+    console.error('[admin/direct/vendors] phone not saved', { vendor_id: params.id, error: error.message })
+    const phoneError = 'Phone numbers can’t be saved yet (the phone column hasn’t been added).'
+    const { phone, ...rest } = updates
+    if (!Object.keys(rest).length) return NextResponse.json({ error: phoneError }, { status: 503 })
+    ;({ data, error } = await update(rest))
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ vendor: data, partial: true, error: `${phoneError} Other changes were saved.` })
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ vendor: data })
 }

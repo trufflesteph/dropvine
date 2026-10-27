@@ -15,7 +15,7 @@ import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { getSignedInUserId } from '@/lib/auth/server-user'
 import { normalizeLocation, normalizeLocationEdit, US_STATES } from '@/lib/location'
-import { PROFILE_FIELDS } from '@/lib/vendors/profile'
+import { PROFILE_FIELDS, isMissingPhoneColumn } from '@/lib/vendors/profile'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,11 +27,6 @@ const PROFILE_COLUMNS = 'bio, photo_url, logo_url, instagram_url, website_url, v
 
 function bad(message, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status })
-}
-
-function isMissingPhoneColumn(error) {
-  const msg = String(error?.message || '')
-  return /phone/i.test(msg) && /does not exist|schema cache|could not find/i.test(msg)
 }
 
 export async function GET(request) {
