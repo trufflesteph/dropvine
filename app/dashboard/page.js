@@ -8,9 +8,7 @@ import { ArrowUpRight, Plus, Calendar, Users, Sparkles, Loader2, Eye, X } from '
 import { TALLY_NEW_DROP_URLS } from '@/lib/dashboard/new-drop-url'
 import { formatEmailDate } from '@/lib/email/format'
 import { DashboardSidebar, DashboardMobileNav, useUnpaidOrderCount } from '@/components/dropvine/dashboard-nav'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { normalizeLocation, normalizeLocationEdit, formatLocation, US_STATES } from '@/lib/location'
+import { normalizeLocation } from '@/lib/location'
 
 // Per-user, so a shared browser doesn't hide the notice for another vendor.
 const LOCATION_NOTICE_KEY = 'dropvine_location_notice_dismissed'
@@ -28,7 +26,7 @@ export default function DashboardPage() {
   // direct_vendors.trial_ends_at; null = no trial (vendors from before trials).
   const [trialEndsAt, setTrialEndsAt] = useState(null)
   // Saved direct_vendors location, normalized. Null until /api/direct/me
-  // returns a vendor row (no row = no location section or notice).
+  // returns a vendor row (no row = no notice). Edited on /dashboard/settings.
   const [savedLocation, setSavedLocation] = useState(null)
   // Starts true so the notice doesn't flash before localStorage is read.
   const [noticeDismissed, setNoticeDismissed] = useState(true)
@@ -147,7 +145,7 @@ export default function DashboardPage() {
         <DashboardMobileNav active="drops" unpaidCount={unpaidCount} />
         {showLocationNotice ? (
           <div className="px-6 md:px-12 py-3 border-b border-border text-sm flex items-start justify-between gap-4" style={{ background: '#F3F6F1' }} data-testid="location-notice">
-            <a href="#location" className="underline underline-offset-4">Add where you're based so shoppers can find you by location.</a>
+            <Link href="/dashboard/settings#location" className="underline underline-offset-4">Add where you're based so shoppers can find you by location.</Link>
             <button onClick={dismissNotice} aria-label="Dismiss" className="shrink-0 text-muted-foreground hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
@@ -270,10 +268,6 @@ export default function DashboardPage() {
             </ul>
           )}
         </section>
-
-        {savedLocation ? (
-          <LocationSection saved={savedLocation} onSaved={setSavedLocation} idHeaders={idHeaders} />
-        ) : null}
       </main>
     </div>
   )
@@ -286,91 +280,6 @@ function Stat({ icon, label, value, hint }) {
       <div className="mt-3 font-serif text-4xl font-light tracking-tighter">{value}</div>
       {hint && <div className="mt-2 text-xs text-muted-foreground">{hint}</div>}
     </div>
-  )
-}
-
-// "Where you're based" — city + US state, saved via POST /api/direct/me.
-// City and state are set together, or both cleared.
-function LocationSection({ saved, onSaved, idHeaders }) {
-  const [city, setCity] = useState(saved.city)
-  const [state, setState] = useState(saved.state)
-  const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState(null) // { ok, text }
-
-  const draft = normalizeLocationEdit(city, state)
-  const unchanged = draft.city === saved.city && draft.state === saved.state
-
-  const save = async (e) => {
-    e.preventDefault()
-    if (draft.error) { setMessage({ ok: false, text: draft.error }); toast.error(draft.error); return }
-    setSaving(true)
-    setMessage(null)
-    try {
-      const r = await fetch('/api/direct/me', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...idHeaders },
-        body: JSON.stringify({ location_city: draft.city, location_state: draft.state }),
-      })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok || !d.ok) throw new Error(d.error || 'Could not save your location.')
-      const next = normalizeLocation(d.location_city, d.location_state)
-      onSaved(next)
-      setCity(next.city)
-      setState(next.state)
-      const text = next.city ? `Saved. Shoppers will see ${formatLocation(next.city, next.state)}.` : 'Location cleared.'
-      setMessage({ ok: true, text })
-      toast.success(text)
-    } catch (err) {
-      const text = err?.message || 'Could not save your location.'
-      setMessage({ ok: false, text })
-      toast.error(text)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <section id="location" className="px-6 md:px-12 py-12 border-t border-border scroll-mt-6">
-      <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Your profile</div>
-      <h2 className="font-serif font-light text-3xl tracking-tighter">Where you're based</h2>
-      <form onSubmit={save} className="mt-6 max-w-md space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="location-city" className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">City</Label>
-            <Input id="location-city" value={city} onChange={e => setCity(e.target.value)} onBlur={() => setCity(c => c.trim())} className="h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0" placeholder="e.g. Austin" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="location-state" className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">State</Label>
-            <select
-              id="location-state"
-              value={state}
-              onChange={e => setState(e.target.value)}
-              className="h-12 w-full rounded-none border-x-0 border-t-0 border-b border-border bg-transparent focus:outline-none focus:border-foreground text-sm text-foreground"
-              style={{ paddingLeft: 0 }}
-            >
-              <option value="">Select a state</option>
-              {Object.entries(US_STATES).map(([code, stateName]) => (
-                <option key={code} value={code}>{stateName}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">Shown publicly as city and state only, never your street address.</p>
-        <div className="flex items-center gap-4 flex-wrap">
-          <button
-            disabled={saving || unchanged}
-            className="inline-flex items-center gap-2 text-background px-5 py-3 text-sm hover:opacity-90 disabled:opacity-50"
-            style={{ backgroundColor: '#2D4A2A' }}
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Save location
-          </button>
-          {message ? (
-            <p role="status" className={`text-sm ${message.ok ? 'text-muted-foreground' : 'text-red-700'}`} data-testid="location-save-message">{message.text}</p>
-          ) : null}
-        </div>
-      </form>
-    </section>
   )
 }
 

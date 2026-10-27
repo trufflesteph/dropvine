@@ -1,5 +1,6 @@
 'use client'
-// Vendor dashboard navigation, shared by /dashboard and /dashboard/orders:
+// Vendor dashboard navigation, shared by /dashboard, /dashboard/orders and
+// /dashboard/settings:
 // a sidebar from md up, and a compact tab row on phones (the sidebar is
 // hidden there). "Orders" shows the number of unpaid orders.
 
@@ -43,6 +44,7 @@ function CountBadge({ count, inverted }) {
 const LINKS = [
   { key: 'drops', href: '/dashboard', label: 'Drops' },
   { key: 'orders', href: '/dashboard/orders', label: 'Orders' },
+  { key: 'settings', href: '/dashboard/settings', label: 'Settings' },
 ]
 
 export function DashboardSidebar({ active, user, signOut, unpaidCount }) {
@@ -62,7 +64,6 @@ export function DashboardSidebar({ active, user, signOut, unpaidCount }) {
             {l.key === 'orders' ? <CountBadge count={unpaidCount} inverted={active === 'orders'} /> : null}
           </Link>
         ))}
-        <a className="block py-2 px-3 -mx-3 text-muted-foreground cursor-not-allowed opacity-60">Settings</a>
       </nav>
       <div className="mt-auto pt-8 border-t border-border">
         <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Account</div>

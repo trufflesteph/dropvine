@@ -95,6 +95,8 @@ export async function GET(request, { params }) {
       venmo_handle: vendor.venmo_handle,
       instagram_url: vendor.instagram_url,
       website_url: vendor.website_url,
+      // Null until supabase/migrations/2026-10-direct-vendors-phone.sql runs.
+      phone: vendor.phone || null,
       tier: vendor.tier,
       category: vendor.category || null,
       location_city: vendor.location_city || null,
