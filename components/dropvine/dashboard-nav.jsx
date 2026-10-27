@@ -27,6 +27,25 @@ export function useUnpaidOrderCount(user, configured) {
   return count
 }
 
+// For dashboard pages that don't otherwise load the vendor (/dashboard/orders):
+// GET /api/direct/me creates the vendor's direct_vendors row if it's missing,
+// as /dashboard and /dashboard/settings do on load. Returns its error, if any.
+export function useEnsureVendorRow(user, configured) {
+  const [error, setError] = useState(null)
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    fetch('/api/direct/me', { headers: mockUserHeaders(user, configured) })
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({}))
+        if (!cancelled) setError(r.ok ? null : (d?.error || 'Could not load your vendor profile.'))
+      })
+      .catch((e) => { if (!cancelled) setError(e?.message || 'Could not load your vendor profile.') })
+    return () => { cancelled = true }
+  }, [user, configured])
+  return error
+}
+
 function CountBadge({ count, inverted }) {
   if (!count) return null
   return (

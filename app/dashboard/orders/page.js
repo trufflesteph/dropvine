@@ -13,7 +13,7 @@ import { useAuth, mockUserHeaders } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { formatEmailDateTime } from '@/lib/email/format'
-import { DashboardSidebar, DashboardMobileNav } from '@/components/dropvine/dashboard-nav'
+import { DashboardSidebar, DashboardMobileNav, useEnsureVendorRow } from '@/components/dropvine/dashboard-nav'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -44,6 +44,8 @@ export default function DashboardOrdersPage() {
   const [error, setError] = useState(null)
   const [busyId, setBusyId] = useState(null)
   const [confirm, setConfirm] = useState(null) // { kind: 'mark_paid' | 'cancel', order }
+  // Creates the vendor row if missing, for a vendor who opens Orders first.
+  const profileError = useEnsureVendorRow(user, configured)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
@@ -97,6 +99,11 @@ export default function DashboardOrdersPage() {
 
       <main className="flex-1 min-w-0">
         <DashboardMobileNav active="orders" unpaidCount={data.unpaid_count} />
+        {profileError ? (
+          <div role="alert" className="px-4 md:px-12 py-3 border-b border-border text-sm text-red-700" data-testid="profile-error">
+            {profileError}
+          </div>
+        ) : null}
 
         {/* Always visible while scrolling. */}
         <div className="sticky top-0 z-20 border-b border-border px-4 md:px-12 py-3 text-sm leading-snug text-foreground" style={{ backgroundColor: '#F4F1EA' }} data-testid="money-note">
