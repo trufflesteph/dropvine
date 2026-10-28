@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Nav } from '@/components/dropvine/nav'
 import { Footer } from '@/components/dropvine/footer'
-import { ArrowRight, ExternalLink, Instagram, Globe, Loader2, Heart, Check, MapPin, Star } from 'lucide-react'
+import { ArrowRight, ExternalLink, Instagram, Globe, Loader2, Heart, Check, MapPin, Star, Phone } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -117,6 +117,9 @@ export default function VendorProfilePage() {
   const venmoUrl = v.venmo_handle
     ? `https://venmo.com/${encodeURIComponent(String(v.venmo_handle).replace(/^@/, ''))}`
     : null
+  // Stored as "(503) 555-1234" (lib/vendors/profile.js).
+  const phoneDigits = String(v.phone || '').replace(/\D/g, '')
+  const phoneUrl = phoneDigits.length === 10 ? `tel:+1${phoneDigits}` : null
 
   return (
     <div className="min-h-screen bg-background">
@@ -190,6 +193,12 @@ export default function VendorProfilePage() {
                    className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition">
                   <span className="font-mono">@{String(v.venmo_handle).replace(/^@/, '')}</span>
                   <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : null}
+              {phoneUrl ? (
+                <a href={phoneUrl} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition">
+                  <Phone className="h-4 w-4" />
+                  {v.phone}
                 </a>
               ) : null}
             </div>

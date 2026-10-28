@@ -42,6 +42,8 @@ export default function DirectVendorEditor({ initialVendor = null, initialProfil
       const method = isNew ? 'POST' : 'PATCH'
       const r = await adminFetch(url, { method, body: JSON.stringify(payload) })
       const j = await r.json()
+      // Saved except phone (no phone column yet): keep the typed phone.
+      if (j?.partial && j.vendor) { setV((p) => ({ ...j.vendor, phone: p.phone })); toast.error(j.error); return }
       if (!r.ok || j?.error) { toast.error(j?.error || 'Save failed'); return }
       toast.success(isNew ? 'Vendor created.' : 'Saved.')
       if (isNew) router.replace(`/admin/direct/vendors/${j.vendor.id}`)
@@ -106,7 +108,14 @@ export default function DirectVendorEditor({ initialVendor = null, initialProfil
           <F label="Venmo handle" value={v.venmo_handle || ''} onChange={(e) => set('venmo_handle', e.target.value)} placeholder="your-handle" />
           <F label="Instagram URL" value={v.instagram_url || ''} onChange={(e) => set('instagram_url', e.target.value)} placeholder="https://instagram.com/…" />
         </Row>
-        <F label="Website URL" value={v.website_url || ''} onChange={(e) => set('website_url', e.target.value)} placeholder="https://…" />
+        <Row>
+          <F label="Website URL" value={v.website_url || ''} onChange={(e) => set('website_url', e.target.value)} placeholder="https://…" />
+          {/* Not on create: POST /api/market/admin/direct/vendors doesn't take phone. */}
+          {!isNew ? (
+            <F label="Phone" type="tel" value={v.phone || ''} onChange={(e) => set('phone', e.target.value)}
+               placeholder="(503) 555-1234" help="US number; shown on the vendor page" />
+          ) : null}
+        </Row>
       </section>
 
       <section className="rounded-2xl border border-stone-200 bg-white p-6 grid gap-4">

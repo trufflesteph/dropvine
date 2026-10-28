@@ -1,5 +1,6 @@
 'use client'
-// Vendor dashboard navigation, shared by /dashboard and /dashboard/orders:
+// Vendor dashboard navigation, shared by /dashboard, /dashboard/orders and
+// /dashboard/settings:
 // a sidebar from md up, and a compact tab row on phones (the sidebar is
 // hidden there). "Orders" shows the number of unpaid orders.
 
@@ -26,6 +27,25 @@ export function useUnpaidOrderCount(user, configured) {
   return count
 }
 
+// For dashboard pages that don't otherwise load the vendor (/dashboard/orders):
+// GET /api/direct/me creates the vendor's direct_vendors row if it's missing,
+// as /dashboard and /dashboard/settings do on load. Returns its error, if any.
+export function useEnsureVendorRow(user, configured) {
+  const [error, setError] = useState(null)
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    fetch('/api/direct/me', { headers: mockUserHeaders(user, configured) })
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({}))
+        if (!cancelled) setError(r.ok ? null : (d?.error || 'Could not load your vendor profile.'))
+      })
+      .catch((e) => { if (!cancelled) setError(e?.message || 'Could not load your vendor profile.') })
+    return () => { cancelled = true }
+  }, [user, configured])
+  return error
+}
+
 function CountBadge({ count, inverted }) {
   if (!count) return null
   return (
@@ -41,8 +61,9 @@ function CountBadge({ count, inverted }) {
 }
 
 const LINKS = [
-  { key: 'drops', href: '/dashboard', label: 'Drops' },
+  { key: 'dashboard', href: '/dashboard', label: 'Dashboard' },
   { key: 'orders', href: '/dashboard/orders', label: 'Orders' },
+  { key: 'settings', href: '/dashboard/settings', label: 'Settings' },
 ]
 
 export function DashboardSidebar({ active, user, signOut, unpaidCount }) {
@@ -62,7 +83,6 @@ export function DashboardSidebar({ active, user, signOut, unpaidCount }) {
             {l.key === 'orders' ? <CountBadge count={unpaidCount} inverted={active === 'orders'} /> : null}
           </Link>
         ))}
-        <a className="block py-2 px-3 -mx-3 text-muted-foreground cursor-not-allowed opacity-60">Settings</a>
       </nav>
       <div className="mt-auto pt-8 border-t border-border">
         <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Account</div>

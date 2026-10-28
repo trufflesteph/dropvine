@@ -3,9 +3,10 @@
 //
 // Tiny "who am I" endpoint for signed-in vendors. Used by the dashboard
 // to look up the current vendor's tier (so the "New drop" CTA can route
-// to the right Tally form; trial_ends_at for the trial line). GET also
-// copies the category and location saved in auth metadata at signup onto
-// the vendor row, the first time the vendor is seen with a session.
+// to the right Tally form; trial_ends_at for the trial line). GET creates
+// the vendor's direct_vendors row if it's missing (lib/vendors/provision.js),
+// and copies the category and location saved in auth metadata at signup
+// onto the row, the first time the vendor is seen with a session.
 //
 // Auth: the signed-in user from the Supabase session (lib/auth/server-user.js);
 // 401 without one. Service-role supabase client bypasses RLS so we get a
@@ -15,9 +16,17 @@ import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { getSignedInUserId } from '@/lib/auth/server-user'
 import { normalizeLocation, normalizeLocationEdit, US_STATES } from '@/lib/location'
+import { PROFILE_FIELDS, isMissingPhoneColumn } from '@/lib/vendors/profile'
+import { createVendorRow } from '@/lib/vendors/provision'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+// Profile columns the settings page reads and gets back after a save. phone
+// is handled separately: it doesn't exist until
+// supabase/migrations/2026-10-direct-vendors-phone.sql is applied.
+const PROFILE_COLUMNS = 'bio, photo_url, logo_url, instagram_url, website_url, venmo_handle'
+const VENDOR_COLUMNS = `id, slug, business_name, tier, tier_intent, trial_ends_at, active, category, location_city, location_state, ${PROFILE_COLUMNS}`
 
 function bad(message, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status })
@@ -37,7 +46,7 @@ export async function GET(request) {
   {
     const { data, error } = await supa
       .from('direct_vendors')
-      .select('id, slug, business_name, tier, tier_intent, trial_ends_at, active, category, location_city, location_state')
+      .select(VENDOR_COLUMNS)
       .eq('creator_id', userId)
       .maybeSingle()
     if (error && /column .*(tier_intent|trial_ends_at).* does not exist|schema cache/i.test(error.message)) {
@@ -51,7 +60,7 @@ export async function GET(request) {
   if (usedFallback) {
     const { data, error } = await supa
       .from('direct_vendors')
-      .select('id, slug, business_name, tier, active, category, location_city, location_state')
+      .select(`id, slug, business_name, tier, active, category, location_city, location_state, ${PROFILE_COLUMNS}`)
       .eq('creator_id', userId)
       .maybeSingle()
     if (error) return bad(error.message, 500)
@@ -61,11 +70,33 @@ export async function GET(request) {
   // hidden param. We pull from auth.users via the admin API since profiles
   // may not be in sync immediately after signup.
   let authUser = null
+  let authError = null
   try {
-    const { data: { user } = {} } = await supa.auth.admin.getUserById(userId)
+    const { data: { user } = {}, error } = await supa.auth.admin.getUserById(userId)
     authUser = user || null
-  } catch {}
+    authError = error?.message || null
+  } catch (e) {
+    authError = e?.message || String(e)
+  }
   const email = authUser?.email || null
+
+  // No row: create it now, so the dashboard and settings work.
+  if (!vendor) {
+    const { vendor: created, error } = authUser
+      ? await createVendorRow(supa, authUser, VENDOR_COLUMNS)
+      : { vendor: null, error: `could not load the signed-in user: ${authError || 'not found'}` }
+    if (error) {
+      console.error('[direct/me] vendor row not created', { user_id: userId, error })
+      return bad(`We couldn’t set up your vendor profile: ${error}`, 500)
+    }
+    vendor = created
+  }
+  // Read on its own so a database without the phone column still returns
+  // the rest of the row.
+  {
+    const { data, error } = await supa.from('direct_vendors').select('phone').eq('id', vendor.id).maybeSingle()
+    vendor = { ...vendor, phone: error ? null : (data?.phone ?? null) }
+  }
 
   if (authUser) vendor = await copySignupProfile(supa, authUser, vendor)
 
@@ -119,12 +150,16 @@ async function copySignupProfile(supa, user, vendor) {
 }
 
 // POST body: { tier_intent?: 'free' | 'maker' | 'shop' | null, category?,
-//              location_city?, location_state? }
-// The dashboard's "Where you're based" section saves location here. When
+//              location_city?, location_state?, bio?, phone?, instagram_url?,
+//              website_url?, venmo_handle? }
+// /dashboard/settings saves the profile and "Where you're based" here. When
 // either location field is sent, both are written: city and state must be
-// set together (US state code), or both blank to clear. /signup no longer
-// calls this (it saves category and location in auth metadata; see
-// copySignupProfile). Idempotent — no-op if vendor row not yet provisioned.
+// set together (US state code), or both blank to clear. Profile fields are
+// normalized by lib/vendors/profile.js; only the ones sent are written, and
+// '' clears one. /signup no longer calls this (it saves category and
+// location in auth metadata; see copySignupProfile). Only the signed-in
+// user's own row is updated. Idempotent — no-op if vendor row not yet
+// provisioned.
 export async function POST(request) {
   const userId = await getSignedInUserId(request)
   if (!userId) return bad('not signed in', 401)
@@ -155,14 +190,36 @@ export async function POST(request) {
     patch.location_city = location.city || null
     patch.location_state = location.state || null
   }
+  const fieldErrors = {}
+  for (const [field, normalize] of Object.entries(PROFILE_FIELDS)) {
+    if (!(field in body)) continue
+    const { value, error } = normalize(body[field])
+    if (error) fieldErrors[field] = error
+    else patch[field] = value
+  }
+  if (Object.keys(fieldErrors).length) {
+    return NextResponse.json({ ok: false, error: Object.values(fieldErrors)[0], errors: fieldErrors }, { status: 400 })
+  }
   if (!Object.keys(patch).length) return NextResponse.json({ ok: true, vendor_id: null, skipped: 'nothing to update' })
 
-  const { data, error } = await supa
+  const update = (p) => supa
     .from('direct_vendors')
-    .update(patch)
+    .update(p)
     .eq('creator_id', userId)
-    .select('id, tier_intent, location_city, location_state')
+    .select(`id, tier_intent, location_city, location_state, ${PROFILE_COLUMNS}${'phone' in p ? ', phone' : ''}`)
     .maybeSingle()
+  let { data, error } = await update(patch)
+  // No phone column yet: save everything else and report phone on its own.
+  let phoneError = null
+  if (error && 'phone' in patch && isMissingPhoneColumn(error)) {
+    console.error('[direct/me] phone not saved', { user_id: userId, error: error.message })
+    phoneError = 'Phone numbers can’t be saved yet. Please try again later.'
+    const { phone, ...rest } = patch
+    if (!Object.keys(rest).length) {
+      return NextResponse.json({ ok: false, error: phoneError, errors: { phone: phoneError } }, { status: 503 })
+    }
+    ;({ data, error } = await update(rest))
+  }
   if (error && hasLocation) {
     console.error('[direct/me] location not saved', { vendor_id: null, user_id: userId, error: error.message })
   }
@@ -188,8 +245,16 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, error: 'vendor row not yet provisioned', vendor_id: null })
   }
 
+  // `vendor` carries the saved, normalized values for the settings page.
+  if (phoneError) {
+    return NextResponse.json({
+      ok: false, partial: true, error: `${phoneError} Your other changes were saved.`,
+      errors: { phone: phoneError }, vendor_id: data.id, vendor: data,
+    })
+  }
   return NextResponse.json({
     ok: true, vendor_id: data.id, tier_intent: data.tier_intent,
     location_city: data.location_city, location_state: data.location_state,
+    vendor: data,
   })
 }
