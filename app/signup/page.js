@@ -61,7 +61,9 @@ function SignupPageInner() {
       }
 
       toast.success('Welcome to Dropvine.')
-      router.push('/dashboard')
+      // The welcome version of Settings: photo, bio and location before the
+      // first drop.
+      router.push('/dashboard/settings?welcome=1')
     } catch (err) {
       toast.error(err.message || 'Sign up failed')
     } finally { setLoading(false) }
