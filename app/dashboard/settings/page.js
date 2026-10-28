@@ -6,8 +6,12 @@
 // Data + saves: GET/POST /api/direct/me (text fields and location) and
 // /api/direct/me/image (photos, saved as soon as they're picked). Session-
 // cookie auth; the server only ever updates this vendor's own row.
+//
+// ?welcome=1 (where /signup sends new vendors) shows the welcome version:
+// a greeting, Photos first, and "Start your first drop" / "Skip for now".
 
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth, mockUserHeaders } from '@/lib/auth-context'
 import { toast } from 'sonner'
@@ -17,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { normalizeLocation, normalizeLocationEdit, formatLocation, US_STATES } from '@/lib/location'
 import { BIO_MAX } from '@/lib/vendors/profile'
+import { openNewDropForm } from '@/lib/dashboard/new-drop-url'
 
 const GREEN = '#2D4A2A'
 const INPUT_CLASS = 'h-12 rounded-none border-x-0 border-t-0 border-b border-border focus-visible:ring-0 focus-visible:border-foreground px-0'
@@ -31,10 +36,24 @@ export default function DashboardSettingsPage() {
   const [savedLocation, setSavedLocation] = useState(null)
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState(null)
+  const [welcome, setWelcome] = useState(false)
+  const profileRef = useRef(null)
+  const locationRef = useRef(null)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
   }, [loading, user, router])
+
+  // Read once, then dropped from the URL, so a reload or a later visit shows
+  // the normal page.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('welcome') !== '1') return
+    setWelcome(true)
+    params.delete('welcome')
+    const qs = params.toString()
+    router.replace(`${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`, { scroll: false })
+  }, [router])
 
   useEffect(() => {
     if (!user) return
@@ -75,10 +94,19 @@ export default function DashboardSettingsPage() {
         <DashboardMobileNav active="settings" unpaidCount={unpaidCount} />
 
         <header className="border-b border-border">
-          <div className="px-6 md:px-12 py-8">
-            <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Your vine</div>
-            <h1 className="font-serif font-light text-4xl md:text-5xl tracking-tighter">Settings</h1>
-          </div>
+          {welcome ? (
+            <div className="px-6 md:px-12 py-8" data-testid="welcome-header">
+              <h1 className="font-serif font-light text-4xl md:text-5xl tracking-tighter">Welcome to Dropvine.</h1>
+              <p className="mt-3 max-w-xl text-muted-foreground">
+                Add a photo, a few words about your business, and where you're based. Shoppers see this on your vendor page.
+              </p>
+            </div>
+          ) : (
+            <div className="px-6 md:px-12 py-8">
+              <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Your vine</div>
+              <h1 className="font-serif font-light text-4xl md:text-5xl tracking-tighter">Settings</h1>
+            </div>
+          )}
         </header>
 
         {fetching ? (
@@ -89,6 +117,18 @@ export default function DashboardSettingsPage() {
           <div className="px-6 md:px-12 py-12 text-sm text-muted-foreground">
             Your vendor profile isn’t set up yet. Please check back in a minute.
           </div>
+        ) : welcome ? (
+          <div className="divide-y divide-border">
+            <PhotosSection vendor={vendor} idHeaders={idHeaders} />
+            <ProfileSection ref={profileRef} vendor={vendor} idHeaders={idHeaders} />
+            <LocationSection ref={locationRef} saved={savedLocation} onSaved={setSavedLocation} idHeaders={idHeaders} />
+            <WelcomeActions
+              saveSections={[profileRef, locationRef]}
+              tier={vendor.tier}
+              idHeaders={idHeaders}
+              onStarted={() => router.push('/dashboard')}
+            />
+          </div>
         ) : (
           <div className="divide-y divide-border">
             <ProfileSection vendor={vendor} idHeaders={idHeaders} />
@@ -98,6 +138,62 @@ export default function DashboardSettingsPage() {
         )}
       </main>
     </div>
+  )
+}
+
+// Bottom of the welcome version. "Start your first drop" saves any unsaved
+// profile and location changes, then opens the Tally new-drop form exactly as
+// the dashboard's New drop button does; if a save or the form fails, the
+// error shows and the vendor stays here. "Skip for now" saves nothing.
+function WelcomeActions({ saveSections, tier, idHeaders, onStarted }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  const start = async () => {
+    if (busy) return
+    // Opened inside the click so popup blockers allow it, as on the dashboard.
+    const tab = window.open('', '_blank')
+    setBusy(true)
+    setError(null)
+    try {
+      const results = []
+      for (const ref of saveSections) results.push(await (ref.current?.saveIfChanged() ?? true))
+      if (results.includes(false)) {
+        tab?.close()
+        setError('Your changes weren’t saved. Fix the errors above, then try again.')
+        return
+      }
+      await openNewDropForm(tab, { tier: tier || 'free', headers: idHeaders })
+      onStarted()
+    } catch (e) {
+      tab?.close()
+      const text = e?.message || 'Could not open drop form — please try again'
+      setError(text)
+      toast.error(text)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="px-6 md:px-12 py-12" data-testid="welcome-actions">
+      <div className="flex items-center gap-6 flex-wrap">
+        <button
+          type="button"
+          onClick={start}
+          disabled={busy}
+          className="inline-flex items-center gap-2 text-background px-6 py-3 text-sm hover:opacity-90 disabled:opacity-60"
+          style={{ backgroundColor: GREEN }}
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Start your first drop
+        </button>
+        <Link href="/dashboard" className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
+          Skip for now
+        </Link>
+      </div>
+      {error ? <p role="alert" className="mt-4 text-sm text-red-700" data-testid="welcome-error">{error}</p> : null}
+    </section>
   )
 }
 
@@ -129,8 +225,9 @@ const toForm = (v) => Object.fromEntries(PROFILE_KEYS.map((k) => [k, v?.[k] || '
 
 // "Your profile" — saved via POST /api/direct/me, sending only the fields
 // that changed. The server normalizes them (phone formatted, https:// added),
-// and the saved values replace what was typed.
-function ProfileSection({ vendor, idHeaders }) {
+// and the saved values replace what was typed. `ref` exposes saveIfChanged()
+// for the welcome page's "Start your first drop".
+const ProfileSection = forwardRef(function ProfileSection({ vendor, idHeaders }, ref) {
   const [saved, setSaved] = useState(() => toForm(vendor))
   const [form, setForm] = useState(saved)
   const [errors, setErrors] = useState({})
@@ -144,8 +241,8 @@ function ProfileSection({ vendor, idHeaders }) {
     setErrors((errs) => ({ ...errs, [k]: null }))
   }
 
-  const save = async (e) => {
-    e.preventDefault()
+  // True when saved; on failure shows the error and returns false.
+  const persist = async () => {
     setSaving(true)
     setMessage(null)
     setErrors({})
@@ -175,14 +272,23 @@ function ProfileSection({ vendor, idHeaders }) {
       const text = 'Saved. Your vendor page shows your changes.'
       setMessage({ ok: true, text })
       toast.success(text)
+      return true
     } catch (err) {
       const text = err?.message || 'Could not save your profile.'
       setMessage({ ok: false, text })
       toast.error(text)
+      return false
     } finally {
       setSaving(false)
     }
   }
+
+  const save = (e) => {
+    e.preventDefault()
+    persist()
+  }
+
+  useImperativeHandle(ref, () => ({ saveIfChanged: () => (changed.length ? persist() : Promise.resolve(true)) }))
 
   return (
     <section className="px-6 md:px-12 py-12">
@@ -235,7 +341,7 @@ function ProfileSection({ vendor, idHeaders }) {
       </form>
     </section>
   )
-}
+})
 
 function PhotosSection({ vendor, idHeaders }) {
   return (
@@ -434,8 +540,9 @@ function Preview({ src, alt, caption, fit }) {
 }
 
 // "Where you're based" — city + US state, saved via POST /api/direct/me.
-// City and state are set together, or both cleared.
-function LocationSection({ saved, onSaved, idHeaders }) {
+// City and state are set together, or both cleared. `ref` exposes
+// saveIfChanged() for the welcome page's "Start your first drop".
+const LocationSection = forwardRef(function LocationSection({ saved, onSaved, idHeaders }, ref) {
   const [city, setCity] = useState(saved.city)
   const [state, setState] = useState(saved.state)
   const [saving, setSaving] = useState(false)
@@ -444,9 +551,9 @@ function LocationSection({ saved, onSaved, idHeaders }) {
   const draft = normalizeLocationEdit(city, state)
   const unchanged = draft.city === saved.city && draft.state === saved.state
 
-  const save = async (e) => {
-    e.preventDefault()
-    if (draft.error) { setMessage({ ok: false, text: draft.error }); toast.error(draft.error); return }
+  // True when saved; on failure shows the error and returns false.
+  const persist = async () => {
+    if (draft.error) { setMessage({ ok: false, text: draft.error }); toast.error(draft.error); return false }
     setSaving(true)
     setMessage(null)
     try {
@@ -464,14 +571,23 @@ function LocationSection({ saved, onSaved, idHeaders }) {
       const text = next.city ? `Saved. Shoppers will see ${formatLocation(next.city, next.state)}.` : 'Location cleared.'
       setMessage({ ok: true, text })
       toast.success(text)
+      return true
     } catch (err) {
       const text = err?.message || 'Could not save your location.'
       setMessage({ ok: false, text })
       toast.error(text)
+      return false
     } finally {
       setSaving(false)
     }
   }
+
+  const save = (e) => {
+    e.preventDefault()
+    persist()
+  }
+
+  useImperativeHandle(ref, () => ({ saveIfChanged: () => (unchanged ? Promise.resolve(true) : persist()) }))
 
   return (
     <section id="location" className="px-6 md:px-12 py-12 border-t border-border scroll-mt-6">
@@ -515,4 +631,4 @@ function LocationSection({ saved, onSaved, idHeaders }) {
       </form>
     </section>
   )
-}
+})
