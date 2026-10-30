@@ -191,7 +191,7 @@ function DropsDirectoryInner() {
       <Nav />
 
       {/* Page header — /drops (renamed from /creators June 2026) */}
-      <section className="container pt-32 md:pt-40 pb-10 md:pb-14">
+      <section className="container pt-16 md:pt-24 lg:pt-10 pb-10 md:pb-14">
         <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-4">Fresh Drops</div>
         <h1 className="font-serif font-light text-5xl md:text-7xl leading-[0.96] tracking-tightest text-balance">
           Browse Fresh Drops

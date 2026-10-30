@@ -36,7 +36,7 @@ export default function ToolsPage() {
     <div className="min-h-screen bg-background">
       <Nav />
       <main>
-        <section className="container pt-40 pb-24 md:pt-48 md:pb-32">
+        <section className="container pt-24 pb-24 md:pt-32 md:pb-32 lg:pt-16">
           <div className="max-w-3xl">
             <p className="mb-6 text-xs uppercase tracking-[0.2em] text-muted-foreground">Dropvine tools</p>
             <h1 className="font-serif text-5xl leading-[0.95] tracking-tight md:text-7xl">

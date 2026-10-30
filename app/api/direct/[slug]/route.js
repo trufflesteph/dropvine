@@ -14,7 +14,7 @@
 
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
-import { isVendorPageAvailable } from '@/lib/vendors/visibility'
+import { isVendorActive, isVendorPageAvailable } from '@/lib/vendors/visibility'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -40,7 +40,7 @@ export async function GET(request, { params }) {
     }
     return NextResponse.json({ error: vErr.message }, { status: 500 })
   }
-  if (!vendor || vendor.active === false) {
+  if (!isVendorActive(vendor)) {
     return NextResponse.json({ error: 'vendor not found' }, { status: 404 })
   }
 

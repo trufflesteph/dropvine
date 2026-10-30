@@ -3,7 +3,7 @@ import Stripe from 'stripe'
 import { store, uuidv4 } from '@/lib/mock-store'
 import { getSupabaseServer, getSupabaseAdmin, getServerSupabaseConfig } from '@/lib/supabase/server'
 import { notifyWaitlistConfirmed } from '@/lib/notifications'
-import { isVendorPageAvailable, normalizeTier } from '@/lib/vendors/visibility'
+import { isVendorActive, isVendorPageAvailable, normalizeTier } from '@/lib/vendors/visibility'
 import { getSignedInUserId } from '@/lib/auth/server-user'
 import { requireAdminRole, ADMIN_ROLES } from '@/lib/markets/admin-auth'
 import { isDemoDrop, DEMO_ORDER_ERROR } from '@/lib/drops/demo'
@@ -179,7 +179,7 @@ export async function GET(request, { params }) {
             vendorSlug = dv.slug || null
             vendorTier = normalizeTier(dv.tier)
             vendorIsDemo = !!dv.is_demo
-            if (dv.slug && dv.active !== false) {
+            if (dv.slug && isVendorActive(dv)) {
               const { data: vendorDrops } = await sb
                 .from('drops')
                 .select('status, launch_at, closes_at')
