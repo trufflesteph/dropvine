@@ -107,10 +107,18 @@
   .heroH1 { font-size: 46px; }
   .wrap { padding: 0 20px; }
 
-  /* Phones: logo + trial button on the first row, nav links below. */
-  .headerInner { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'logo btn' 'links links'; column-gap: 16px; row-gap: 0; padding-top: 12px; padding-bottom: 4px; min-height: 0; }
-  .logoLink { grid-area: logo; margin-right: 0; }
-  .headerBtn { grid-area: btn; }
-  .navLinks { grid-area: links; gap: 20px; }
-  .page .navLink { font-size: 14px; }
+  /* Phones: logo + Menu button; the links and trial button are in the menu. */
+  .headerInner { gap: 16px; min-height: 64px; }
+  .navLinks, .page .headerBtn { display: none; }
+}
+
+/* Phone menu (components/dropvine/site-menu.jsx) in this page's style.
+   Text contrast: #3B342E on the cream panel ~11:1, #2F5128 on white ~9.6:1. */
+.page .menuButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; min-width: 44px; padding: 0 18px; border: 2px solid #2F5128; border-radius: 999px; background: #FFFFFF; color: #2F5128; font-family: inherit; font-weight: 700; font-size: 15px; cursor: pointer; }
+.page .menuButton:hover { background: #F3F7EF; color: #1F3A1A; }
+.page .menuLink { display: flex; align-items: center; width: 100%; min-height: 48px; padding: 0; border: 0; background: none; font-family: inherit; font-size: 16px; font-weight: 600; color: #3B342E; text-decoration: none; cursor: pointer; }
+.page .menuLink:hover { color: #1F3A1A; text-decoration: underline; }
+.page .menuCta { display: flex; width: 100%; margin-top: 24px; box-sizing: border-box; }
+@media (min-width: 761px) {
+  .page .menuOnly { display: none; }
 }

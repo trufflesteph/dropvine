@@ -5,6 +5,8 @@ import { getServerSupabaseConfig } from '@/lib/supabase/server'
 import { DROPVINE_LOGO_URL } from '@/components/dropvine/logo'
 import { HOME_COPY_DEFAULTS, HOME_COPY_KEYS, resolveHomeCopy, featureLines } from '@/lib/site-config/home-copy'
 import { PremiumWaitlistForm } from '@/components/dropvine/PremiumWaitlistForm'
+import { SiteMenu } from '@/components/dropvine/site-menu'
+import { HOME_HEADER_LINKS, PAGE_LINKS } from '@/lib/nav/links'
 import s from './page.module.css'
 
 // Demo drop opened by "Open the demo drop". Wildflour Cookies' pre-order drop.
@@ -122,11 +124,27 @@ export default async function HomePage() {
             <img src={logoUrl} alt="Dropvine" />
           </Link>
           <nav className={s.navLinks} aria-label="Main">
-            <Link href="/drops" className={s.navLink}>Shop drops</Link>
-            <a href="#pricing" className={s.navLink}>Pricing</a>
+            {HOME_HEADER_LINKS.map((l) => (
+              <Link key={l.href} href={l.href} className={s.navLink}>{l.label}</Link>
+            ))}
             <Link href="/login" className={s.navLink}>Log in</Link>
           </nav>
           <Link href="/signup" className={`${s.btn} ${s.btnSmall} ${s.headerBtn}`}>Start free trial</Link>
+          {/* Phones: the shared Menu button + panel in this page's style. */}
+          <SiteMenu
+            links={HOME_HEADER_LINKS}
+            cta={{ href: '/signup', label: 'Start free trial' }}
+            logo={<img src={logoUrl} alt="Dropvine" />}
+            desktopMinWidth={761}
+            classes={{
+              hideAt: s.menuOnly,
+              button: s.menuButton,
+              container: s.wrap,
+              logoLink: s.logoLink,
+              link: s.menuLink,
+              cta: `${s.btn} ${s.menuCta}`,
+            }}
+          />
         </div>
       </header>
 
@@ -385,9 +403,9 @@ export default async function HomePage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={logoUrl} alt="Dropvine" className={s.footerLogo} />
           <nav className={s.footerNav} aria-label="Footer">
-            <Link href="/drops" className={s.footerLink}>Shop drops</Link>
-            <a href="#pricing" className={s.footerLink}>Pricing</a>
-            <Link href="/tools" className={s.footerLink}>Free tools</Link>
+            {PAGE_LINKS.map((l) => (
+              <Link key={l.href} href={l.href} className={s.footerLink}>{l.label}</Link>
+            ))}
             <Link href="/login" className={s.footerLink}>Log in</Link>
             <a href="mailto:hello@dropvine.pro" className={s.footerLink}>Contact</a>
             <Link href="/terms" className={s.footerLink}>Terms</Link>
