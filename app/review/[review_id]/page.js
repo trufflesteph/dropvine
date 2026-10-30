@@ -93,7 +93,7 @@ export default function ReviewSubmissionPage() {
     <div className="min-h-screen bg-background flex flex-col">
       <Nav />
 
-      <main className="flex-1 container max-w-2xl py-24 md:py-32">
+      <main className="flex-1 container max-w-2xl pt-10 pb-24 md:pt-16 md:pb-32 lg:pt-4">
         {loading ? (
           <div className="flex items-center justify-center py-24 text-muted-foreground text-sm">
             <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…

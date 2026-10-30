@@ -44,6 +44,7 @@ export function Footer() {
           {/* Links are 44px tall so they're tappable on phones. */}
           <ul>
             <li><a href="/drops" className="inline-flex items-center min-h-[44px] hover:text-foreground text-muted-foreground">Shop drops</a></li>
+            <li><a href="/makers" className="inline-flex items-center min-h-[44px] hover:text-foreground text-muted-foreground">Browse makers</a></li>
             <li><a href="/#pricing" className="inline-flex items-center min-h-[44px] hover:text-foreground text-muted-foreground">Pricing</a></li>
             <li><a href="/tools" className="inline-flex items-center min-h-[44px] hover:text-foreground text-muted-foreground">Free tools</a></li>
             <li><a href="/dashboard" className="inline-flex items-center min-h-[44px] hover:text-foreground text-muted-foreground">Dashboard</a></li>

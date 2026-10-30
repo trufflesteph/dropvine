@@ -2,6 +2,8 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
+import { PAGE_LINKS } from '@/lib/nav/links'
+import { SiteMenu } from '@/components/dropvine/site-menu'
 import { getSupabaseBrowser } from '@/lib/supabase/client'
 import { DROPVINE_LOGO_URL } from '@/components/dropvine/logo'
 
@@ -45,35 +47,35 @@ export function Nav({ variant = 'light' }) {
     return () => { cancelled = true }
   }, [])
 
-  // Every link is at least 44px tall. Phones (below md): logo + account
-  // links / CTA on the first row, page links on a second full-width row. No
-  // menu, nothing hidden. "Log in" sits in the page-link row on phones so
-  // the first row fits at 390px; it is the same link either way.
+  // Header is in normal flow (not floating over the page), so it can't
+  // overlap page headings at any width. Every link is at least 44px tall.
+  // The full row needs ~930px with "Browse makers" and the configured CTA,
+  // so it starts at lg; below that it's the logo + Menu button (SiteMenu).
   const linkClass = 'inline-flex items-center min-h-[44px] text-muted-foreground hover:text-foreground transition-colors'
+  const logo = logoUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={logoUrl}
+      alt="Dropvine"
+      height={40}
+      className="block h-11 w-auto lg:h-[60px]"
+      onError={() => setLogoUrl(DROPVINE_LOGO_URL === logoUrl ? null : DROPVINE_LOGO_URL)}
+    />
+  ) : (
+    <>Dropvine<span className="align-super text-[8px] ml-0.5 text-muted-foreground">®</span></>
+  )
   return (
-    <header className="absolute top-0 left-0 right-0 z-30">
-      <div className="container flex flex-wrap items-center justify-between gap-x-4 py-2 md:flex-nowrap md:py-8">
+    <header className="relative z-30">
+      <div className="container flex items-center justify-between gap-x-4 py-2 lg:py-8">
         <Link href="/" className="inline-flex items-center min-h-[44px] font-serif text-x1 tracking-tighter" aria-label="Dropvine home">
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={logoUrl}
-              alt="Dropvine"
-              height={40}
-              className="block h-11 w-auto md:h-[60px]"
-              onError={() => setLogoUrl(DROPVINE_LOGO_URL === logoUrl ? null : DROPVINE_LOGO_URL)}
-            />
-          ) : (
-            <>Dropvine<span className="align-super text-[8px] ml-0.5 text-muted-foreground">®</span></>
-          )}
+          {logo}
         </Link>
-        <nav className="order-last w-full flex flex-wrap items-center gap-x-5 text-sm md:order-none md:w-auto md:gap-10">
-          <Link href="/drops" className={linkClass}>Shop drops</Link>
-          <Link href="/#pricing" className={linkClass}>Pricing</Link>
-          <Link href="/tools" className={linkClass}>Free tools</Link>
-          {!user ? <Link href="/login" className={`${linkClass} md:hidden`}>Log in</Link> : null}
+        <nav className="hidden lg:flex items-center gap-10 text-sm" aria-label="Main">
+          {PAGE_LINKS.map((l) => (
+            <Link key={l.href} href={l.href} className={linkClass}>{l.label}</Link>
+          ))}
         </nav>
-        <div className="flex items-center gap-4 md:gap-5 text-sm">
+        <div className="hidden lg:flex items-center gap-5 text-sm">
           {user ? (
             <>
               <Link href="/dashboard" className={linkClass}>Dashboard</Link>
@@ -81,13 +83,20 @@ export function Nav({ variant = 'light' }) {
             </>
           ) : (
             <>
-              <Link href="/login" className={`${linkClass} hidden md:inline-flex`}>Log in</Link>
+              <Link href="/login" className={linkClass}>Log in</Link>
               <Link href={primaryCtaHref} className="inline-flex items-center min-h-[44px] gap-2 border border-olive text-olive px-4 hover:bg-olive hover:text-background transition-colors">
                 {primaryCtaText} <span aria-hidden>→</span>
               </Link>
             </>
           )}
         </div>
+        <SiteMenu
+          links={PAGE_LINKS}
+          user={user}
+          onSignOut={signOut}
+          cta={{ href: primaryCtaHref, label: primaryCtaText, arrow: true }}
+          logo={logo}
+        />
       </div>
     </header>
   )

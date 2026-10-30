@@ -126,7 +126,7 @@ export default function VendorProfilePage() {
       <Nav />
 
       {/* HERO ----------------------------------------------------------- */}
-      <section className="container pt-32 md:pt-40 pb-12 md:pb-16">
+      <section className="container pt-16 md:pt-24 lg:pt-10 pb-12 md:pb-16">
         <div className="grid md:grid-cols-12 gap-10 md:gap-16 items-start">
           <div className="md:col-span-4">
             {v.photo_url || v.logo_url ? (
